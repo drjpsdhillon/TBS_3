@@ -37,13 +37,9 @@ charset-normalizer>=3.3.0
 
 # Zerodha Kite Connect & Ticker Dependencies
 kiteconnect>=4.2.0
-twisted>=22.10.0
-autobahn>=23.6.0
 pyOpenSSL>=23.2.0
 service-identity>=23.1.0
-cffi>=1.15.0
 cryptography>=41.0.0
-pycparser>=2.21
 
 # Networking & WebSockets
 python-socketio>=5.10.0
