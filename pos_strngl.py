@@ -352,24 +352,47 @@ def calculate_pos_strikes_for(strat):
         return False, "Instruments cache empty"
 
     idx_name = strat.get("index_name", "NIFTY")
-    expiry = str(strat.get("expiry") or "").strip()
-    target_ce = float(strat.get("ce_premium", 80.0))
-    target_pe = float(strat.get("pe_premium", 80.0))
-
-    # If no expiry explicitly assigned, auto-select nearest available expiry
+    # Compute all upcoming expiries and monthly expiries (last expiry of each month)
     available_expiries = sorted(list({
         str(i.get("expiry")) for i in inst_list 
         if i.get("name") == idx_name and i.get("expiry") and str(i.get("expiry")) >= datetime.today().strftime("%Y-%m-%d")
     }))
 
-    if not expiry:
-        if available_expiries:
+    month_map = {}
+    for d_str in available_expiries:
+        ym = d_str[:7]
+        if ym not in month_map or d_str > month_map[ym]:
+            month_map[ym] = d_str
+    monthly_expiries = sorted(month_map.values())
+
+    # Resolve dynamic token (CURRENT / CURRENT_MONTH / NEXT / NEXT_MONTH) or explicit date
+    exp_upper = expiry.upper()
+    if exp_upper in ("CURRENT", "CURRENT_MONTH", "CURRENT_MONTHLY", "CURRENT_EXPIRY", "NEAREST") or not expiry:
+        if monthly_expiries:
+            expiry = monthly_expiries[0]
+            strat["resolved_expiry"] = expiry
+            log_pos(f"[{strat.get('name')}] Resolved Current Month Expiry (Last expiry of month): {expiry}")
+        elif available_expiries:
             expiry = available_expiries[0]
-            strat["expiry"] = expiry
-            log_pos(f"[{strat.get('name')}] Auto-selected nearest expiry: {expiry}")
+            strat["resolved_expiry"] = expiry
+            log_pos(f"[{strat.get('name')}] Resolved Current Expiry fallback: {expiry}")
         else:
             log_pos(f"[{strat.get('name')}] Calculation error: No valid active expiries found for {idx_name}.")
             return False, f"No active expiries found for {idx_name}"
+    elif exp_upper in ("NEXT", "NEXT_MONTH", "NEXT_MONTHLY", "NEXT_EXPIRY", "NEXT_NEAREST"):
+        if monthly_expiries:
+            expiry = monthly_expiries[1] if len(monthly_expiries) > 1 else monthly_expiries[0]
+            strat["resolved_expiry"] = expiry
+            log_pos(f"[{strat.get('name')}] Resolved Next Month Expiry (Last expiry of next month): {expiry}")
+        elif available_expiries:
+            expiry = available_expiries[1] if len(available_expiries) > 1 else available_expiries[0]
+            strat["resolved_expiry"] = expiry
+            log_pos(f"[{strat.get('name')}] Resolved Next Expiry fallback: {expiry}")
+        else:
+            log_pos(f"[{strat.get('name')}] Calculation error: No valid active expiries found for {idx_name}.")
+            return False, f"No active expiries found for {idx_name}"
+    else:
+        strat["resolved_expiry"] = expiry
 
     candidates = [
         i for i in inst_list

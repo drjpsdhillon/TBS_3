@@ -2468,7 +2468,11 @@
                                 </div>
                                 <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
                                     <span style="color: var(--text-secondary); font-weight: 600;">Expiry:</span>
-                                    <span style="font-family: monospace; color: var(--text-primary); font-weight: 600;">${s.expiry || '--'}</span>
+                                    <span style="font-family: monospace; color: var(--text-primary); font-weight: 700;">
+                                        ${s.expiry === 'CURRENT' ? '⚡ Current Expiry' + (s.resolved_expiry ? ` (${s.resolved_expiry})` : '') : 
+                                          s.expiry === 'NEXT' ? '📅 Next Expiry' + (s.resolved_expiry ? ` (${s.resolved_expiry})` : '') : 
+                                          (s.expiry || '--')}
+                                    </span>
                                 </div>
                                 <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
                                     <span style="color: var(--text-secondary); font-weight: 600;">Targets:</span>
@@ -2700,16 +2704,34 @@
 
         async function loadExpiries(indexName) {
             const idx = indexName || document.getElementById('indexName').value || 'NIFTY';
-            const list = await api(`/api/expiries?index=${idx}`);
+            const data = await api(`/api/expiries?index=${idx}`);
             const select = document.getElementById('expirySelect');
             const currentVal = select.value;
-            if (list && list.length > 0) {
-                select.innerHTML = list.map(d => `<option value="${d}">${d}</option>`).join('');
-                if (currentVal && list.includes(currentVal)) {
+            
+            const dates = Array.isArray(data) ? data : (data?.dates || []);
+            const curExp = (!Array.isArray(data) && data?.current_expiry) ? data.current_expiry : (dates[0] || '');
+            const nextExp = (!Array.isArray(data) && data?.next_expiry) ? data.next_expiry : (dates[1] || curExp);
+
+            if (dates && dates.length > 0) {
+                let optionsHtml = '';
+                optionsHtml += `<option value="CURRENT">⚡ Current Expiry (${curExp})</option>`;
+                if (dates.length > 1) {
+                    optionsHtml += `<option value="NEXT">📅 Next Expiry (${nextExp})</option>`;
+                }
+                optionsHtml += `<optgroup label="All Expiry Dates">`;
+                dates.forEach(d => {
+                    optionsHtml += `<option value="${d}">${d}</option>`;
+                });
+                optionsHtml += `</optgroup>`;
+                
+                select.innerHTML = optionsHtml;
+                if (currentVal && (currentVal === 'CURRENT' || currentVal === 'NEXT' || dates.includes(currentVal))) {
                     select.value = currentVal;
+                } else {
+                    select.value = 'CURRENT';
                 }
             } else {
-                select.innerHTML = `<option value="">No active expiries found for ${idx}</option>`;
+                select.innerHTML = `<option value="CURRENT">Current Expiry</option><option value="NEXT">Next Expiry</option>`;
             }
         }
 
@@ -2780,17 +2802,42 @@
 
         async function loadPosExpiries(preferredExpiry) {
             const idx = document.getElementById('posIndexName').value || 'NIFTY';
-            const list = await api(`/api/expiries?index=${idx}`);
+            const data = await api(`/api/expiries?index=${idx}`);
             const select = document.getElementById('posExpirySelect');
-            if (list && list.length > 0) {
-                select.innerHTML = list.map(d => `<option value="${d}">${d}</option>`).join('');
-                if (preferredExpiry && list.includes(preferredExpiry)) {
+            const dates = Array.isArray(data) ? data : (data?.dates || []);
+            const monthlyDates = (!Array.isArray(data) && data?.monthly_expiries) ? data.monthly_expiries : [];
+            const curMonthExp = (!Array.isArray(data) && data?.current_month_expiry) ? data.current_month_expiry : (monthlyDates[0] || dates[0] || '');
+            const nextMonthExp = (!Array.isArray(data) && data?.next_month_expiry) ? data.next_month_expiry : (monthlyDates[1] || curMonthExp);
+
+            if (dates && dates.length > 0) {
+                let optionsHtml = '';
+                optionsHtml += `<option value="CURRENT">⚡ Current Month Expiry (${curMonthExp})</option>`;
+                if (nextMonthExp && nextMonthExp !== curMonthExp) {
+                    optionsHtml += `<option value="NEXT">📅 Next Month Expiry (${nextMonthExp})</option>`;
+                }
+                
+                if (monthlyDates.length > 0) {
+                    optionsHtml += `<optgroup label="Monthly Expiries (Last Expiry of Month)">`;
+                    monthlyDates.forEach(d => {
+                        optionsHtml += `<option value="${d}">${d} (Monthly)</option>`;
+                    });
+                    optionsHtml += `</optgroup>`;
+                }
+
+                optionsHtml += `<optgroup label="All Upcoming Expiry Dates">`;
+                dates.forEach(d => {
+                    optionsHtml += `<option value="${d}">${d}</option>`;
+                });
+                optionsHtml += `</optgroup>`;
+
+                select.innerHTML = optionsHtml;
+                if (preferredExpiry && (preferredExpiry === 'CURRENT' || preferredExpiry === 'NEXT' || dates.includes(preferredExpiry))) {
                     select.value = preferredExpiry;
                 } else {
-                    select.value = list[0]; // Auto-select nearest upcoming expiry
+                    select.value = 'CURRENT'; // Auto-select Current Month Expiry
                 }
             } else {
-                select.innerHTML = `<option value="">No active expiries for ${idx}</option>`;
+                select.innerHTML = `<option value="CURRENT">Current Month Expiry</option><option value="NEXT">Next Month Expiry</option>`;
             }
         }
 
@@ -2919,7 +2966,11 @@
                             <div style="background: #ffffff; padding: 12px; border-radius: var(--radius-sm); font-size: 12px; margin-bottom: 8px; border: 1px solid var(--border-color);">
                                 <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
                                     <span style="color: var(--text-secondary); font-weight: 600;">Expiry:</span>
-                                    <span style="font-family: monospace; font-weight: 600; color: var(--text-primary);">${s.expiry || '--'}</span>
+                                    <span style="font-family: monospace; font-weight: 700; color: var(--text-primary);">
+                                        ${s.expiry === 'CURRENT' || s.expiry === 'CURRENT_MONTH' ? '⚡ Current Month' + (s.resolved_expiry ? ` (${s.resolved_expiry})` : '') : 
+                                          s.expiry === 'NEXT' || s.expiry === 'NEXT_MONTH' ? '📅 Next Month' + (s.resolved_expiry ? ` (${s.resolved_expiry})` : '') : 
+                                          (s.expiry || '--')}
+                                    </span>
                                 </div>
                                 <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
                                     <span style="color: var(--text-secondary); font-weight: 600;">Target Premiums:</span>

@@ -234,6 +234,67 @@ def get_expiries_for_index(index_name):
     return sorted(list(dates_set))
 
 
+def get_monthly_expiries_for_index(index_name):
+    """
+    Computes monthly expiries by grouping all upcoming expiries by Year-Month (YYYY-MM)
+    and picking the last expiry date of each month.
+    """
+    all_expiries = get_expiries_for_index(index_name)
+    if not all_expiries:
+        return []
+    
+    # Group by YYYY-MM and find maximum date in each month
+    month_map = {}
+    for d_str in all_expiries:
+        ym = d_str[:7]  # 'YYYY-MM'
+        if ym not in month_map or d_str > month_map[ym]:
+            month_map[ym] = d_str
+
+    monthly_list = sorted(month_map.values())
+    return monthly_list
+
+
+def resolve_strategy_expiry(index_name, configured_expiry):
+    """
+    Resolves dynamic expiry tokens ('CURRENT', 'NEXT') or explicit dates into a concrete YYYY-MM-DD date string for intraday.
+    - 'CURRENT' / 'CURRENT_EXPIRY': nearest upcoming weekly/monthly expiry date
+    - 'NEXT' / 'NEXT_EXPIRY': 2nd nearest upcoming expiry date
+    - Concrete date 'YYYY-MM-DD': returned as-is
+    """
+    expiries = get_expiries_for_index(index_name)
+    if not expiries:
+        return configured_expiry
+
+    exp_key = str(configured_expiry or "").strip().upper()
+    if exp_key in ("CURRENT", "CURRENT_EXPIRY", "NEAREST", "CURRENT_MONTH", "CURRENT_MONTHLY"):
+        return expiries[0]
+    elif exp_key in ("NEXT", "NEXT_EXPIRY", "NEXT_NEAREST", "NEXT_MONTH", "NEXT_MONTHLY"):
+        return expiries[1] if len(expiries) > 1 else expiries[0]
+    elif configured_expiry in expiries:
+        return configured_expiry
+    return configured_expiry or expiries[0]
+
+
+def resolve_pos_strategy_expiry(index_name, configured_expiry):
+    """
+    Resolves dynamic monthly expiry tokens ('CURRENT', 'CURRENT_MONTH', 'NEXT', 'NEXT_MONTH')
+    for positional strategies to the nearest monthly last expiry and next month's last expiry.
+    """
+    monthly_expiries = get_monthly_expiries_for_index(index_name)
+    all_expiries = get_expiries_for_index(index_name)
+    if not monthly_expiries:
+        return resolve_strategy_expiry(index_name, configured_expiry)
+
+    exp_key = str(configured_expiry or "").strip().upper()
+    if exp_key in ("CURRENT", "CURRENT_EXPIRY", "NEAREST", "CURRENT_MONTH", "CURRENT_MONTHLY"):
+        return monthly_expiries[0]
+    elif exp_key in ("NEXT", "NEXT_EXPIRY", "NEXT_NEAREST", "NEXT_MONTH", "NEXT_MONTHLY"):
+        return monthly_expiries[1] if len(monthly_expiries) > 1 else monthly_expiries[0]
+    elif configured_expiry in all_expiries or configured_expiry in monthly_expiries:
+        return configured_expiry
+    return configured_expiry or monthly_expiries[0]
+
+
 def get_spot_and_future_ltp(index_name):
     global kite_client, futures_cache
     cash_sym = SPOT_SYMBOL_MAP.get(index_name, f"NSE:{index_name}")
@@ -953,13 +1014,17 @@ def run_pre_entry_calculations_for(strat):
 
     sname = strat.get("name", "Strategy")
     index_name = strat.get("index_name", "NIFTY")
-    expiry = strat.get("expiry")
+    raw_expiry = strat.get("expiry")
     target_ce = strat.get("ce_premium", 100.0)
     target_pe = strat.get("pe_premium", 100.0)
 
-    if not expiry:
+    if not raw_expiry:
         log_execution(f"[{sname}] Error: No expiry date configured for calculations.")
         return
+
+    # Resolve dynamic token (CURRENT / NEXT) or explicit date
+    expiry = resolve_strategy_expiry(index_name, raw_expiry)
+    strat["resolved_expiry"] = expiry
 
     # Filter instruments matching name and expiry
     candidates = [
@@ -968,10 +1033,10 @@ def run_pre_entry_calculations_for(strat):
     ]
 
     if not candidates:
-        log_execution(f"[{sname}] No option instruments found for {index_name} on expiry {expiry}")
+        log_execution(f"[{sname}] No option instruments found for {index_name} on expiry {expiry} (Configured: {raw_expiry})")
         return
 
-    log_execution(f"[{sname}] Filtering {len(candidates)} option contracts for {index_name} ({expiry}). Fetching LTPs...")
+    log_execution(f"[{sname}] Filtering {len(candidates)} option contracts for {index_name} (Expiry: {expiry} | Target: {raw_expiry}). Fetching LTPs...")
 
     # Get spot LTP for range narrowing
     spot_symbol = SPOT_SYMBOL_MAP.get(index_name, f"NSE:{index_name}")
@@ -1484,8 +1549,25 @@ def api_delete_strategy(strat_id):
 @app.route("/api/expiries", methods=["GET"])
 def api_get_expiries():
     index_name = request.args.get("index") or (strategies_store[0].get("index_name") if strategies_store else "NIFTY")
-    expiries = get_expiries_for_index(index_name.upper())
-    return jsonify(expiries)
+    idx_upper = index_name.upper()
+    expiries = get_expiries_for_index(idx_upper)
+    monthly_expiries = get_monthly_expiries_for_index(idx_upper)
+    
+    current_exp = expiries[0] if len(expiries) > 0 else None
+    next_exp = expiries[1] if len(expiries) > 1 else current_exp
+
+    current_month_exp = monthly_expiries[0] if len(monthly_expiries) > 0 else current_exp
+    next_month_exp = monthly_expiries[1] if len(monthly_expiries) > 1 else current_month_exp
+
+    return jsonify({
+        "current_expiry": current_exp,
+        "next_expiry": next_exp,
+        "current_month_expiry": current_month_exp,
+        "next_month_expiry": next_month_exp,
+        "monthly_expiries": monthly_expiries,
+        "dates": expiries,
+        "expiries": expiries  # legacy list fallback
+    })
 
 
 @app.route("/api/lot-sizes", methods=["GET"])
