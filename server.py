@@ -383,8 +383,8 @@ def create_default_strategy():
         "status": "Idle",
         "run_tag": None,
         "orders": {
-            "CE": {"symbol": None, "entry_price": 0.0, "sell_order_id": None, "sl_order_id": None, "sl_modified_to_be": False, "reentries_done": 0},
-            "PE": {"symbol": None, "entry_price": 0.0, "sell_order_id": None, "sl_order_id": None, "sl_modified_to_be": False, "reentries_done": 0},
+            "CE": {"symbol": None, "first_entry_price": 0.0, "entry_price": 0.0, "sell_order_id": None, "sl_order_id": None, "reentry_order_id": None, "sl_modified_to_be": False, "reentries_done": 0, "status": "PENDING"},
+            "PE": {"symbol": None, "first_entry_price": 0.0, "entry_price": 0.0, "sell_order_id": None, "sl_order_id": None, "reentry_order_id": None, "sl_modified_to_be": False, "reentries_done": 0, "status": "PENDING"},
             "orders_placed": False
         },
         "selected_ce": None,
@@ -415,14 +415,16 @@ def load_strategies():
                     s.setdefault("sl_type", "POINTS")
                     s.setdefault("sl_percent", 20.0)
                     s.setdefault("orders", {
-                        "CE": {"symbol": None, "entry_price": 0.0, "sell_order_id": None, "sl_order_id": None, "sl_modified_to_be": False, "reentries_done": 0},
-                        "PE": {"symbol": None, "entry_price": 0.0, "sell_order_id": None, "sl_order_id": None, "sl_modified_to_be": False, "reentries_done": 0},
+                        "CE": {"symbol": None, "first_entry_price": 0.0, "entry_price": 0.0, "sell_order_id": None, "sl_order_id": None, "reentry_order_id": None, "sl_modified_to_be": False, "reentries_done": 0, "status": "PENDING"},
+                        "PE": {"symbol": None, "first_entry_price": 0.0, "entry_price": 0.0, "sell_order_id": None, "sl_order_id": None, "reentry_order_id": None, "sl_modified_to_be": False, "reentries_done": 0, "status": "PENDING"},
                         "orders_placed": False
                     })
-                    if "CE" in s["orders"]:
-                        s["orders"]["CE"].setdefault("reentries_done", 0)
-                    if "PE" in s["orders"]:
-                        s["orders"]["PE"].setdefault("reentries_done", 0)
+                    for leg in ["CE", "PE"]:
+                        if leg in s["orders"]:
+                            s["orders"][leg].setdefault("first_entry_price", s["orders"][leg].get("entry_price", 0.0))
+                            s["orders"][leg].setdefault("reentry_order_id", None)
+                            s["orders"][leg].setdefault("reentries_done", 0)
+                            s["orders"][leg].setdefault("status", "PENDING")
                     s.setdefault("calculation_triggered", False)
                     s.setdefault("order_triggered", False)
                     s.setdefault("exit_triggered", False)
@@ -477,37 +479,123 @@ def get_or_create_strat_tag(strat):
 def reset_strat_orders(strat, preserve_tag=False):
     old_tag = strat.get("run_tag") if preserve_tag else None
     strat["orders"] = {
-        "CE": {"symbol": None, "entry_price": 0.0, "sell_order_id": None, "sl_order_id": None, "sl_modified_to_be": False, "reentries_done": 0},
-        "PE": {"symbol": None, "entry_price": 0.0, "sell_order_id": None, "sl_order_id": None, "sl_modified_to_be": False, "reentries_done": 0},
+        "CE": {"symbol": None, "first_entry_price": 0.0, "entry_price": 0.0, "sell_order_id": None, "sl_order_id": None, "reentry_order_id": None, "sl_modified_to_be": False, "reentries_done": 0, "status": "PENDING"},
+        "PE": {"symbol": None, "first_entry_price": 0.0, "entry_price": 0.0, "sell_order_id": None, "sl_order_id": None, "reentry_order_id": None, "sl_modified_to_be": False, "reentries_done": 0, "status": "PENDING"},
         "orders_placed": False
     }
     if not preserve_tag:
         strat["run_tag"] = None
 
-
 INTRADAY_PNL_CSV = os.path.join(BASE_DIR, "intraday_PnL.csv")
 INTRADAY_PNL_XLSX = os.path.join(BASE_DIR, "intraday_PnL.xlsx")
 _last_eod_recorded_date = ""
 
+def load_intraday_pnl_records():
+    """Loads existing daily summary records from intraday_PnL.csv."""
+    records = []
+    if not os.path.exists(INTRADAY_PNL_CSV):
+        return records
+    try:
+        with open(INTRADAY_PNL_CSV, "r", encoding="utf-8") as f:
+            lines = [l.strip() for l in f if l.strip() and not l.startswith("#")]
+            if len(lines) > 1:
+                for line in lines[1:]:
+                    parts = [p.strip() for p in line.split(",")]
+                    if len(parts) >= 11:
+                        records.append({
+                            "Serial_No": int(parts[0]) if parts[0].isdigit() else len(records) + 1,
+                            "Date": parts[1],
+                            "Time": parts[2],
+                            "Day_Total_PnL": float(parts[3]) if parts[3].replace("-","").replace(".","").isdigit() else 0.0,
+                            "Cumulative_PnL": float(parts[4]) if parts[4].replace("-","").replace(".","").isdigit() else 0.0,
+                            "NIFTY_PnL": float(parts[5]) if parts[5].replace("-","").replace(".","").isdigit() else 0.0,
+                            "BANKNIFTY_PnL": float(parts[6]) if parts[6].replace("-","").replace(".","").isdigit() else 0.0,
+                            "FINNIFTY_PnL": float(parts[7]) if parts[7].replace("-","").replace(".","").isdigit() else 0.0,
+                            "MIDCPNIFTY_PnL": float(parts[8]) if parts[8].replace("-","").replace(".","").isdigit() else 0.0,
+                            "SENSEX_PnL": float(parts[9]) if parts[9].replace("-","").replace(".","").isdigit() else 0.0,
+                            "Status": parts[10] if len(parts) > 10 else "CLOSED"
+                        })
+    except Exception as e:
+        logger.warning(f"Failed parsing {INTRADAY_PNL_CSV}: {e}")
+    return records
+
+
+MTM_CURVE_DATA_FILE = os.path.join(BASE_DIR, "mtm_curve_data.json")
+
+def load_mtm_curve_data():
+    """Loads stored MTM curve data. If market has not opened on the new day (night/holiday/weekend), retains and serves the previous trading day session."""
+    now = datetime.now()
+    today_str = now.strftime("%Y-%m-%d")
+    now_time_str = now.strftime("%H:%M:%S")
+
+    if not os.path.exists(MTM_CURVE_DATA_FILE):
+        return {"date": today_str, "points": [], "is_previous_day": False}
+    try:
+        with open(MTM_CURVE_DATA_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            file_date = data.get("date", today_str)
+
+            if file_date != today_str:
+                # If new day's market has officially started (>= 09:15 AM):
+                if now_time_str >= "09:15:00":
+                    data["previous_session_date"] = file_date
+                    data["previous_session_points"] = data.get("points", [])
+                    data["date"] = today_str
+                    data["points"] = []
+                    data["is_previous_day"] = False
+                    save_mtm_curve_data(data)
+                    return data
+                else:
+                    # Off-market / holiday / morning before 09:15 -> Keep displaying last trading day's curve
+                    data["is_previous_day"] = True
+                    return data
+            else:
+                data["is_previous_day"] = False
+                return data
+    except Exception as e:
+        logger.warning(f"Failed loading {MTM_CURVE_DATA_FILE}: {e}")
+        return {"date": today_str, "points": [], "is_previous_day": False}
+
+
+def save_mtm_curve_data(data):
+    """Saves intraday MTM curve points to JSON file."""
+    try:
+        with open(MTM_CURVE_DATA_FILE, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2)
+    except Exception as e:
+        logger.error(f"Failed saving {MTM_CURVE_DATA_FILE}: {e}")
+
+
+def rewrite_intraday_pnl_file(records):
+    """Writes clean structured intraday_PnL.csv."""
+    with open(INTRADAY_PNL_CSV, "w", encoding="utf-8") as f:
+        f.write("# ==========================================================================\n")
+        f.write("# DAILY INTRADAY P&L & CUMULATIVE STRATEGY JOURNAL\n")
+        f.write("# ==========================================================================\n")
+        f.write("Serial_No,Date,Time,Day_Total_PnL,Cumulative_PnL,NIFTY_PnL,BANKNIFTY_PnL,FINNIFTY_PnL,MIDCPNIFTY_PnL,SENSEX_PnL,Status\n")
+        for r in records:
+            f.write(f"{r['Serial_No']},{r['Date']},{r['Time']},{r['Day_Total_PnL']:.2f},{r['Cumulative_PnL']:.2f},{r['NIFTY_PnL']:.2f},{r['BANKNIFTY_PnL']:.2f},{r['FINNIFTY_PnL']:.2f},{r['MIDCPNIFTY_PnL']:.2f},{r['SENSEX_PnL']:.2f},{r['Status']}\n")
+
+
 def record_eod_intraday_pnl(force=False):
-    """Calculates each instrument's daily PnL and saves to intraday_PnL.csv and multi-sheet Excel file."""
+    """Calculates each instrument's daily PnL, computes cumulative intraday total, and saves to CSV and Excel."""
     global kite_client, strategies_store, _last_eod_recorded_date
     today_str = datetime.now().strftime("%Y-%m-%d")
     now_time_str = datetime.now().strftime("%H:%M:%S")
 
     if not force and _last_eod_recorded_date == today_str:
-        return
+        return True, "Already recorded for today"
 
     if not kite_client:
-        return
+        return False, "Not connected to Kite"
 
     try:
-        log_execution(f"📊 Recording EOD Intraday P&L per instrument at {now_time_str}...")
+        log_execution(f"📊 Recording Daily Intraday P&L at {now_time_str}...")
         positions_res = kite_client.positions()
         net_pos = positions_res.get("net", []) if isinstance(positions_res, dict) else (positions_res or [])
 
         # Map active & historical strategy symbols to instruments
-        strat_symbols_map = {} # tradingsymbol -> instrument_name
+        strat_symbols_map = {}
         for s in strategies_store:
             idx = s.get("index_name", "NIFTY")
             if s.get("selected_ce"): strat_symbols_map[s["selected_ce"]] = idx
@@ -522,10 +610,14 @@ def record_eod_intraday_pnl(force=False):
         instrument_records = {}
 
         for p in net_pos:
+            product = str(p.get("product", "")).upper()
+            # Only record Intraday (MIS) trades in intraday_PnL.csv
+            if product in ["NRML", "CNC"]:
+                continue
+
             sym = p.get("tradingsymbol", "")
             pnl = float(p.get("pnl", 0.0) or p.get("m2m", 0.0) or 0.0)
             
-            # Detect instrument name
             detected_inst = strat_symbols_map.get(sym)
             if not detected_inst:
                 for inst_key in ["BANKNIFTY", "FINNIFTY", "MIDCPNIFTY", "SENSEX", "NIFTY"]:
@@ -551,35 +643,66 @@ def record_eod_intraday_pnl(force=False):
                     "TotalPnL": round(pnl, 2)
                 })
 
-        # 1. Write clean structured intraday_PnL.csv (grouped by instrument sections)
-        csv_file_exists = os.path.exists(INTRADAY_PNL_CSV)
-        with open(INTRADAY_PNL_CSV, "a", encoding="utf-8") as f:
-            if not csv_file_exists or os.path.getsize(INTRADAY_PNL_CSV) == 0:
-                f.write("# ==========================================================================\n")
-                f.write("# DAILY INTRADAY P&L REPORT PER INSTRUMENT\n")
-                f.write("# ==========================================================================\n")
-                f.write("Date,Time,Instrument,Total_PnL,Status\n")
+        today_day_pnl = round(sum(instrument_pnl.values()), 2)
 
-            for inst, tot_pnl in instrument_pnl.items():
-                if tot_pnl != 0.0 or inst in instrument_records:
-                    f.write(f"{today_str},{now_time_str},{inst},{tot_pnl:.2f},CLOSED\n")
+        # 1. Update Daily Journal with Cumulative P&L Tracking
+        existing_records = load_intraday_pnl_records()
+        target_rec = next((r for r in existing_records if r.get("Date") == today_str), None)
 
-        # 2. Try writing multi-sheet Excel file if openpyxl/pandas is available
+        if target_rec:
+            target_rec["Time"] = now_time_str
+            target_rec["Day_Total_PnL"] = today_day_pnl
+            target_rec["NIFTY_PnL"] = instrument_pnl.get("NIFTY", 0.0)
+            target_rec["BANKNIFTY_PnL"] = instrument_pnl.get("BANKNIFTY", 0.0)
+            target_rec["FINNIFTY_PnL"] = instrument_pnl.get("FINNIFTY", 0.0)
+            target_rec["MIDCPNIFTY_PnL"] = instrument_pnl.get("MIDCPNIFTY", 0.0)
+            target_rec["SENSEX_PnL"] = instrument_pnl.get("SENSEX", 0.0)
+            target_rec["Status"] = "RECORDED"
+        else:
+            new_rec = {
+                "Serial_No": len(existing_records) + 1,
+                "Date": today_str,
+                "Time": now_time_str,
+                "Day_Total_PnL": today_day_pnl,
+                "Cumulative_PnL": 0.0,
+                "NIFTY_PnL": instrument_pnl.get("NIFTY", 0.0),
+                "BANKNIFTY_PnL": instrument_pnl.get("BANKNIFTY", 0.0),
+                "FINNIFTY_PnL": instrument_pnl.get("FINNIFTY", 0.0),
+                "MIDCPNIFTY_PnL": instrument_pnl.get("MIDCPNIFTY", 0.0),
+                "SENSEX_PnL": instrument_pnl.get("SENSEX", 0.0),
+                "Status": "RECORDED"
+            }
+            existing_records.append(new_rec)
+
+        # Recalculate cumulative PnL across all days
+        running_cum = 0.0
+        for r in existing_records:
+            running_cum = round(running_cum + float(r.get("Day_Total_PnL", 0.0)), 2)
+            r["Cumulative_PnL"] = running_cum
+
+        rewrite_intraday_pnl_file(existing_records)
+
+        # 2. Write multi-sheet Excel file
         try:
             import pandas as pd
             excel_path = INTRADAY_PNL_XLSX
-            # Load existing sheets or create new
             with pd.ExcelWriter(excel_path, engine="openpyxl", mode="a" if os.path.exists(excel_path) else "w") as writer:
+                # Write Daily Summary Sheet
+                df_summary = pd.DataFrame(existing_records)
+                df_summary.to_excel(writer, sheet_name="Daily_Summary", index=False)
+
+                # Write contract breakdowns per instrument
                 for inst, records in instrument_records.items():
-                    df = pd.DataFrame(records)
-                    sheet_name = f"{inst}_{today_str.replace('-', '')}"[:31]
-                    df.to_excel(writer, sheet_name=sheet_name, index=False)
+                    if records:
+                        df = pd.DataFrame(records)
+                        sheet_name = f"{inst}_{today_str.replace('-', '')}"[:31]
+                        df.to_excel(writer, sheet_name=sheet_name, index=False)
         except Exception:
-            pass  # Fallback to CSV format
+            pass
 
         _last_eod_recorded_date = today_str
-        log_execution(f"✅ Intraday PnL saved to {INTRADAY_PNL_CSV} (Summary: {json.dumps(instrument_pnl)})")
-        return True, instrument_pnl
+        log_execution(f"✅ Intraday PnL saved to {INTRADAY_PNL_CSV} (Today: ₹{today_day_pnl:.2f}, Cumulative: ₹{running_cum:.2f})")
+        return True, {"today_pnl": today_day_pnl, "cumulative_pnl": running_cum, "instruments": instrument_pnl}
     except Exception as e:
         logger.error(f"Error recording EOD Intraday PnL: {e}")
         return False, str(e)
@@ -675,64 +798,12 @@ def strategy_thread_loop():
                 logger.error(f"Error in scheduler for strategy '{strat.get('name')}': {e}")
 
 
-def poll_orders_and_manage_sl_for(strat):
+def place_intraday_reentry_order_for_leg(strat, leg):
+    """Places a Limit Re-entry Order for leg (CE or PE) at original first_entry_price."""
     global kite_client
     sname = strat.get("name", "Strategy")
-    if not kite_client or not strat.get("orders", {}).get("orders_placed"):
-        return
-
-    try:
-        orders = kite_client.orders()
-        order_dict = {str(o.get("order_id")): o for o in orders}
-
-        ce_sl_id = strat["orders"]["CE"].get("sl_order_id")
-        pe_sl_id = strat["orders"]["PE"].get("sl_order_id")
-
-        ce_sl_order = order_dict.get(str(ce_sl_id)) if ce_sl_id else None
-        pe_sl_order = order_dict.get(str(pe_sl_id)) if pe_sl_id else None
-
-        ce_status = ce_sl_order.get("status") if ce_sl_order else None
-        pe_status = pe_sl_order.get("status") if pe_sl_order else None
-
-        # Case 1: CE SL Hit -> Move PE to Breakeven & Trigger CE Reentry (if allowed)
-        if ce_status == "COMPLETE" and pe_status in ["OPEN", "TRIGGER PENDING"] and not strat["orders"]["PE"]["sl_modified_to_be"]:
-            pe_entry = strat["orders"]["PE"]["entry_price"]
-            if pe_entry > 0 and pe_sl_id:
-                log_execution(f"[{sname}] CE Stop-Loss triggered! Modifying PE SL order ({pe_sl_id}) to Breakeven at entry price: {pe_entry:.2f}")
-                modify_sl_to_breakeven_for(strat, "PE", pe_sl_id, pe_entry)
-
-            # Check and execute Reentry for CE
-            max_reentry = int(strat.get("reentry_count", 0))
-            done_reentry = int(strat["orders"]["CE"].get("reentries_done", 0))
-            if done_reentry < max_reentry:
-                execute_reentry_for(strat, "CE")
-
-        # Case 2: PE SL Hit -> Move CE to Breakeven & Trigger PE Reentry (if allowed)
-        if pe_status == "COMPLETE" and ce_status in ["OPEN", "TRIGGER PENDING"] and not strat["orders"]["CE"]["sl_modified_to_be"]:
-            ce_entry = strat["orders"]["CE"]["entry_price"]
-            if ce_entry > 0 and ce_sl_id:
-                log_execution(f"[{sname}] PE Stop-Loss triggered! Modifying CE SL order ({ce_sl_id}) to Breakeven at entry price: {ce_entry:.2f}")
-                modify_sl_to_breakeven_for(strat, "CE", ce_sl_id, ce_entry)
-
-            # Check and execute Reentry for PE
-            max_reentry = int(strat.get("reentry_count", 0))
-            done_reentry = int(strat["orders"]["PE"].get("reentries_done", 0))
-            if done_reentry < max_reentry:
-                execute_reentry_for(strat, "PE")
-
-    except Exception as e:
-        logger.error(f"[{sname}] Error polling order book: {e}")
-
-
-def execute_reentry_for(strat, leg):
-    """
-    Places a fresh entry order (SELL or BUY) at original entry price along with its Stop-Loss order
-    for the leg whose SL was hit.
-    """
-    global kite_client, strategies_store
-    sname = strat.get("name", "Strategy")
     sym = strat["orders"][leg].get("symbol")
-    orig_entry = strat["orders"][leg].get("entry_price", 0.0)
+    first_price = float(strat["orders"][leg].get("first_entry_price", 0.0) or strat["orders"][leg].get("entry_price", 0.0))
     qty = strat.get("quantity", 65)
     current_tag = get_or_create_strat_tag(strat)
     product = strat.get("product", "MIS").upper()
@@ -740,24 +811,15 @@ def execute_reentry_for(strat, leg):
         product = "MIS"
 
     entry_action = strat.get("entry_action", "SELL").upper()
-    if entry_action not in ("BUY", "SELL"):
-        entry_action = "SELL"
+    txn_type = kite_client.TRANSACTION_TYPE_BUY if entry_action == "BUY" else kite_client.TRANSACTION_TYPE_SELL
 
-    if not sym or orig_entry <= 0:
-        log_execution(f"[{sname}] Cannot re-enter {leg}: missing symbol or original entry price.")
-        return
-
-    strat["orders"][leg]["reentries_done"] = int(strat["orders"][leg].get("reentries_done", 0)) + 1
-    done_count = strat["orders"][leg]["reentries_done"]
-    max_count = int(strat.get("reentry_count", 0))
-
-    log_execution(f"[{sname}] 🔄 Re-entry [{done_count}/{max_count}] triggered for {leg} ({sym}) [{entry_action}] at Original Entry Price: ₹{orig_entry:.2f}")
+    if not sym or first_price <= 0:
+        log_execution(f"[{sname}] Cannot place re-entry for {leg}: missing symbol or original entry price.")
+        return None
 
     try:
-        # 1. Place fresh entry order at original entry price
-        order_price = round(float(orig_entry) * 20) / 20
-        txn_type = kite_client.TRANSACTION_TYPE_BUY if entry_action == "BUY" else kite_client.TRANSACTION_TYPE_SELL
-
+        order_price = round(first_price * 20) / 20
+        log_execution(f"[{sname}] Placing Re-entry Limit Order for {leg} ({sym}) {entry_action} Qty:{qty} at Original Entry Price ₹{order_price:.2f}...")
         order_id = kite_client.place_order(
             variety=kite_client.VARIETY_REGULAR,
             exchange=kite_client.EXCHANGE_NFO,
@@ -769,37 +831,53 @@ def execute_reentry_for(strat, leg):
             price=float(order_price),
             tag=current_tag
         )
-        strat["orders"][leg]["sell_order_id"] = order_id
-        log_execution(f"[{sname}] Re-entry {entry_action} {sym} placed (Order ID: {order_id}, Price: ₹{order_price:.2f}).")
+        strat["orders"][leg]["reentry_order_id"] = order_id
+        strat["orders"][leg]["status"] = "REENTRY_PENDING"
+        log_execution(f"[{sname}] Re-entry Limit Order for {leg} placed. ID: {order_id} (Awaiting Execution at ₹{order_price:.2f})")
+        save_strategies(strategies_store)
+        return order_id
+    except Exception as e:
+        log_execution(f"[{sname}] Failed to place Re-entry limit order for {leg} ({sym}): {e}")
+        return None
 
-        # 2. Place fresh stop-loss order for the re-entered leg
-        sl_type = strat.get("sl_type", "POINTS").upper()
+
+def place_intraday_sl_for_reentered_leg(strat, leg):
+    """Places fresh Stop-Loss order AFTER re-entry limit order executes/fills."""
+    global kite_client
+    sname = strat.get("name", "Strategy")
+    sym = strat["orders"][leg].get("symbol")
+    first_price = float(strat["orders"][leg].get("first_entry_price", 0.0) or strat["orders"][leg].get("entry_price", 0.0))
+    qty = strat.get("quantity", 65)
+    current_tag = get_or_create_strat_tag(strat)
+    product = strat.get("product", "MIS").upper()
+    if product not in ("MIS", "NRML", "CNC"):
+        product = "MIS"
+
+    entry_action = strat.get("entry_action", "SELL").upper()
+    sl_type = strat.get("sl_type", "POINTS").upper()
+    sl_points = float(strat.get("sl_points", 20.0))
+    sl_percent = float(strat.get("sl_percent", 20.0))
+
+    try:
         if entry_action == "BUY":
-            # Long position -> SL is SELL order below entry
             if sl_type == "PERCENT":
-                sl_percent = float(strat.get("sl_percent", 20.0))
-                calculated_sl = float(order_price) * (1.0 - (sl_percent / 100.0))
+                calculated_sl = first_price * (1.0 - (sl_percent / 100.0))
             else:
-                sl_points = float(strat.get("sl_points", 20.0))
-                calculated_sl = float(order_price) - sl_points
-            
+                calculated_sl = first_price - sl_points
             calculated_sl = max(0.05, calculated_sl)
             sl_trigger = round(calculated_sl * 20) / 20
             sl_price = round((sl_trigger * 0.98) * 20) / 20
             sl_txn = kite_client.TRANSACTION_TYPE_SELL
         else:
-            # Short position -> SL is BUY order above entry
             if sl_type == "PERCENT":
-                sl_percent = float(strat.get("sl_percent", 20.0))
-                calculated_sl = float(order_price) * (1.0 + (sl_percent / 100.0))
+                calculated_sl = first_price * (1.0 + (sl_percent / 100.0))
             else:
-                sl_points = float(strat.get("sl_points", 20.0))
-                calculated_sl = float(order_price) + sl_points
-
+                calculated_sl = first_price + sl_points
             sl_trigger = round(calculated_sl * 20) / 20
             sl_price = round((sl_trigger * 1.02) * 20) / 20
             sl_txn = kite_client.TRANSACTION_TYPE_BUY
 
+        log_execution(f"[{sname}] Placing fresh SL order for re-entered {leg} ({sym}) (Trigger: ₹{sl_trigger:.2f}, Limit: ₹{sl_price:.2f})...")
         sl_order_id = kite_client.place_order(
             variety=kite_client.VARIETY_REGULAR,
             exchange=kite_client.EXCHANGE_NFO,
@@ -814,11 +892,77 @@ def execute_reentry_for(strat, leg):
         )
         strat["orders"][leg]["sl_order_id"] = sl_order_id
         strat["orders"][leg]["sl_modified_to_be"] = False
-        log_execution(f"[{sname}] Re-entry SL Order for {sym} placed (Order ID: {sl_order_id}, Trigger: ₹{sl_trigger:.2f}, Type: {sl_type}).")
+        log_execution(f"[{sname}] Fresh SL Order for re-entered {leg} placed. ID: {sl_order_id}")
         save_strategies(strategies_store)
+        return sl_order_id
+    except Exception as e:
+        log_execution(f"[{sname}] Failed placing SL for re-entered {leg} ({sym}): {e}")
+        return None
+
+
+def poll_orders_and_manage_sl_for(strat):
+    global kite_client
+    sname = strat.get("name", "Strategy")
+    if not kite_client or not strat.get("orders", {}).get("orders_placed"):
+        return
+
+    try:
+        orders = kite_client.orders()
+        order_dict = {str(o.get("order_id")): o for o in orders}
+        max_reentry = int(strat.get("reentry_count", 0))
+
+        for leg in ["CE", "PE"]:
+            opp_leg = "PE" if leg == "CE" else "CE"
+            leg_data = strat["orders"].get(leg, {})
+            leg_status = leg_data.get("status", "ACTIVE")
+
+            # 1. Active leg: check if SL hit
+            if leg_status == "ACTIVE":
+                sl_id = leg_data.get("sl_order_id")
+                sl_order = order_dict.get(str(sl_id)) if sl_id else None
+                if sl_order and sl_order.get("status") == "COMPLETE":
+                    leg_data["status"] = "SL_HIT"
+                    log_execution(f"[{sname}] 💥 {leg} Stop-Loss Order ({sl_id}) TRIGGERED/COMPLETE.")
+
+                    # Modify opposite leg to Breakeven
+                    opp_data = strat["orders"].get(opp_leg, {})
+                    if opp_data.get("status") == "ACTIVE" and not opp_data.get("sl_modified_to_be"):
+                        opp_sl_id = opp_data.get("sl_order_id")
+                        opp_entry = opp_data.get("entry_price", 0.0)
+                        if opp_sl_id and opp_entry > 0:
+                            log_execution(f"[{sname}] Modifying surviving {opp_leg} SL order ({opp_sl_id}) to Breakeven at entry price: ₹{opp_entry:.2f}")
+                            modify_sl_to_breakeven_for(strat, opp_leg, opp_sl_id, opp_entry)
+
+                    # Trigger Re-entry limit order at first_entry_price if available
+                    done_reentries = int(leg_data.get("reentries_done", 0))
+                    if done_reentries < max_reentry:
+                        log_execution(f"[{sname}] Re-entry available for {leg} ({done_reentries}/{max_reentry}). Placing Limit order at original price...")
+                        place_intraday_reentry_order_for_leg(strat, leg)
+                    else:
+                        log_execution(f"[{sname}] No more re-entries remaining for {leg} (Done: {done_reentries}/{max_reentry}).")
+                    save_strategies(strategies_store)
+
+            # 2. Re-entry pending: check if Re-entry Limit order executed
+            elif leg_status == "REENTRY_PENDING":
+                reentry_id = leg_data.get("reentry_order_id")
+                reentry_order = order_dict.get(str(reentry_id)) if reentry_id else None
+                if reentry_order:
+                    re_status = reentry_order.get("status")
+                    if re_status == "COMPLETE":
+                        leg_data["reentries_done"] = int(leg_data.get("reentries_done", 0)) + 1
+                        leg_data["status"] = "ACTIVE"
+                        done_reentries = leg_data["reentries_done"]
+                        first_price = float(leg_data.get("first_entry_price", 0.0) or leg_data.get("entry_price", 0.0))
+                        log_execution(f"[{sname}] 🔄 Re-entry #{done_reentries} for {leg} EXECUTED at ₹{first_price:.2f}! Placing fresh Stop-Loss...")
+                        place_intraday_sl_for_reentered_leg(strat, leg)
+                        save_strategies(strategies_store)
+                    elif re_status in ["CANCELLED", "REJECTED"]:
+                        leg_data["status"] = "CLOSED"
+                        log_execution(f"[{sname}] Re-entry Limit Order ({reentry_id}) for {leg} was {re_status}. Marking leg CLOSED.")
+                        save_strategies(strategies_store)
 
     except Exception as e:
-        log_execution(f"[{sname}] Failed to place Re-entry order for {leg} ({sym}): {e}")
+        logger.error(f"[{sname}] Error polling order book: {e}")
 
 
 def modify_sl_to_breakeven_for(strat, leg, sl_order_id, entry_price):
@@ -1181,8 +1325,13 @@ def run_entry_order_placement_for(strat):
             log_execution(f"[{sname}] {entry_action} {sym} placed. Order ID: {order_id}")
 
             strat["orders"][opt_type]["symbol"] = sym
+            strat["orders"][opt_type]["first_entry_price"] = last_ltp
             strat["orders"][opt_type]["entry_price"] = last_ltp
             strat["orders"][opt_type]["sell_order_id"] = order_id
+            strat["orders"][opt_type]["reentry_order_id"] = None
+            strat["orders"][opt_type]["status"] = "ACTIVE"
+            strat["orders"][opt_type]["sl_modified_to_be"] = False
+            strat["orders"][opt_type]["reentries_done"] = 0
 
             # Stop-loss calculation:
             if entry_action == "BUY":
@@ -1744,7 +1893,7 @@ def api_pos_strangle_strategies():
             if strat_id:
                 target = next((s for s in strats if s.get("id") == strat_id), None)
                 if target:
-                    for k in ["name", "index_name", "expiry", "entry_action", "product", "ce_premium", "pe_premium", "sl_type", "ce_sl_percent", "pe_sl_percent", "sl_percent", "sl_points", "tp_percent", "reentry_count", "quantity", "entry_time", "exit_time"]:
+                    for k in ["name", "index_name", "expiry", "entry_action", "product", "ce_premium", "pe_premium", "sl_type", "ce_sl_percent", "pe_sl_percent", "sl_percent", "sl_points", "tp_percent", "reentry_count", "quantity", "entry_time", "morning_sl_time", "exit_time", "start_time", "end_time"]:
                         if k in data:
                             target[k] = data[k]
                 else:
@@ -1879,6 +2028,24 @@ def api_download_pnl_csv():
     return jsonify({"status": "error", "message": "intraday_PnL.csv has not been generated yet."}), 404
 
 
+@app.route("/api/intraday_pnl/summary", methods=["GET"])
+def api_get_intraday_pnl_summary():
+    """Returns past days journal records and cumulative Intraday P&L."""
+    records = load_intraday_pnl_records()
+    today_str = datetime.now().strftime("%Y-%m-%d")
+    today_rec = next((r for r in records if r["Date"] == today_str), None)
+    today_recorded_pnl = today_rec["Day_Total_PnL"] if today_rec else 0.0
+    cum_recorded_pnl = records[-1]["Cumulative_PnL"] if records else 0.0
+
+    return jsonify({
+        "status": "ok",
+        "today_recorded_pnl": today_recorded_pnl,
+        "cumulative_recorded_pnl": cum_recorded_pnl,
+        "records_count": len(records),
+        "history": records
+    })
+
+
 @app.route("/api/pos_strangle/pnl/download", methods=["GET"])
 def api_download_pos_pnl_csv():
     """Downloads the pos_strategy_PnL.csv file directly."""
@@ -1886,6 +2053,44 @@ def api_download_pos_pnl_csv():
     if os.path.exists(pos_strngl.POS_PNL_CSV):
         return send_from_directory(BASE_DIR, "pos_strategy_PnL.csv", as_attachment=True)
     return jsonify({"status": "error", "message": "pos_strategy_PnL.csv has not been created yet."}), 404
+
+
+@app.route("/api/mtm_chart/data", methods=["GET"])
+def api_get_mtm_chart_data():
+    """Returns today's stored intraday MTM curve data points."""
+    return jsonify(load_mtm_curve_data())
+
+
+@app.route("/api/mtm_chart/data", methods=["POST"])
+def api_save_mtm_chart_point():
+    """Appends or batch saves MTM curve data points."""
+    body = request.get_json(silent=True) or {}
+    points = body.get("points")
+    point = body.get("point")
+    today_str = datetime.now().strftime("%Y-%m-%d")
+    data = load_mtm_curve_data()
+
+    if data.get("date") != today_str:
+        data["date"] = today_str
+        data["points"] = []
+
+    if points and isinstance(points, list):
+        data["points"] = points
+    elif point and isinstance(point, dict):
+        data["points"].append(point)
+        if len(data["points"]) > 5000:
+            data["points"] = data["points"][-5000:]
+
+    save_mtm_curve_data(data)
+    return jsonify({"status": "ok", "count": len(data["points"])})
+
+
+@app.route("/api/mtm_chart/clear", methods=["POST"])
+def api_clear_mtm_chart_data():
+    """Clears MTM curve data file for today."""
+    empty_data = {"date": datetime.now().strftime("%Y-%m-%d"), "points": []}
+    save_mtm_curve_data(empty_data)
+    return jsonify({"status": "ok", "message": "MTM curve data cleared"})
 
 
 @app.route("/")
