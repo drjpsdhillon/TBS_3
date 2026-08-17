@@ -375,6 +375,8 @@ def create_default_strategy():
         "sl_type": "POINTS",
         "sl_points": 20.0,
         "sl_percent": 20.0,
+        "enable_tsl": False,
+        "tsl_points": 10.0,
         "product": "MIS",
         "start_time": "09:20:00",
         "end_time": "15:15:00",
@@ -383,8 +385,8 @@ def create_default_strategy():
         "status": "Idle",
         "run_tag": None,
         "orders": {
-            "CE": {"symbol": None, "first_entry_price": 0.0, "entry_price": 0.0, "sell_order_id": None, "sl_order_id": None, "reentry_order_id": None, "sl_modified_to_be": False, "reentries_done": 0, "status": "PENDING"},
-            "PE": {"symbol": None, "first_entry_price": 0.0, "entry_price": 0.0, "sell_order_id": None, "sl_order_id": None, "reentry_order_id": None, "sl_modified_to_be": False, "reentries_done": 0, "status": "PENDING"},
+            "CE": {"symbol": None, "first_entry_price": 0.0, "entry_price": 0.0, "current_ltp": 0.0, "sell_order_id": None, "sl_order_id": None, "reentry_order_id": None, "sl_modified_to_be": False, "tsl_active": False, "tsl_base_ltp": 0.0, "current_sl_trigger": 0.0, "tsl_hit": False, "awaiting_1pct_reentry": False, "reentries_done": 0, "status": "PENDING"},
+            "PE": {"symbol": None, "first_entry_price": 0.0, "entry_price": 0.0, "current_ltp": 0.0, "sell_order_id": None, "sl_order_id": None, "reentry_order_id": None, "sl_modified_to_be": False, "tsl_active": False, "tsl_base_ltp": 0.0, "current_sl_trigger": 0.0, "tsl_hit": False, "awaiting_1pct_reentry": False, "reentries_done": 0, "status": "PENDING"},
             "orders_placed": False
         },
         "selected_ce": None,
@@ -414,9 +416,11 @@ def load_strategies():
                     s.setdefault("reentry_count", 0)
                     s.setdefault("sl_type", "POINTS")
                     s.setdefault("sl_percent", 20.0)
+                    s.setdefault("enable_tsl", False)
+                    s.setdefault("tsl_points", 10.0)
                     s.setdefault("orders", {
-                        "CE": {"symbol": None, "first_entry_price": 0.0, "entry_price": 0.0, "sell_order_id": None, "sl_order_id": None, "reentry_order_id": None, "sl_modified_to_be": False, "reentries_done": 0, "status": "PENDING"},
-                        "PE": {"symbol": None, "first_entry_price": 0.0, "entry_price": 0.0, "sell_order_id": None, "sl_order_id": None, "reentry_order_id": None, "sl_modified_to_be": False, "reentries_done": 0, "status": "PENDING"},
+                        "CE": {"symbol": None, "first_entry_price": 0.0, "entry_price": 0.0, "current_ltp": 0.0, "sell_order_id": None, "sl_order_id": None, "reentry_order_id": None, "sl_modified_to_be": False, "tsl_active": False, "tsl_base_ltp": 0.0, "current_sl_trigger": 0.0, "tsl_hit": False, "awaiting_1pct_reentry": False, "reentries_done": 0, "status": "PENDING"},
+                        "PE": {"symbol": None, "first_entry_price": 0.0, "entry_price": 0.0, "current_ltp": 0.0, "sell_order_id": None, "sl_order_id": None, "reentry_order_id": None, "sl_modified_to_be": False, "tsl_active": False, "tsl_base_ltp": 0.0, "current_sl_trigger": 0.0, "tsl_hit": False, "awaiting_1pct_reentry": False, "reentries_done": 0, "status": "PENDING"},
                         "orders_placed": False
                     })
                     for leg in ["CE", "PE"]:
@@ -425,6 +429,12 @@ def load_strategies():
                             s["orders"][leg].setdefault("reentry_order_id", None)
                             s["orders"][leg].setdefault("reentries_done", 0)
                             s["orders"][leg].setdefault("status", "PENDING")
+                            s["orders"][leg].setdefault("sl_modified_to_be", False)
+                            s["orders"][leg].setdefault("tsl_active", False)
+                            s["orders"][leg].setdefault("tsl_base_ltp", 0.0)
+                            s["orders"][leg].setdefault("current_sl_trigger", 0.0)
+                            s["orders"][leg].setdefault("tsl_hit", False)
+                            s["orders"][leg].setdefault("awaiting_1pct_reentry", False)
                     s.setdefault("calculation_triggered", False)
                     s.setdefault("order_triggered", False)
                     s.setdefault("exit_triggered", False)
@@ -910,39 +920,84 @@ def poll_orders_and_manage_sl_for(strat):
         orders = kite_client.orders()
         order_dict = {str(o.get("order_id")): o for o in orders}
         max_reentry = int(strat.get("reentry_count", 0))
+        entry_action = strat.get("entry_action", "SELL").upper()
+
+        # Fetch quotes for active intraday symbols to trail SL and check 1% TSL re-entry
+        symbols_to_quote = []
+        for leg in ["CE", "PE"]:
+            sym = strat["orders"][leg].get("symbol")
+            if sym:
+                symbols_to_quote.append(f"NFO:{sym}")
+
+        quotes = {}
+        if symbols_to_quote:
+            try:
+                quotes = kite_client.ltp(symbols_to_quote)
+            except Exception:
+                pass
 
         for leg in ["CE", "PE"]:
             opp_leg = "PE" if leg == "CE" else "CE"
             leg_data = strat["orders"].get(leg, {})
             leg_status = leg_data.get("status", "ACTIVE")
+            sym = leg_data.get("symbol")
+            curr_ltp = quotes.get(f"NFO:{sym}", {}).get("last_price", 0.0) if sym else 0.0
+            if curr_ltp > 0:
+                leg_data["current_ltp"] = curr_ltp
 
-            # 1. Active leg: check if SL hit
+            # 1. Active leg: check if SL hit or Trail TSL
             if leg_status == "ACTIVE":
                 sl_id = leg_data.get("sl_order_id")
                 sl_order = order_dict.get(str(sl_id)) if sl_id else None
                 if sl_order and sl_order.get("status") == "COMPLETE":
-                    leg_data["status"] = "SL_HIT"
-                    log_execution(f"[{sname}] 💥 {leg} Stop-Loss Order ({sl_id}) TRIGGERED/COMPLETE.")
-
-                    # Modify opposite leg to Breakeven
-                    opp_data = strat["orders"].get(opp_leg, {})
-                    if opp_data.get("status") == "ACTIVE" and not opp_data.get("sl_modified_to_be"):
-                        opp_sl_id = opp_data.get("sl_order_id")
-                        opp_entry = opp_data.get("entry_price", 0.0)
-                        if opp_sl_id and opp_entry > 0:
-                            log_execution(f"[{sname}] Modifying surviving {opp_leg} SL order ({opp_sl_id}) to Breakeven at entry price: ₹{opp_entry:.2f}")
-                            modify_sl_to_breakeven_for(strat, opp_leg, opp_sl_id, opp_entry)
-
-                    # Trigger Re-entry limit order at first_entry_price if available
-                    done_reentries = int(leg_data.get("reentries_done", 0))
-                    if done_reentries < max_reentry:
-                        log_execution(f"[{sname}] Re-entry available for {leg} ({done_reentries}/{max_reentry}). Placing Limit order at original price...")
-                        place_intraday_reentry_order_for_leg(strat, leg)
+                    if leg_data.get("tsl_active"):
+                        # Trailed Stop Loss was hit!
+                        leg_data["status"] = "TSL_HIT"
+                        leg_data["tsl_hit"] = True
+                        leg_data["awaiting_1pct_reentry"] = True
+                        first_p = float(leg_data.get("first_entry_price", 0.0) or leg_data.get("entry_price", 0.0))
+                        threshold_p = first_p * 1.01 if entry_action == "SELL" else first_p * 0.99
+                        log_execution(f"[{sname}] 🛑 {leg} Trailed Stop-Loss (TSL) TRIGGERED! Re-entry is ON HOLD and will only be placed once LTP moves 1% beyond original entry (Trigger Threshold: ₹{threshold_p:.2f}).")
                     else:
-                        log_execution(f"[{sname}] No more re-entries remaining for {leg} (Done: {done_reentries}/{max_reentry}).")
+                        leg_data["status"] = "SL_HIT"
+                        log_execution(f"[{sname}] 💥 {leg} Stop-Loss Order ({sl_id}) TRIGGERED/COMPLETE.")
+
+                        # Modify opposite leg to Breakeven & Arm TSL
+                        opp_data = strat["orders"].get(opp_leg, {})
+                        if opp_data.get("status") == "ACTIVE" and not opp_data.get("sl_modified_to_be"):
+                            opp_sl_id = opp_data.get("sl_order_id")
+                            opp_entry = opp_data.get("entry_price", 0.0)
+                            if opp_sl_id and opp_entry > 0:
+                                log_execution(f"[{sname}] Modifying surviving {opp_leg} SL order ({opp_sl_id}) to Breakeven at entry price: ₹{opp_entry:.2f}")
+                                modify_sl_to_breakeven_for(strat, opp_leg, opp_sl_id, opp_entry)
+
+                        # Trigger Re-entry limit order at first_entry_price if quota available
+                        done_reentries = int(leg_data.get("reentries_done", 0))
+                        if done_reentries < max_reentry:
+                            log_execution(f"[{sname}] Re-entry available for {leg} ({done_reentries}/{max_reentry}). Placing Limit order at original price...")
+                            place_intraday_reentry_order_for_leg(strat, leg)
+                        else:
+                            log_execution(f"[{sname}] No more re-entries remaining for {leg} (Done: {done_reentries}/{max_reentry}).")
                     save_strategies(strategies_store)
 
-            # 2. Re-entry pending: check if Re-entry Limit order executed
+                else:
+                    # Trail Stop Loss if Breakeven was placed & TSL enabled
+                    if leg_data.get("sl_modified_to_be") and strat.get("enable_tsl") and curr_ltp > 0:
+                        trail_intraday_sl_for_leg(strat, leg, curr_ltp)
+
+            # 2. Check 1% Re-entry condition for TSL-hit leg
+            elif leg_data.get("awaiting_1pct_reentry"):
+                done_reentries = int(leg_data.get("reentries_done", 0))
+                if done_reentries < max_reentry:
+                    first_p = float(leg_data.get("first_entry_price", 0.0) or leg_data.get("entry_price", 0.0))
+                    cond_met = (curr_ltp >= first_p * 1.01) if entry_action == "SELL" else (curr_ltp <= first_p * 0.99)
+                    if cond_met and curr_ltp > 0:
+                        leg_data["awaiting_1pct_reentry"] = False
+                        log_execution(f"[{sname}] 🚀 1% threshold achieved for {leg} ({sym}) (LTP: ₹{curr_ltp:.2f}, First Entry: ₹{first_p:.2f})! Placing Re-entry order...")
+                        place_intraday_reentry_order_for_leg(strat, leg)
+                        save_strategies(strategies_store)
+
+            # 3. Re-entry pending: check if Re-entry Limit order executed
             elif leg_status == "REENTRY_PENDING":
                 reentry_id = leg_data.get("reentry_order_id")
                 reentry_order = order_dict.get(str(reentry_id)) if reentry_id else None
@@ -951,6 +1006,10 @@ def poll_orders_and_manage_sl_for(strat):
                     if re_status == "COMPLETE":
                         leg_data["reentries_done"] = int(leg_data.get("reentries_done", 0)) + 1
                         leg_data["status"] = "ACTIVE"
+                        leg_data["sl_modified_to_be"] = False
+                        leg_data["tsl_active"] = False
+                        leg_data["tsl_hit"] = False
+                        leg_data["awaiting_1pct_reentry"] = False
                         done_reentries = leg_data["reentries_done"]
                         first_price = float(leg_data.get("first_entry_price", 0.0) or leg_data.get("entry_price", 0.0))
                         log_execution(f"[{sname}] 🔄 Re-entry #{done_reentries} for {leg} EXECUTED at ₹{first_price:.2f}! Placing fresh Stop-Loss...")
@@ -965,13 +1024,95 @@ def poll_orders_and_manage_sl_for(strat):
         logger.error(f"[{sname}] Error polling order book: {e}")
 
 
+def trail_intraday_sl_for_leg(strat, leg, curr_ltp):
+    """Trails the active breakeven leg's SL lower (for SELL) or higher (for BUY) when price moves favorably by tsl_points."""
+    global kite_client
+    if not strat.get("enable_tsl") or not kite_client:
+        return
+
+    sname = strat.get("name", "Strategy")
+    leg_data = strat["orders"].get(leg, {})
+    if not leg_data.get("sl_modified_to_be") or leg_data.get("status") != "ACTIVE":
+        return
+
+    sl_id = leg_data.get("sl_order_id")
+    if not sl_id:
+        return
+
+    tsl_pts = float(strat.get("tsl_points", 10.0))
+    if tsl_pts <= 0:
+        return
+
+    base_ltp = float(leg_data.get("tsl_base_ltp") or leg_data.get("first_entry_price") or leg_data.get("entry_price", 0.0))
+    curr_trigger = float(leg_data.get("current_sl_trigger") or leg_data.get("first_entry_price") or leg_data.get("entry_price", 0.0))
+    entry_action = strat.get("entry_action", "SELL").upper()
+    qty = int(strat.get("quantity", 65))
+    sym = leg_data.get("symbol")
+
+    if entry_action == "SELL":
+        if curr_ltp <= (base_ltp - tsl_pts):
+            steps = int((base_ltp - curr_ltp) // tsl_pts)
+            if steps >= 1:
+                trail_amount = steps * tsl_pts
+                new_trigger = round((curr_trigger - trail_amount) * 20) / 20
+                min_trigger = round((curr_ltp + 0.5) * 20) / 20
+                if new_trigger < min_trigger:
+                    new_trigger = min_trigger
+                new_price = round((new_trigger * 1.02) * 20) / 20
+
+                if new_trigger < curr_trigger:
+                    try:
+                        kite_client.modify_order(
+                            variety=kite_client.VARIETY_REGULAR,
+                            order_id=sl_id,
+                            order_type=kite_client.ORDER_TYPE_SL,
+                            trigger_price=float(new_trigger),
+                            price=float(new_price),
+                            quantity=qty
+                        )
+                        leg_data["current_sl_trigger"] = new_trigger
+                        leg_data["tsl_base_ltp"] = round(base_ltp - (steps * tsl_pts), 2)
+                        leg_data["tsl_active"] = True
+                        log_execution(f"[{sname}] 🎯 TSL Moved LOWER for {leg} ({sym}) by {trail_amount:.1f} pts! New SL Trigger: ₹{new_trigger:.2f} (LTP: ₹{curr_ltp:.2f})")
+                        save_strategies(strategies_store)
+                    except Exception as e:
+                        logger.warning(f"[{sname}] Could not trail intraday SL for {leg}: {e}")
+    else:
+        if curr_ltp >= (base_ltp + tsl_pts):
+            steps = int((curr_ltp - base_ltp) // tsl_pts)
+            if steps >= 1:
+                trail_amount = steps * tsl_pts
+                new_trigger = round((curr_trigger + trail_amount) * 20) / 20
+                max_trigger = round((curr_ltp - 0.5) * 20) / 20
+                if new_trigger > max_trigger:
+                    new_trigger = max_trigger
+                new_price = round((new_trigger * 0.98) * 20) / 20
+
+                if new_trigger > curr_trigger:
+                    try:
+                        kite_client.modify_order(
+                            variety=kite_client.VARIETY_REGULAR,
+                            order_id=sl_id,
+                            order_type=kite_client.ORDER_TYPE_SL,
+                            trigger_price=float(new_trigger),
+                            price=float(new_price),
+                            quantity=qty
+                        )
+                        leg_data["current_sl_trigger"] = new_trigger
+                        leg_data["tsl_base_ltp"] = round(base_ltp + (steps * tsl_pts), 2)
+                        leg_data["tsl_active"] = True
+                        log_execution(f"[{sname}] 🎯 TSL Moved HIGHER for {leg} ({sym}) by {trail_amount:.1f} pts! New SL Trigger: ₹{new_trigger:.2f} (LTP: ₹{curr_ltp:.2f})")
+                        save_strategies(strategies_store)
+                    except Exception as e:
+                        logger.warning(f"[{sname}] Could not trail intraday SL for {leg}: {e}")
+
+
 def modify_sl_to_breakeven_for(strat, leg, sl_order_id, entry_price):
     global kite_client
     sname = strat.get("name", "Strategy")
     entry_action = strat.get("entry_action", "SELL").upper()
     try:
         sl_trigger = round(float(entry_price) * 20) / 20
-        # If BUY entry -> SL was SELL order -> Limit 2% below trigger; If SELL entry -> SL was BUY order -> Limit 2% above trigger
         if entry_action == "BUY":
             sl_price = round((sl_trigger * 0.98) * 20) / 20
         else:
@@ -989,7 +1130,14 @@ def modify_sl_to_breakeven_for(strat, leg, sl_order_id, entry_price):
             price=float(sl_price)
         )
         strat["orders"][leg]["sl_modified_to_be"] = True
-        log_execution(f"[{sname}] {leg} SL Order ({sl_order_id}) successfully updated to Breakeven (Trigger: {sl_trigger:.2f}, Limit: {sl_price:.2f}).")
+        strat["orders"][leg]["current_sl_trigger"] = sl_trigger
+        strat["orders"][leg]["tsl_base_ltp"] = float(strat["orders"][leg].get("current_ltp") or entry_price)
+
+        if strat.get("enable_tsl"):
+            strat["orders"][leg]["tsl_active"] = True
+            log_execution(f"[{sname}] {leg} SL Order ({sl_order_id}) updated to Breakeven (Trigger: ₹{sl_trigger:.2f}) & TSL ARMED with step {strat.get('tsl_points', 10.0)} pts!")
+        else:
+            log_execution(f"[{sname}] {leg} SL Order ({sl_order_id}) successfully updated to Breakeven (Trigger: {sl_trigger:.2f}, Limit: {sl_price:.2f}).")
     except Exception as e:
         log_execution(f"[{sname}] Failed to modify {leg} SL order ({sl_order_id}) to breakeven: {e}")
 

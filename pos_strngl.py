@@ -241,6 +241,8 @@ def create_default_pos_strategy(index_name="NIFTY", name=None):
         "sl_percent": 50.0,
         "sl_points": 40.0,
         "tp_percent": 70.0,  # Calculated on combined initial total premium (CE + PE)
+        "enable_tsl": False,
+        "tsl_points": 10.0,
         "reentry_count": 1,  # Max re-entries allowed per leg
         "adjustment_mode": "ROLL_CLOSER",
         "adjustment_threshold_percent": 100.0,
@@ -250,8 +252,8 @@ def create_default_pos_strategy(index_name="NIFTY", name=None):
         "exit_time": "15:15:00",
         "exit_days_before_expiry": 0,
         "orders": {
-            "CE": {"symbol": None, "first_entry_price": 0.0, "entry_price": 0.0, "current_ltp": 0.0, "order_id": None, "sl_order_id": None, "reentry_order_id": None, "sl_modified_to_be": False, "reentries_done": 0, "status": "PENDING"},
-            "PE": {"symbol": None, "first_entry_price": 0.0, "entry_price": 0.0, "current_ltp": 0.0, "order_id": None, "sl_order_id": None, "reentry_order_id": None, "sl_modified_to_be": False, "reentries_done": 0, "status": "PENDING"},
+            "CE": {"symbol": None, "first_entry_price": 0.0, "entry_price": 0.0, "current_ltp": 0.0, "order_id": None, "sl_order_id": None, "reentry_order_id": None, "sl_modified_to_be": False, "tsl_active": False, "tsl_base_ltp": 0.0, "current_sl_trigger": 0.0, "tsl_hit": False, "awaiting_1pct_reentry": False, "reentries_done": 0, "status": "PENDING"},
+            "PE": {"symbol": None, "first_entry_price": 0.0, "entry_price": 0.0, "current_ltp": 0.0, "order_id": None, "sl_order_id": None, "reentry_order_id": None, "sl_modified_to_be": False, "tsl_active": False, "tsl_base_ltp": 0.0, "current_sl_trigger": 0.0, "tsl_hit": False, "awaiting_1pct_reentry": False, "reentries_done": 0, "status": "PENDING"},
             "orders_placed": False
         },
         "initial_total_premium": 0.0,
@@ -294,6 +296,8 @@ def load_pos_strategies():
                     s.setdefault("ce_sl_percent", s.get("sl_percent", 50.0))
                     s.setdefault("pe_sl_percent", s.get("sl_percent", 50.0))
                     s.setdefault("tp_percent", 70.0)
+                    s.setdefault("enable_tsl", False)
+                    s.setdefault("tsl_points", 10.0)
                     s.setdefault("reentry_count", 1)
                     s.setdefault("entry_time", "15:00:00")
                     s.setdefault("morning_sl_time", "09:17:00")
@@ -303,8 +307,8 @@ def load_pos_strategies():
                     s.setdefault("initial_total_premium", 0.0)
                     s.setdefault("pnl", 0.0)
                     s.setdefault("orders", {
-                        "CE": {"symbol": None, "first_entry_price": 0.0, "entry_price": 0.0, "current_ltp": 0.0, "order_id": None, "sl_order_id": None, "reentry_order_id": None, "sl_modified_to_be": False, "reentries_done": 0, "status": "PENDING"},
-                        "PE": {"symbol": None, "first_entry_price": 0.0, "entry_price": 0.0, "current_ltp": 0.0, "order_id": None, "sl_order_id": None, "reentry_order_id": None, "sl_modified_to_be": False, "reentries_done": 0, "status": "PENDING"},
+                        "CE": {"symbol": None, "first_entry_price": 0.0, "entry_price": 0.0, "current_ltp": 0.0, "order_id": None, "sl_order_id": None, "reentry_order_id": None, "sl_modified_to_be": False, "tsl_active": False, "tsl_base_ltp": 0.0, "current_sl_trigger": 0.0, "tsl_hit": False, "awaiting_1pct_reentry": False, "reentries_done": 0, "status": "PENDING"},
+                        "PE": {"symbol": None, "first_entry_price": 0.0, "entry_price": 0.0, "current_ltp": 0.0, "order_id": None, "sl_order_id": None, "reentry_order_id": None, "sl_modified_to_be": False, "tsl_active": False, "tsl_base_ltp": 0.0, "current_sl_trigger": 0.0, "tsl_hit": False, "awaiting_1pct_reentry": False, "reentries_done": 0, "status": "PENDING"},
                         "orders_placed": False
                     })
                     for leg in ["CE", "PE"]:
@@ -312,6 +316,12 @@ def load_pos_strategies():
                         s["orders"][leg].setdefault("first_entry_price", s["orders"][leg].get("entry_price", 0.0))
                         s["orders"][leg].setdefault("reentry_order_id", None)
                         s["orders"][leg].setdefault("reentries_done", 0)
+                        s["orders"][leg].setdefault("sl_modified_to_be", False)
+                        s["orders"][leg].setdefault("tsl_active", False)
+                        s["orders"][leg].setdefault("tsl_base_ltp", 0.0)
+                        s["orders"][leg].setdefault("current_sl_trigger", 0.0)
+                        s["orders"][leg].setdefault("tsl_hit", False)
+                        s["orders"][leg].setdefault("awaiting_1pct_reentry", False)
                 return data
     except Exception as e:
         logger.warning(f"Failed to load {POS_STRANGLE_FILE}: {e}")
@@ -693,9 +703,102 @@ def modify_pos_sl_to_breakeven(strat, leg_type):
             order_type=kite.ORDER_TYPE_SL
         )
         leg_data["sl_modified_to_be"] = True
-        log_pos(f"[{sname}] 🎯 Opposite leg ({leg_type}: {sym}) SL modified to BREAKEVEN at First Entry Price: ₹{entry_p:.2f}")
+        leg_data["current_sl_trigger"] = sl_trigger
+        leg_data["tsl_base_ltp"] = float(leg_data.get("current_ltp") or entry_p)
+
+        if strat.get("enable_tsl"):
+            leg_data["tsl_active"] = True
+            log_pos(f"[{sname}] 🎯 Opposite leg ({leg_type}: {sym}) SL moved to BREAKEVEN (₹{entry_p:.2f}) & Trailing SL (TSL) ARMED with step {strat.get('tsl_points', 10.0)} pts!")
+        else:
+            log_pos(f"[{sname}] 🎯 Opposite leg ({leg_type}: {sym}) SL modified to BREAKEVEN at First Entry Price: ₹{entry_p:.2f}")
     except Exception as e:
         log_pos(f"[{sname}] Failed modifying {leg_type} SL to Breakeven: {e}")
+
+
+def trail_pos_sl_for_leg(strat, leg_type, curr_ltp):
+    """Trails the active breakeven leg's SL lower (for SELL) or higher (for BUY) when price moves favorably by tsl_points."""
+    if not strat.get("enable_tsl"):
+        return
+
+    kite = get_kite_client()
+    if not kite:
+        return
+
+    sname = strat.get("name", "Positional Strangle")
+    leg_data = strat["orders"].get(leg_type, {})
+    if not leg_data.get("sl_modified_to_be") or leg_data.get("status") != "ACTIVE":
+        return
+
+    sl_id = leg_data.get("sl_order_id")
+    if not sl_id:
+        return
+
+    tsl_pts = float(strat.get("tsl_points", 10.0))
+    if tsl_pts <= 0:
+        return
+
+    base_ltp = float(leg_data.get("tsl_base_ltp") or leg_data.get("first_entry_price") or leg_data.get("entry_price", 0.0))
+    curr_trigger = float(leg_data.get("current_sl_trigger") or leg_data.get("first_entry_price") or leg_data.get("entry_price", 0.0))
+    entry_action = strat.get("entry_action", "SELL").upper()
+    qty = int(strat.get("quantity", 65))
+    sym = leg_data.get("symbol")
+
+    if entry_action == "SELL":
+        # For SELL, favorable movement is price moving down
+        if curr_ltp <= (base_ltp - tsl_pts):
+            steps = int((base_ltp - curr_ltp) // tsl_pts)
+            if steps >= 1:
+                trail_amount = steps * tsl_pts
+                new_trigger = round((curr_trigger - trail_amount) * 20) / 20
+                min_trigger = round((curr_ltp + 0.5) * 20) / 20
+                if new_trigger < min_trigger:
+                    new_trigger = min_trigger
+                new_price = round((new_trigger * 1.02) * 20) / 20
+
+                if new_trigger < curr_trigger:
+                    try:
+                        kite.modify_order(
+                            variety=kite.VARIETY_REGULAR,
+                            order_id=sl_id,
+                            price=float(new_price),
+                            trigger_price=float(new_trigger),
+                            quantity=qty,
+                            order_type=kite.ORDER_TYPE_SL
+                        )
+                        leg_data["current_sl_trigger"] = new_trigger
+                        leg_data["tsl_base_ltp"] = round(base_ltp - (steps * tsl_pts), 2)
+                        leg_data["tsl_active"] = True
+                        log_pos(f"[{sname}] 🎯 TSL Moved LOWER for {leg_type} ({sym}) by {trail_amount:.1f} pts! New SL Trigger: ₹{new_trigger:.2f} (LTP: ₹{curr_ltp:.2f})")
+                    except Exception as e:
+                        logger.warning(f"[{sname}] Could not trail SL for {leg_type}: {e}")
+    else:
+        # For BUY, favorable movement is price moving up
+        if curr_ltp >= (base_ltp + tsl_pts):
+            steps = int((curr_ltp - base_ltp) // tsl_pts)
+            if steps >= 1:
+                trail_amount = steps * tsl_pts
+                new_trigger = round((curr_trigger + trail_amount) * 20) / 20
+                max_trigger = round((curr_ltp - 0.5) * 20) / 20
+                if new_trigger > max_trigger:
+                    new_trigger = max_trigger
+                new_price = round((new_trigger * 0.98) * 20) / 20
+
+                if new_trigger > curr_trigger:
+                    try:
+                        kite.modify_order(
+                            variety=kite.VARIETY_REGULAR,
+                            order_id=sl_id,
+                            price=float(new_price),
+                            trigger_price=float(new_trigger),
+                            quantity=qty,
+                            order_type=kite.ORDER_TYPE_SL
+                        )
+                        leg_data["current_sl_trigger"] = new_trigger
+                        leg_data["tsl_base_ltp"] = round(base_ltp + (steps * tsl_pts), 2)
+                        leg_data["tsl_active"] = True
+                        log_pos(f"[{sname}] 🎯 TSL Moved HIGHER for {leg_type} ({sym}) by {trail_amount:.1f} pts! New SL Trigger: ₹{new_trigger:.2f} (LTP: ₹{curr_ltp:.2f})")
+                    except Exception as e:
+                        logger.warning(f"[{sname}] Could not trail SL for {leg_type}: {e}")
 
 
 def place_pos_reentry_order_for_leg(strat, hit_leg_type, order_dict=None):
@@ -1128,19 +1231,37 @@ def monitor_positional_strategies_cycle():
             # Check if CE SL hit -> Move PE SL to Breakeven & Place CE Re-entry Limit Order
             # -------------------------------------------------------------
             if ce_sl_status == "COMPLETE" and s["orders"]["CE"].get("status") == "ACTIVE":
-                log_pos(f"[{sname}] 🛑 CE Stop-Loss triggered!")
-                s["orders"]["CE"]["status"] = "SL_HIT"
-                modify_pos_sl_to_breakeven(s, "PE")
-                place_pos_reentry_order_for_leg(s, "CE", order_dict)
+                if s["orders"]["CE"].get("tsl_active"):
+                    log_pos(f"[{sname}] 🛑 CE Trailed Stop-Loss (TSL) triggered!")
+                    s["orders"]["CE"]["status"] = "TSL_HIT"
+                    s["orders"]["CE"]["tsl_hit"] = True
+                    s["orders"]["CE"]["awaiting_1pct_reentry"] = True
+                    first_p = float(s["orders"]["CE"].get("first_entry_price") or s["orders"]["CE"].get("entry_price", 0.0))
+                    threshold_p = first_p * 1.01 if entry_action == "SELL" else first_p * 0.99
+                    log_pos(f"[{sname}] ⏳ CE TSL Hit: Re-entry is ON HOLD and will only be placed once LTP moves 1% beyond original entry (Trigger Threshold: ₹{threshold_p:.2f}).")
+                else:
+                    log_pos(f"[{sname}] 🛑 CE Stop-Loss triggered!")
+                    s["orders"]["CE"]["status"] = "SL_HIT"
+                    modify_pos_sl_to_breakeven(s, "PE")
+                    place_pos_reentry_order_for_leg(s, "CE", order_dict)
 
             # -------------------------------------------------------------
             # Check if PE SL hit -> Move CE SL to Breakeven & Place PE Re-entry Limit Order
             # -------------------------------------------------------------
             if pe_sl_status == "COMPLETE" and s["orders"]["PE"].get("status") == "ACTIVE":
-                log_pos(f"[{sname}] 🛑 PE Stop-Loss triggered!")
-                s["orders"]["PE"]["status"] = "SL_HIT"
-                modify_pos_sl_to_breakeven(s, "CE")
-                place_pos_reentry_order_for_leg(s, "PE", order_dict)
+                if s["orders"]["PE"].get("tsl_active"):
+                    log_pos(f"[{sname}] 🛑 PE Trailed Stop-Loss (TSL) triggered!")
+                    s["orders"]["PE"]["status"] = "TSL_HIT"
+                    s["orders"]["PE"]["tsl_hit"] = True
+                    s["orders"]["PE"]["awaiting_1pct_reentry"] = True
+                    first_p = float(s["orders"]["PE"].get("first_entry_price") or s["orders"]["PE"].get("entry_price", 0.0))
+                    threshold_p = first_p * 1.01 if entry_action == "SELL" else first_p * 0.99
+                    log_pos(f"[{sname}] ⏳ PE TSL Hit: Re-entry is ON HOLD and will only be placed once LTP moves 1% beyond original entry (Trigger Threshold: ₹{threshold_p:.2f}).")
+                else:
+                    log_pos(f"[{sname}] 🛑 PE Stop-Loss triggered!")
+                    s["orders"]["PE"]["status"] = "SL_HIT"
+                    modify_pos_sl_to_breakeven(s, "CE")
+                    place_pos_reentry_order_for_leg(s, "PE", order_dict)
 
             # -------------------------------------------------------------
             # Check pending Re-entry Limit Orders for execution confirmation
@@ -1158,11 +1279,14 @@ def monitor_positional_strategies_cycle():
                             leg_data["status"] = "ACTIVE"
                             leg_data["reentry_order_id"] = None
                             leg_data["sl_modified_to_be"] = False
+                            leg_data["tsl_active"] = False
+                            leg_data["tsl_hit"] = False
+                            leg_data["awaiting_1pct_reentry"] = False
                             log_pos(f"[{sname}] 🎉 Re-entry order EXECUTED for {leg} at original entry price ₹{first_p:.2f}! Placing Stop-Loss order...")
                             place_pos_sl_for_reentered_leg(s, leg)
 
             # -------------------------------------------------------------
-            # Calculate current P&L and total premium decay
+            # Calculate current P&L, Total Premium, Trail SL & Check 1% TSL Re-entry
             # -------------------------------------------------------------
             current_total_premium = 0.0
             for leg in ["CE", "PE"]:
@@ -1172,6 +1296,19 @@ def monitor_positional_strategies_cycle():
                     s["orders"][leg]["current_ltp"] = curr_ltp
                     current_total_premium += curr_ltp
                     entry_p = float(s["orders"][leg].get("entry_price", curr_ltp))
+
+                    # 1. Trail Stop Loss if active on this leg
+                    if s["orders"][leg].get("status") == "ACTIVE" and s["orders"][leg].get("sl_modified_to_be") and s.get("enable_tsl"):
+                        trail_pos_sl_for_leg(s, leg, curr_ltp)
+
+                    # 2. Check 1% Re-entry condition for TSL-hit leg
+                    if s["orders"][leg].get("awaiting_1pct_reentry"):
+                        first_p = float(s["orders"][leg].get("first_entry_price") or s["orders"][leg].get("entry_price", 0.0))
+                        cond_met = (curr_ltp >= first_p * 1.01) if entry_action == "SELL" else (curr_ltp <= first_p * 0.99)
+                        if cond_met:
+                            s["orders"][leg]["awaiting_1pct_reentry"] = False
+                            log_pos(f"[{sname}] 🚀 1% threshold achieved for {leg} ({sym}) (LTP: ₹{curr_ltp:.2f} >= ₹{first_p * 1.01:.2f})! Placing Re-entry order...")
+                            place_pos_reentry_order_for_leg(s, leg, order_dict)
 
                     if s["orders"][leg].get("status") == "ACTIVE":
                         if entry_action == "SELL":
