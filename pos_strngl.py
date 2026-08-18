@@ -36,6 +36,49 @@ CREDENTIALS_FILE = os.path.join(BASE_DIR, "credentials.json")
 CACHE_FILE = os.path.join(BASE_DIR, "session_cache.json")
 POS_PNL_CSV = os.path.join(BASE_DIR, "pos_strategy_PnL.csv")
 POS_PNL_XLSX = os.path.join(BASE_DIR, "pos_strategy_PnL.xlsx")
+LOT_SIZES_FILE = os.path.join(BASE_DIR, "lot_sizes.json")
+
+DEFAULT_POS_LOT_SIZES = {
+    "NIFTY": 65,
+    "BANKNIFTY": 30,
+    "FINNIFTY": 25,
+    "MIDCPNIFTY": 50,
+    "SENSEX": 10,
+    "BANKEX": 15
+}
+
+def get_pos_lot_size(index_name):
+    """Retrieve lot size from persistent broker cache file or defaults."""
+    if not index_name:
+        return 65
+    name = str(index_name).strip().upper()
+    if os.path.exists(LOT_SIZES_FILE):
+        try:
+            with open(LOT_SIZES_FILE, "r") as f:
+                saved = json.load(f)
+                if isinstance(saved, dict):
+                    if name in saved:
+                        return int(saved[name])
+                    if "BANK" in name and "BANKNIFTY" in saved:
+                        return int(saved["BANKNIFTY"])
+                    if ("MIDCP" in name or "MIDCAP" in name) and "MIDCPNIFTY" in saved:
+                        return int(saved["MIDCPNIFTY"])
+                    if "FIN" in name and "FINNIFTY" in saved:
+                        return int(saved["FINNIFTY"])
+                    if "SENSEX" in name and "SENSEX" in saved:
+                        return int(saved["SENSEX"])
+        except Exception:
+            pass
+    if "BANK" in name:
+        return 30
+    if "MIDCP" in name or "MIDCAP" in name:
+        return 50
+    if "FIN" in name:
+        return 25
+    if "SENSEX" in name:
+        return 10
+    return DEFAULT_POS_LOT_SIZES.get(name, 65)
+
 
 # In-memory execution logs
 pos_logs = []
@@ -221,9 +264,8 @@ def rewrite_pos_pnl_files(records):
         pass
 
 def create_default_pos_strategy(index_name="NIFTY", name=None):
-    lot_defaults = {"NIFTY": 65, "BANKNIFTY": 30, "FINNIFTY": 25, "MIDCPNIFTY": 50, "SENSEX": 10}
-    qty = lot_defaults.get(index_name, 65)
-    strat_id = f"pos_{index_name.lower()}_{int(time.time()*1000)}"
+    qty = get_pos_lot_size(index_name)
+    strat_id = f"pos_{str(index_name).lower()}_{int(time.time()*1000)}"
     return {
         "id": strat_id,
         "name": name or f"{index_name} Positional Strangle",

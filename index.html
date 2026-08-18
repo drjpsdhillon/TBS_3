@@ -2859,7 +2859,19 @@
 
         let activeStrategyType = 'STRANGLE';
         let activeEntryAction = 'SELL';
-        let brokerLotSizes = { NIFTY: 65, BANKNIFTY: 30, FINNIFTY: 25, MIDCPNIFTY: 50 };
+        let brokerLotSizes = { NIFTY: 65, BANKNIFTY: 30, FINNIFTY: 25, MIDCPNIFTY: 50, SENSEX: 10, BANKEX: 15 };
+
+        function getBrokerLotSize(indexName) {
+            if (!indexName) return 65;
+            const idx = String(indexName).trim().toUpperCase();
+            if (brokerLotSizes[idx]) return Number(brokerLotSizes[idx]);
+            if (idx.includes('BANKNIFTY') || idx.includes('BANK')) return Number(brokerLotSizes['BANKNIFTY'] || 30);
+            if (idx.includes('FIN')) return Number(brokerLotSizes['FINNIFTY'] || 25);
+            if (idx.includes('MIDCP') || idx.includes('MIDCAP')) return Number(brokerLotSizes['MIDCPNIFTY'] || 50);
+            if (idx.includes('SENSEX')) return Number(brokerLotSizes['SENSEX'] || 10);
+            if (idx.includes('BANKEX')) return Number(brokerLotSizes['BANKEX'] || 15);
+            return Number(brokerLotSizes[idx] || 65);
+        }
 
         function setEntryAction(action) {
             activeEntryAction = action;
@@ -2871,8 +2883,15 @@
             try {
                 const sizes = await api('/api/lot-sizes');
                 if (sizes && typeof sizes === 'object' && Object.keys(sizes).length > 0) {
-                    brokerLotSizes = { ...brokerLotSizes, ...sizes };
-                    updateQuantityField(document.getElementById('indexName').value);
+                    for (const [k, v] of Object.entries(sizes)) {
+                        brokerLotSizes[String(k).toUpperCase()] = Number(v);
+                    }
+                    if (document.getElementById('indexName')) {
+                        updateQuantityField(document.getElementById('indexName').value);
+                    }
+                    if (document.getElementById('posIndexName')) {
+                        onPosIndexChange();
+                    }
                 }
             } catch (e) {
                 console.error('Failed to load lot sizes:', e);
@@ -3174,7 +3193,7 @@
             document.getElementById('startTime').value = target.start_time || '09:20:00';
             document.getElementById('endTime').value = target.end_time || '15:15:00';
             updateQuantityField(target.index_name);
-            document.getElementById('quantity').value = target.quantity || 65;
+            document.getElementById('quantity').value = target.quantity || getBrokerLotSize(target.index_name);
             document.getElementById('reentryCount').value = target.reentry_count !== undefined ? String(target.reentry_count) : '0';
 
             document.getElementById('formCardTitle').textContent = `✏️ Edit Strategy: ${target.name}`;
@@ -3193,6 +3212,7 @@
             toggleIntraTslInput();
             document.getElementById('reentryCount').value = '0';
             document.getElementById('formCardTitle').textContent = '⚙️ Create / Edit Strategy';
+            updateQuantityField(document.getElementById('indexName').value);
         }
 
         function setStrategyType(type) {
@@ -3224,15 +3244,19 @@
         }
 
         function updateQuantityField(indexName) {
-            const lotSize = brokerLotSizes[indexName] || (indexName === 'BANKNIFTY' ? 30 : 65);
+            const lotSize = getBrokerLotSize(indexName);
             const qtyInput = document.getElementById('quantity');
             const qtyLabel = document.getElementById('lblQuantity');
-            qtyInput.step = lotSize;
-            qtyInput.min = lotSize;
-            if (qtyLabel) qtyLabel.textContent = `Quantity (Multiple of ${lotSize} for ${indexName})`;
-            const current = parseInt(qtyInput.value) || lotSize;
-            const snapped = Math.max(lotSize, Math.round(current / lotSize) * lotSize);
-            qtyInput.value = snapped;
+            if (qtyInput) {
+                qtyInput.step = lotSize;
+                qtyInput.min = lotSize;
+            }
+            if (qtyLabel) qtyLabel.textContent = `Quantity (Multiple of ${lotSize} for ${indexName || 'Index'})`;
+            if (qtyInput) {
+                const current = parseInt(qtyInput.value) || lotSize;
+                const snapped = Math.max(lotSize, Math.round(current / lotSize) * lotSize);
+                qtyInput.value = snapped;
+            }
         }
 
         document.getElementById('indexName').addEventListener('change', (e) => {
@@ -3243,7 +3267,7 @@
 
         document.getElementById('quantity').addEventListener('blur', (e) => {
             const idxName = document.getElementById('indexName').value;
-            const lotSize = brokerLotSizes[idxName] || 65;
+            const lotSize = getBrokerLotSize(idxName);
             const current = parseInt(e.target.value) || lotSize;
             const snapped = Math.max(lotSize, Math.round(current / lotSize) * lotSize);
             e.target.value = snapped;
@@ -3330,23 +3354,20 @@
 
         let loadedPosStrategies = [];
 
-        const indexLotSizes = {
-            'NIFTY': 65,
-            'BANKNIFTY': 30,
-            'FINNIFTY': 25,
-            'MIDCPNIFTY': 50,
-            'SENSEX': 10
-        };
-
         function onPosIndexChange() {
             const idx = document.getElementById('posIndexName').value || 'NIFTY';
             loadPosExpiries();
-            const lot = indexLotSizes[idx] || 65;
+            const lot = getBrokerLotSize(idx);
             const qInput = document.getElementById('posQuantity');
-            qInput.value = lot;
-            qInput.step = lot;
-            qInput.min = lot;
-            document.getElementById('lblPosQuantity').textContent = `Quantity (Multiple of Lot Size: ${lot})`;
+            if (qInput) {
+                const current = parseInt(qInput.value) || lot;
+                const snapped = Math.max(lot, Math.round(current / lot) * lot);
+                qInput.value = snapped;
+                qInput.step = lot;
+                qInput.min = lot;
+            }
+            const lbl = document.getElementById('lblPosQuantity');
+            if (lbl) lbl.textContent = `Quantity (Multiple of Lot Size: ${lot} for ${idx})`;
         }
 
         async function loadPosExpiries(preferredExpiry) {
@@ -3638,8 +3659,8 @@
             document.getElementById('posStratName').value = strat.name || '';
             document.getElementById('posIndexName').value = strat.index_name || 'NIFTY';
             
-            const lot = indexLotSizes[strat.index_name || 'NIFTY'] || 65;
-            document.getElementById('lblPosQuantity').textContent = `Quantity (Multiple of Lot Size: ${lot})`;
+            const lot = getBrokerLotSize(strat.index_name || 'NIFTY');
+            document.getElementById('lblPosQuantity').textContent = `Quantity (Multiple of Lot Size: ${lot} for ${strat.index_name || 'Index'})`;
             await loadPosExpiries(strat.expiry);
 
             document.getElementById('posCePremium').value = strat.ce_premium || 80;
@@ -3653,7 +3674,12 @@
             document.getElementById('posTslPoints').value = strat.tsl_points !== undefined ? strat.tsl_points : 10;
             togglePosTslInput();
             document.getElementById('posReentryCount').value = strat.reentry_count !== undefined ? strat.reentry_count : 1;
-            document.getElementById('posQuantity').value = strat.quantity || lot;
+            const qEl = document.getElementById('posQuantity');
+            if (qEl) {
+                qEl.value = strat.quantity || lot;
+                qEl.step = lot;
+                qEl.min = lot;
+            }
             document.getElementById('posStartTime').value = strat.entry_time || strat.start_time || '15:00:00';
             document.getElementById('posMorningSlTime').value = strat.morning_sl_time || '09:17:00';
             document.getElementById('posEndTime').value = strat.exit_time || strat.end_time || '15:15:00';
@@ -3663,6 +3689,16 @@
 
         function cancelPosEditForm() {
             openNewPosStrategyForm();
+        }
+
+        if (document.getElementById('posQuantity')) {
+            document.getElementById('posQuantity').addEventListener('blur', (e) => {
+                const idx = (document.getElementById('posIndexName') ? document.getElementById('posIndexName').value : 'NIFTY');
+                const lot = getBrokerLotSize(idx);
+                const current = parseInt(e.target.value) || lot;
+                const snapped = Math.max(lot, Math.round(current / lot) * lot);
+                e.target.value = snapped;
+            });
         }
 
         async function savePosStrangleConfig(e) {
@@ -3696,6 +3732,7 @@
             const entryTime = ensureHHMMSS((startTimeEl ? startTimeEl.value : '15:00:00').trim());
             const morningSlTime = ensureHHMMSS((morningSlEl ? morningSlEl.value : '09:17:00').trim());
             const exitTime = ensureHHMMSS((endTimeEl ? endTimeEl.value : '15:15:00').trim());
+            const lot = getBrokerLotSize(indexName);
 
             const payload = {
                 id: (document.getElementById('posStratId') ? document.getElementById('posStratId').value : '') || undefined,
@@ -3713,7 +3750,7 @@
                 enable_tsl: document.getElementById('posEnableTsl').checked,
                 tsl_points: parseFloat(document.getElementById('posTslPoints').value) || 10,
                 reentry_count: parseInt(reentryEl ? reentryEl.value : 1) || 0,
-                quantity: parseInt(qtyEl ? qtyEl.value : 65) || (indexLotSizes[indexName] || 65),
+                quantity: parseInt(qtyEl ? qtyEl.value : lot) || lot,
                 entry_time: entryTime,
                 morning_sl_time: morningSlTime,
                 exit_time: exitTime

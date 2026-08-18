@@ -51,18 +51,70 @@ instruments_cache = []  # NFO Option instruments
 expiry_dates = []  # List of string dates
 ticker_status = "DISCONNECTED"
 
-# Strategy state
+# Strategy state & persistent broker lot sizes
+LOT_SIZES_FILE = os.path.join(BASE_DIR, "lot_sizes.json")
+
 DEFAULT_LOT_SIZES = {
     "NIFTY": 65,
     "BANKNIFTY": 30,
     "FINNIFTY": 25,
-    "MIDCPNIFTY": 50
+    "MIDCPNIFTY": 50,
+    "SENSEX": 10,
+    "BANKEX": 15
 }
-lot_sizes_cache = dict(DEFAULT_LOT_SIZES)
+
+def load_lot_sizes():
+    """Load cached lot sizes from lot_sizes.json or fallback to DEFAULT_LOT_SIZES."""
+    sizes = dict(DEFAULT_LOT_SIZES)
+    if os.path.exists(LOT_SIZES_FILE):
+        try:
+            with open(LOT_SIZES_FILE, "r") as f:
+                saved = json.load(f)
+                if isinstance(saved, dict):
+                    for k, v in saved.items():
+                        try:
+                            sizes[str(k).upper()] = int(v)
+                        except (ValueError, TypeError):
+                            pass
+                    logger.info("Loaded broker lot sizes from %s: %s", LOT_SIZES_FILE, sizes)
+        except Exception as e:
+            logger.warning("Failed to load lot sizes from %s: %s", LOT_SIZES_FILE, e)
+    return sizes
+
+
+def save_lot_sizes(sizes):
+    """Persist broker lot sizes dictionary to lot_sizes.json."""
+    if not sizes:
+        return
+    try:
+        with open(LOT_SIZES_FILE, "w") as f:
+            json.dump(sizes, f, indent=4)
+        logger.info("Persisted broker lot sizes to %s", LOT_SIZES_FILE)
+    except Exception as e:
+        logger.error("Failed to save lot sizes to %s: %s", LOT_SIZES_FILE, e)
+
+
+lot_sizes_cache = load_lot_sizes()
+
 
 def get_lot_size(index_name):
+    """Resolve correct lot size from broker cache with robust index fallback."""
     global lot_sizes_cache
-    return lot_sizes_cache.get(index_name, DEFAULT_LOT_SIZES.get(index_name, 65))
+    if not index_name:
+        return 65
+    name = str(index_name).strip().upper()
+    if name in lot_sizes_cache:
+        return int(lot_sizes_cache[name])
+    if "BANK" in name:
+        return int(lot_sizes_cache.get("BANKNIFTY", DEFAULT_LOT_SIZES.get("BANKNIFTY", 30)))
+    if "MIDCP" in name or "MIDCAP" in name:
+        return int(lot_sizes_cache.get("MIDCPNIFTY", DEFAULT_LOT_SIZES.get("MIDCPNIFTY", 50)))
+    if "FIN" in name:
+        return int(lot_sizes_cache.get("FINNIFTY", DEFAULT_LOT_SIZES.get("FINNIFTY", 25)))
+    if "SENSEX" in name:
+        return int(lot_sizes_cache.get("SENSEX", DEFAULT_LOT_SIZES.get("SENSEX", 10)))
+    return int(lot_sizes_cache.get(name, DEFAULT_LOT_SIZES.get(name, 65)))
+
 
 
 # ========================================================================
@@ -186,9 +238,26 @@ def cache_nfo_instruments():
             ls = i.get("lot_size")
             if name and ls:
                 try:
-                    lot_sizes_cache[name] = int(ls)
+                    lot_sizes_cache[str(name).upper()] = int(ls)
                 except (ValueError, TypeError):
                     pass
+
+        # Also attempt to cache BFO instruments (SENSEX, BANKEX) if available
+        try:
+            bfo_inst = kite_client.instruments("BFO")
+            for i in bfo_inst:
+                name = i.get("name")
+                ls = i.get("lot_size")
+                if name and ls:
+                    try:
+                        lot_sizes_cache[str(name).upper()] = int(ls)
+                    except (ValueError, TypeError):
+                        pass
+        except Exception:
+            pass
+
+        # Persist updated broker lot sizes to lot_sizes.json
+        save_lot_sizes(lot_sizes_cache)
 
         # Separate Option and Future instruments
         options = [
@@ -361,14 +430,15 @@ def log_execution(message):
 # Multi-Strategy Persistence File
 STRATEGIES_FILE = os.path.join(BASE_DIR, "strategies.json")
 
-def create_default_strategy():
+def create_default_strategy(index_name="NIFTY", name=None):
+    lot = get_lot_size(index_name)
     return {
         "id": "strat_default_1",
-        "name": "Nifty Morning Straddle",
+        "name": name or f"{index_name} Morning Straddle",
         "active": False,
         "strategy_type": "STRANGLE",
         "entry_action": "SELL",
-        "index_name": "NIFTY",
+        "index_name": index_name,
         "expiry": "",
         "ce_premium": 100.0,
         "pe_premium": 100.0,
@@ -380,7 +450,7 @@ def create_default_strategy():
         "product": "MIS",
         "start_time": "09:20:00",
         "end_time": "15:15:00",
-        "quantity": 65,
+        "quantity": lot,
         "reentry_count": 0,
         "status": "Idle",
         "run_tag": None,
