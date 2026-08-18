@@ -874,10 +874,15 @@ def place_pos_reentry_order_for_leg(strat, hit_leg_type, order_dict=None):
     entry_action = strat.get("entry_action", "SELL").upper()
     pos_tag = strat.get("run_tag") or "ps_reentry"
 
-    order_price = round(first_p * 20) / 20
+    sl_trigger = round(first_p * 20) / 20
+    if entry_action == "BUY":
+        sl_limit = round((sl_trigger * 1.01) * 20) / 20
+    else:
+        sl_limit = round((sl_trigger * 0.99) * 20) / 20
+
     entry_txn = kite.TRANSACTION_TYPE_BUY if entry_action == "BUY" else kite.TRANSACTION_TYPE_SELL
 
-    log_pos(f"[{sname}] 🔄 Placing Re-entry Limit Order #{done_reentry + 1} for {hit_leg_type} ({sym}) at ORIGINAL FIRST ENTRY PRICE ₹{order_price:.2f}...")
+    log_pos(f"[{sname}] 🔄 Placing Re-entry SL Order #{done_reentry + 1} for {hit_leg_type} ({sym}) (Trigger: ₹{sl_trigger:.2f}, Limit: ₹{sl_limit:.2f})...")
 
     try:
         reentry_order_id = kite.place_order(
@@ -887,13 +892,14 @@ def place_pos_reentry_order_for_leg(strat, hit_leg_type, order_dict=None):
             transaction_type=entry_txn,
             quantity=qty,
             product=product,
-            order_type=kite.ORDER_TYPE_LIMIT,
-            price=float(order_price),
+            order_type=kite.ORDER_TYPE_SL,
+            price=float(sl_limit),
+            trigger_price=float(sl_trigger),
             tag=pos_tag
         )
         leg_data["reentry_order_id"] = reentry_order_id
         leg_data["status"] = "REENTRY_PENDING"
-        log_pos(f"[{sname}] ✅ Re-entry Limit Order for {hit_leg_type} placed at original price ₹{order_price:.2f}. ID: {reentry_order_id} (Awaiting Execution)")
+        log_pos(f"[{sname}] ✅ Re-entry SL Order for {hit_leg_type} placed (Trigger: ₹{sl_trigger:.2f}, Limit: ₹{sl_limit:.2f}). ID: {reentry_order_id} (Awaiting Execution)")
         save_pos_strategies(pos_strategies_store)
     except Exception as e:
         log_pos(f"[{sname}] Failed placing Re-entry order for {hit_leg_type}: {e}")

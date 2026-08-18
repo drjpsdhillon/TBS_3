@@ -898,8 +898,14 @@ def place_intraday_reentry_order_for_leg(strat, leg):
         return None
 
     try:
-        order_price = round(first_price * 20) / 20
-        log_execution(f"[{sname}] Placing Re-entry Limit Order for {leg} ({sym}) {entry_action} Qty:{qty} at Original Entry Price ₹{order_price:.2f}...")
+        sl_trigger = round(first_price * 20) / 20
+        # Stop loss order for re-entry: for SELL position, limit price is 1% lower than trigger price (for BUY position, 1% higher)
+        if entry_action == "BUY":
+            sl_limit = round((sl_trigger * 1.01) * 20) / 20
+        else:
+            sl_limit = round((sl_trigger * 0.99) * 20) / 20
+
+        log_execution(f"[{sname}] Placing Re-entry SL Order for {leg} ({sym}) {entry_action} Qty:{qty} (Trigger: ₹{sl_trigger:.2f}, Limit: ₹{sl_limit:.2f})...")
         order_id = kite_client.place_order(
             variety=kite_client.VARIETY_REGULAR,
             exchange=kite_client.EXCHANGE_NFO,
@@ -907,17 +913,18 @@ def place_intraday_reentry_order_for_leg(strat, leg):
             transaction_type=txn_type,
             quantity=int(qty),
             product=product,
-            order_type=kite_client.ORDER_TYPE_LIMIT,
-            price=float(order_price),
+            order_type=kite_client.ORDER_TYPE_SL,
+            price=float(sl_limit),
+            trigger_price=float(sl_trigger),
             tag=current_tag
         )
         strat["orders"][leg]["reentry_order_id"] = order_id
         strat["orders"][leg]["status"] = "REENTRY_PENDING"
-        log_execution(f"[{sname}] Re-entry Limit Order for {leg} placed. ID: {order_id} (Awaiting Execution at ₹{order_price:.2f})")
+        log_execution(f"[{sname}] Re-entry SL Order for {leg} placed. ID: {order_id} (Trigger: ₹{sl_trigger:.2f}, Limit: ₹{sl_limit:.2f})")
         save_strategies(strategies_store)
         return order_id
     except Exception as e:
-        log_execution(f"[{sname}] Failed to place Re-entry limit order for {leg} ({sym}): {e}")
+        log_execution(f"[{sname}] Failed to place Re-entry SL order for {leg} ({sym}): {e}")
         return None
 
 
@@ -1041,10 +1048,10 @@ def poll_orders_and_manage_sl_for(strat):
                                 log_execution(f"[{sname}] Modifying surviving {opp_leg} SL order ({opp_sl_id}) to Breakeven at entry price: ₹{opp_entry:.2f}")
                                 modify_sl_to_breakeven_for(strat, opp_leg, opp_sl_id, opp_entry)
 
-                        # Trigger Re-entry limit order at first_entry_price if quota available
+                        # Trigger Re-entry SL order at first_entry_price if quota available
                         done_reentries = int(leg_data.get("reentries_done", 0))
                         if done_reentries < max_reentry:
-                            log_execution(f"[{sname}] Re-entry available for {leg} ({done_reentries}/{max_reentry}). Placing Limit order at original price...")
+                            log_execution(f"[{sname}] Re-entry available for {leg} ({done_reentries}/{max_reentry}). Placing Stop Loss (SL) order at original price...")
                             place_intraday_reentry_order_for_leg(strat, leg)
                         else:
                             log_execution(f"[{sname}] No more re-entries remaining for {leg} (Done: {done_reentries}/{max_reentry}).")
@@ -1063,11 +1070,11 @@ def poll_orders_and_manage_sl_for(strat):
                     cond_met = (curr_ltp >= first_p * 1.01) if entry_action == "SELL" else (curr_ltp <= first_p * 0.99)
                     if cond_met and curr_ltp > 0:
                         leg_data["awaiting_1pct_reentry"] = False
-                        log_execution(f"[{sname}] 🚀 1% threshold achieved for {leg} ({sym}) (LTP: ₹{curr_ltp:.2f}, First Entry: ₹{first_p:.2f})! Placing Re-entry order...")
+                        log_execution(f"[{sname}] 🚀 1% threshold achieved for {leg} ({sym}) (LTP: ₹{curr_ltp:.2f}, First Entry: ₹{first_p:.2f})! Placing Re-entry SL order...")
                         place_intraday_reentry_order_for_leg(strat, leg)
                         save_strategies(strategies_store)
 
-            # 3. Re-entry pending: check if Re-entry Limit order executed
+            # 3. Re-entry pending: check if Re-entry SL order executed
             elif leg_status == "REENTRY_PENDING":
                 reentry_id = leg_data.get("reentry_order_id")
                 reentry_order = order_dict.get(str(reentry_id)) if reentry_id else None
@@ -1087,7 +1094,7 @@ def poll_orders_and_manage_sl_for(strat):
                         save_strategies(strategies_store)
                     elif re_status in ["CANCELLED", "REJECTED"]:
                         leg_data["status"] = "CLOSED"
-                        log_execution(f"[{sname}] Re-entry Limit Order ({reentry_id}) for {leg} was {re_status}. Marking leg CLOSED.")
+                        log_execution(f"[{sname}] Re-entry SL Order ({reentry_id}) for {leg} was {re_status}. Marking leg CLOSED.")
                         save_strategies(strategies_store)
 
     except Exception as e:
