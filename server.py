@@ -2343,7 +2343,7 @@ def api_straddle_total_sl_strategies():
             if strat_id:
                 target = next((s for s in strats if s.get("id") == strat_id), None)
                 if target:
-                    for k in ["name", "index_name", "expiry", "entry_action", "product", "strike", "strike_mode", "strike_multiple", "manual_strike", "total_sl_percent", "total_tp_percent", "quantity", "entry_time", "morning_sl_time", "exit_time"]:
+                    for k in ["name", "index_name", "expiry", "entry_action", "product", "strike", "strike_mode", "strike_multiple", "manual_strike", "total_sl_percent", "total_tp_percent", "quantity", "entry_time", "morning_sl_time", "exit_time", "adjustments"]:
                         if k in data:
                             target[k] = data[k]
                 else:
@@ -2365,6 +2365,24 @@ def api_straddle_total_sl_strategies():
         else:
             strats = straddle_total_sl.load_straddle_strategies()
             return jsonify({"status": "ok", "strategies": strats, "config": strats[0] if strats else {}})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route("/api/straddle_total_sl/strategies/<strat_id>/adjustments/<adj_id>/squareoff", methods=["POST"])
+def api_straddle_total_sl_squareoff_adjustment(strat_id, adj_id):
+    global kite_client
+    try:
+        import straddle_total_sl
+        if kite_client:
+            straddle_total_sl.set_kite_client(kite_client)
+        strats = straddle_total_sl.load_straddle_strategies()
+        target = next((s for s in strats if s.get("id") == strat_id), None)
+        if not target:
+            return jsonify({"status": "error", "message": "Strategy not found"}), 404
+
+        ok, msg = straddle_total_sl.squareoff_straddle_adjustment_leg(target, adj_id, reason="User Manual Squareoff")
+        return jsonify({"status": "ok" if ok else "error", "message": msg})
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 

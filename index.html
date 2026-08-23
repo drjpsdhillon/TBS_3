@@ -2125,7 +2125,88 @@
                                 </div>
                             </div>
 
-                            <!-- 6. Execution Schedule (Pastel Sunset Peach / Orange) -->
+                            <!-- 6. Adjustment Trades Layer (Pastel Cyan / Indigo) -->
+                            <div style="background: #f0fdfa; border: 1px solid #99f6e4; border-left: 4px solid #0d9488; border-radius: var(--radius-sm); padding: 12px 14px; margin-bottom: 12px;">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                                    <div style="font-size: 11px; font-weight: 800; color: #0f766e; text-transform: uppercase; letter-spacing: 0.5px; display: flex; align-items: center; gap: 6px;">
+                                        <span>⚙️ Adjustment Trades (Secondary Legs)</span>
+                                    </div>
+                                    <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 12px; font-weight: 700; color: #0f766e; margin-bottom: 0;">
+                                        <input type="checkbox" id="straddleEnableAdjustments" onchange="toggleStraddleAdjustmentsSection()" style="width: 16px; height: 16px; accent-color: #0d9488;">
+                                        <span>Enable Adjustments</span>
+                                    </label>
+                                </div>
+
+                                <div id="straddleAdjustmentsContainer" style="display: none; padding-top: 6px;">
+                                    <!-- Mode Toggle -->
+                                    <div style="margin-bottom: 10px;">
+                                        <label style="font-size: 11px; font-weight: 700; color: #0f766e; display: block; margin-bottom: 4px;">Adjustment Mode</label>
+                                        <div class="segment-control" style="background: #ccfbf1; margin-bottom: 0;">
+                                            <button type="button" id="btnStraddleAdjAuto" class="segment-btn active" onclick="setStraddleAdjMode('AUTOMATIC')">⚡ Automatic (Decay-based ATM)</button>
+                                            <button type="button" id="btnStraddleAdjManual" class="segment-btn" onclick="setStraddleAdjMode('MANUAL')">✍️ Manual (Custom Strikes &amp; Triggers)</button>
+                                        </div>
+                                    </div>
+
+                                    <!-- Automatic Mode Settings -->
+                                    <div id="straddleAdjAutoPanel" style="background: #ffffff; border: 1px solid #99f6e4; border-radius: 6px; padding: 10px; margin-bottom: 8px;">
+                                        <div style="font-size: 11px; font-weight: 700; color: #0f766e; margin-bottom: 6px;">⚡ Automatic Decay Trigger Rule (on CE &amp; PE)</div>
+                                        <div class="form-row" style="margin-bottom: 8px;">
+                                            <div class="form-group" style="margin-bottom: 0;">
+                                                <label for="straddleAdjDecayPct" style="font-size: 11px; font-weight: 700; color: #0f766e;">Trigger Decay (%)</label>
+                                                <input type="number" id="straddleAdjDecayPct" value="20" min="1" max="99" step="1" style="font-weight: 700;" placeholder="e.g. 20%">
+                                                <div class="time-hint" style="color: #0f766e;">Sells adjustment when base leg decays by this %</div>
+                                            </div>
+                                            <div class="form-group" style="margin-bottom: 0;">
+                                                <label for="straddleAdjLots" style="font-size: 11px; font-weight: 700; color: #0f766e;">Adjustment Lots</label>
+                                                <input type="number" id="straddleAdjLots" value="1" min="1" step="1" style="font-weight: 700;" placeholder="e.g. 1 or 2 lots">
+                                                <div class="time-hint" style="color: #0f766e;">Number of lots to sell per leg</div>
+                                            </div>
+                                        </div>
+                                        <div class="form-row" style="margin-bottom: 8px;">
+                                            <div class="form-group" style="margin-bottom: 0;">
+                                                <label for="straddleAdjSlType" style="font-size: 11px; font-weight: 700; color: #991b1b;">Stop Loss Mode</label>
+                                                <select id="straddleAdjSlType" style="font-weight: 600;">
+                                                    <option value="PERCENT" selected>Percentage (%)</option>
+                                                    <option value="POINTS">Points (pts)</option>
+                                                </select>
+                                            </div>
+                                            <div class="form-group" style="margin-bottom: 0;">
+                                                <label for="straddleAdjSlValue" style="font-size: 11px; font-weight: 700; color: #991b1b;">SL Value</label>
+                                                <input type="number" id="straddleAdjSlValue" value="30" step="0.5" style="font-weight: 700; color: #991b1b;" placeholder="e.g. 30">
+                                            </div>
+                                        </div>
+                                        <div style="background: #f0fdf4; border: 1px dashed #86efac; border-radius: 6px; padding: 8px; margin-top: 6px;">
+                                            <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 11px; font-weight: 700; color: #166534; margin-bottom: 4px;">
+                                                <input type="checkbox" id="straddleAdjEnableTsl" onchange="toggleStraddleAdjTslInput()" style="width: 15px; height: 15px; accent-color: #16a34a;" checked>
+                                                <span>🎯 Trailing Stop Loss (TSL) for Adjustment</span>
+                                            </label>
+                                            <div id="straddleAdjTslFields" class="form-row" style="margin-bottom: 0; display: flex;">
+                                                <div class="form-group" style="margin-bottom: 0; flex: 1;">
+                                                    <label for="straddleAdjTslStep" style="font-size: 10px; font-weight: 700; color: #166534;">Trail Trigger Step (Pts)</label>
+                                                    <input type="number" id="straddleAdjTslStep" value="10" step="0.5" style="font-size: 12px; font-weight: 700;">
+                                                </div>
+                                                <div class="form-group" style="margin-bottom: 0; flex: 1;">
+                                                    <label for="straddleAdjTslVal" style="font-size: 10px; font-weight: 700; color: #166534;">SL Move Step (Pts)</label>
+                                                    <input type="number" id="straddleAdjTslVal" value="10" step="0.5" style="font-size: 12px; font-weight: 700;">
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Manual Mode Settings -->
+                                    <div id="straddleAdjManualPanel" style="display: none; background: #ffffff; border: 1px solid #99f6e4; border-radius: 6px; padding: 10px; margin-bottom: 8px;">
+                                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                                            <span style="font-size: 11px; font-weight: 700; color: #0f766e;">✍️ Custom Manual Adjustment Legs</span>
+                                            <button type="button" onclick="addManualAdjLegRow()" class="btn-secondary" style="padding: 3px 8px; font-size: 11px;">+ Add Leg</button>
+                                        </div>
+                                        <div id="straddleManualLegsList" style="display: flex; flex-direction: column; gap: 8px;">
+                                            <!-- Dynamic Manual Leg Rows -->
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 7. Execution Schedule (Pastel Sunset Peach / Orange) -->
                             <div style="background: #fff7ed; border: 1px solid #fed7aa; border-left: 4px solid #ea580c; border-radius: var(--radius-sm); padding: 12px 14px; margin-bottom: 14px;">
                                 <div style="font-size: 11px; font-weight: 800; color: #9a3412; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
                                     <span>⏰ Execution Schedule &amp; Exit Window</span>
@@ -4631,6 +4712,48 @@
                         </div>
                     `;
 
+                    // Adjustments Display Box
+                    let adjustmentsBoxHtml = '';
+                    const adjData = s.adjustments || {};
+                    if (adjData.enabled) {
+                        const adjMode = adjData.mode || 'AUTOMATIC';
+                        const activeOrders = adjData.active_orders || {};
+                        const activeLegKeys = Object.keys(activeOrders).filter(k => activeOrders[k].status === 'ACTIVE');
+
+                        let activeLegsHtml = '';
+                        if (activeLegKeys.length > 0) {
+                            activeLegsHtml = activeLegKeys.map(k => {
+                                const leg = activeOrders[k];
+                                const legPnl = parseFloat(leg.pnl || 0);
+                                return `
+                                <div style="background: #ffffff; border: 1px solid #99f6e4; border-radius: 4px; padding: 6px 8px; margin-top: 4px; display: flex; justify-content: space-between; align-items: center; font-size: 10px;">
+                                    <div>
+                                        <b style="color: ${leg.action === 'BUY' ? '#15803d' : '#b91c1c'};">${leg.action}</b> 
+                                        <b>${leg.symbol}</b> (Qty: ${leg.quantity})
+                                        <div style="color: var(--text-secondary); margin-top: 2px;">
+                                            Entry: ₹${parseFloat(leg.entry_price).toFixed(1)} | LTP: ₹${parseFloat(leg.current_ltp).toFixed(1)} | SL: <span style="color: #991b1b; font-weight: 700;">₹${parseFloat(leg.current_sl_trigger || 0).toFixed(1)}</span>
+                                        </div>
+                                    </div>
+                                    <div style="text-align: right; display: flex; align-items: center; gap: 6px;">
+                                        <span class="${getPnlClass(legPnl)}" style="font-family: monospace; font-weight: 800;">${formatPnl(legPnl)}</span>
+                                        <button onclick="squareoffStraddleAdjustmentLeg('${s.id}', '${leg.id}')" class="btn-secondary" style="padding: 2px 6px; font-size: 9px; color: #dc2626; border-color: #fca5a5;" title="Square off this adjustment leg">⚡ Exit</button>
+                                    </div>
+                                </div>`;
+                            }).join('');
+                        } else {
+                            activeLegsHtml = `<div style="font-size: 10px; color: #0f766e; margin-top: 4px; font-style: italic;">No active adjustment legs yet (awaiting triggers).</div>`;
+                        }
+
+                        adjustmentsBoxHtml = `
+                        <div style="background: #f0fdfa; border: 1px solid #99f6e4; border-radius: var(--radius-sm); padding: 8px 10px; font-size: 11px; margin-bottom: 12px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <span style="color: #0f766e; font-weight: 800; font-size: 11px;">⚙️ Adjustments (${adjMode === 'AUTOMATIC' ? `Auto Decay ${adjData.auto_config?.trigger_decay_percent || 20}%` : `${adjData.manual_legs?.length || 0} Manual Legs`}):</span>
+                                <span style="font-size: 10px; background: #ccfbf1; color: #0f766e; font-weight: 700; padding: 1px 6px; border-radius: 4px;">${activeLegKeys.length} Active Leg${activeLegKeys.length === 1 ? '' : 's'}</span>
+                            </div>
+                            ${activeLegsHtml}
+                        </div>`;
+                    }
+
                     return `
                     <div class="card" style="margin-bottom: 0; border-top: 3px solid ${isActive ? 'var(--success)' : 'var(--border-color)'}; flex-direction: column; justify-content: space-between;">
                         <div>
@@ -4652,6 +4775,7 @@
 
                             ${strikesBoxHtml}
                             ${totalPremBoxHtml}
+                            ${adjustmentsBoxHtml}
                         </div>
 
                         <div>
@@ -4723,6 +4847,166 @@
             }
         }
 
+        let currentStraddleAdjManualLegs = [];
+
+        function toggleStraddleAdjustmentsSection() {
+            const enabled = document.getElementById('straddleEnableAdjustments').checked;
+            document.getElementById('straddleAdjustmentsContainer').style.display = enabled ? 'block' : 'none';
+        }
+
+        function setStraddleAdjMode(mode) {
+            const btnAuto = document.getElementById('btnStraddleAdjAuto');
+            const btnManual = document.getElementById('btnStraddleAdjManual');
+            const panelAuto = document.getElementById('straddleAdjAutoPanel');
+            const panelManual = document.getElementById('straddleAdjManualPanel');
+
+            if (mode === 'MANUAL') {
+                btnManual.classList.add('active');
+                btnAuto.classList.remove('active');
+                panelManual.style.display = 'block';
+                panelAuto.style.display = 'none';
+                if (currentStraddleAdjManualLegs.length === 0) {
+                    addManualAdjLegRow();
+                }
+            } else {
+                btnAuto.classList.add('active');
+                btnManual.classList.remove('active');
+                panelAuto.style.display = 'block';
+                panelManual.style.display = 'none';
+            }
+        }
+
+        function toggleStraddleAdjTslInput() {
+            const enabled = document.getElementById('straddleAdjEnableTsl').checked;
+            document.getElementById('straddleAdjTslFields').style.display = enabled ? 'flex' : 'none';
+        }
+
+        function addManualAdjLegRow(legData = null) {
+            const container = document.getElementById('straddleManualLegsList');
+            if (!container) return;
+            const legId = legData ? (legData.id || `leg_${Date.now()}`) : `leg_${Date.now()}`;
+            const strike = legData ? (legData.strike || '') : '';
+            const optType = legData ? (legData.option_type || 'CE') : 'CE';
+            const action = legData ? (legData.action || 'SELL') : 'SELL';
+            const triggerPrice = legData ? (legData.trigger_price || '') : '';
+            const lots = legData ? (legData.lots || 1) : 1;
+            const slType = legData ? (legData.sl_type || 'PERCENT') : 'PERCENT';
+            const slVal = legData ? (legData.sl_value || 30) : 30;
+            const enableTsl = legData ? Boolean(legData.enable_tsl) : true;
+            const tslStep = legData ? (legData.tsl_step || 10) : 10;
+            const tslVal = legData ? (legData.tsl_value || 10) : 10;
+
+            const row = document.createElement('div');
+            row.className = 'manual-adj-leg-row';
+            row.dataset.id = legId;
+            row.style.background = '#f8fafc';
+            row.style.border = '1px solid #cbd5e1';
+            row.style.borderRadius = '6px';
+            row.style.padding = '8px 10px';
+
+            row.innerHTML = `
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                    <span style="font-size: 11px; font-weight: 800; color: #334155;">Leg #${container.children.length + 1}</span>
+                    <button type="button" onclick="this.closest('.manual-adj-leg-row').remove()" class="btn-secondary" style="padding: 2px 6px; font-size: 10px; color: #dc2626;" title="Remove Leg">✕</button>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; margin-bottom: 6px;">
+                    <div>
+                        <label style="font-size: 10px; font-weight: 700; color: #475569;">Strike</label>
+                        <input type="number" class="mleg-strike" value="${strike}" step="50" placeholder="e.g. 25200" style="font-size: 11px; font-weight: 700; padding: 4px 6px;">
+                    </div>
+                    <div>
+                        <label style="font-size: 10px; font-weight: 700; color: #475569;">Type</label>
+                        <select class="mleg-type" style="font-size: 11px; font-weight: 700; padding: 4px 6px;">
+                            <option value="CE" ${optType === 'CE' ? 'selected' : ''}>CE (Call)</option>
+                            <option value="PE" ${optType === 'PE' ? 'selected' : ''}>PE (Put)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label style="font-size: 10px; font-weight: 700; color: #475569;">Action</label>
+                        <select class="mleg-action" style="font-size: 11px; font-weight: 700; padding: 4px 6px;">
+                            <option value="SELL" ${action === 'SELL' ? 'selected' : ''}>🔴 SELL</option>
+                            <option value="BUY" ${action === 'BUY' ? 'selected' : ''}>🟢 BUY</option>
+                        </select>
+                    </div>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; margin-bottom: 6px;">
+                    <div>
+                        <label style="font-size: 10px; font-weight: 700; color: #0284c7;" title="Trigger when price drops to this (SELL) or rises to this (BUY)">Trigger Prem ₹</label>
+                        <input type="number" class="mleg-trigger" value="${triggerPrice}" step="0.5" placeholder="e.g. 80" style="font-size: 11px; font-weight: 700; padding: 4px 6px; border-color: #7dd3fc;">
+                    </div>
+                    <div>
+                        <label style="font-size: 10px; font-weight: 700; color: #475569;">Lots</label>
+                        <input type="number" class="mleg-lots" value="${lots}" min="1" step="1" style="font-size: 11px; font-weight: 700; padding: 4px 6px;">
+                    </div>
+                    <div>
+                        <label style="font-size: 10px; font-weight: 700; color: #991b1b;">SL (% / Pts)</label>
+                        <input type="number" class="mleg-sl" value="${slVal}" step="0.5" style="font-size: 11px; font-weight: 700; padding: 4px 6px; color: #991b1b;">
+                    </div>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px; font-size: 10px; font-weight: 700; color: #166534;">
+                    <label style="display: flex; align-items: center; gap: 4px; cursor: pointer; margin-bottom: 0;">
+                        <input type="checkbox" class="mleg-enable-tsl" ${enableTsl ? 'checked' : ''} style="width: 13px; height: 13px; accent-color: #16a34a;">
+                        <span>TSL:</span>
+                    </label>
+                    <span>Trail Step:</span>
+                    <input type="number" class="mleg-tsl-step" value="${tslStep}" step="0.5" style="width: 50px; font-size: 10px; padding: 2px 4px;">
+                    <span>Move:</span>
+                    <input type="number" class="mleg-tsl-val" value="${tslVal}" step="0.5" style="width: 50px; font-size: 10px; padding: 2px 4px;">
+                </div>
+            `;
+            container.appendChild(row);
+        }
+
+        function collectManualAdjLegsFromUI() {
+            const rows = document.querySelectorAll('.manual-adj-leg-row');
+            const legs = [];
+            rows.forEach((row, idx) => {
+                const strike = parseFloat(row.querySelector('.mleg-strike').value);
+                const optType = row.querySelector('.mleg-type').value;
+                const action = row.querySelector('.mleg-action').value;
+                const triggerPrice = parseFloat(row.querySelector('.mleg-trigger').value);
+                const lots = parseInt(row.querySelector('.mleg-lots').value) || 1;
+                const slVal = parseFloat(row.querySelector('.mleg-sl').value) || 30.0;
+                const enableTsl = row.querySelector('.mleg-enable-tsl').checked;
+                const tslStep = parseFloat(row.querySelector('.mleg-tsl-step').value) || 10.0;
+                const tslVal = parseFloat(row.querySelector('.mleg-tsl-val').value) || 10.0;
+
+                if (!isNaN(strike) && strike > 0) {
+                    legs.push({
+                        id: row.dataset.id || `manual_${idx + 1}`,
+                        strike: strike,
+                        option_type: optType,
+                        action: action,
+                        trigger_price: !isNaN(triggerPrice) ? triggerPrice : 0.0,
+                        lots: lots,
+                        sl_type: "PERCENT",
+                        sl_value: slVal,
+                        enable_tsl: enableTsl,
+                        tsl_type: "POINTS",
+                        tsl_value: tslVal,
+                        tsl_step: tslStep,
+                        status: "PENDING"
+                    });
+                }
+            });
+            return legs;
+        }
+
+        async function squareoffStraddleAdjustmentLeg(stratId, adjId) {
+            if (!confirm(`Are you sure you want to square off adjustment leg '${adjId}'?`)) return;
+            try {
+                const res = await api(`/api/straddle_total_sl/strategies/${stratId}/adjustments/${adjId}/squareoff`, 'POST');
+                if (res.status === 'ok') {
+                    toast('✅ ' + (res.message || 'Adjustment leg squared off'));
+                    fetchStraddleStatus();
+                } else {
+                    toast('❌ ' + (res.message || 'Error squaring off adjustment leg'), true);
+                }
+            } catch (err) {
+                toast('❌ Network error', true);
+            }
+        }
+
         function openNewStraddleStrategyForm() {
             document.getElementById('straddleStratId').value = '';
             document.getElementById('straddleFormTitle').textContent = '➕ Create Straddle Total SL Strategy';
@@ -4737,6 +5021,22 @@
             document.getElementById('straddleTotalTp').value = '50';
             document.getElementById('straddleStartTime').value = '15:00:00';
             document.getElementById('straddleEndTime').value = '15:15:00';
+            
+            // Reset adjustments
+            document.getElementById('straddleEnableAdjustments').checked = false;
+            toggleStraddleAdjustmentsSection();
+            setStraddleAdjMode('AUTOMATIC');
+            document.getElementById('straddleAdjDecayPct').value = 20;
+            document.getElementById('straddleAdjLots').value = 1;
+            document.getElementById('straddleAdjSlType').value = 'PERCENT';
+            document.getElementById('straddleAdjSlValue').value = 30;
+            document.getElementById('straddleAdjEnableTsl').checked = true;
+            document.getElementById('straddleAdjTslStep').value = 10;
+            document.getElementById('straddleAdjTslVal').value = 10;
+            toggleStraddleAdjTslInput();
+            document.getElementById('straddleManualLegsList').innerHTML = '';
+            currentStraddleAdjManualLegs = [];
+
             onStraddleIndexChange(true);
             autoSuggestStraddleName(true);
             document.getElementById('straddleEditCard').scrollIntoView({ behavior: 'smooth' });
@@ -4769,6 +5069,29 @@
             document.getElementById('straddleQuantity').min = lot;
             const lbl = document.getElementById('lblStraddleQuantity');
             if (lbl) lbl.textContent = `Quantity (Multiple of Lot Size: ${lot} for ${strat.index_name || 'NIFTY'})`;
+
+            // Populate Adjustments
+            const adj = strat.adjustments || {};
+            document.getElementById('straddleEnableAdjustments').checked = Boolean(adj.enabled);
+            toggleStraddleAdjustmentsSection();
+            const adjMode = adj.mode || 'AUTOMATIC';
+            setStraddleAdjMode(adjMode);
+
+            const autoCfg = adj.auto_config || {};
+            document.getElementById('straddleAdjDecayPct').value = autoCfg.trigger_decay_percent || 20;
+            document.getElementById('straddleAdjLots').value = autoCfg.lots || 1;
+            document.getElementById('straddleAdjSlType').value = autoCfg.sl_type || 'PERCENT';
+            document.getElementById('straddleAdjSlValue').value = autoCfg.sl_value || 30;
+            document.getElementById('straddleAdjEnableTsl').checked = autoCfg.enable_tsl !== undefined ? Boolean(autoCfg.enable_tsl) : true;
+            document.getElementById('straddleAdjTslStep').value = autoCfg.tsl_step || 10;
+            document.getElementById('straddleAdjTslVal').value = autoCfg.tsl_value || 10;
+            toggleStraddleAdjTslInput();
+
+            document.getElementById('straddleManualLegsList').innerHTML = '';
+            const manualLegs = adj.manual_legs || [];
+            if (manualLegs.length > 0) {
+                manualLegs.forEach(m => addManualAdjLegRow(m));
+            }
             
             loadStraddleExpiries(strat.expiry);
             document.getElementById('straddleEditCard').scrollIntoView({ behavior: 'smooth' });
@@ -4786,6 +5109,10 @@
             const strikeMultiple = parseFloat(document.getElementById('straddleStrikeMultiple').value) || 500;
             const manualStrikeVal = parseFloat(document.getElementById('straddleManualStrike').value);
 
+            const enableAdj = document.getElementById('straddleEnableAdjustments').checked;
+            const adjMode = document.getElementById('btnStraddleAdjManual').classList.contains('active') ? 'MANUAL' : 'AUTOMATIC';
+            const manualLegsData = collectManualAdjLegsFromUI();
+
             const payload = {
                 id: stratId || undefined,
                 name: document.getElementById('straddleStratName').value.trim(),
@@ -4801,7 +5128,22 @@
                 total_tp_percent: parseFloat(document.getElementById('straddleTotalTp').value),
                 quantity: parseInt(document.getElementById('straddleQuantity').value),
                 entry_time: document.getElementById('straddleStartTime').value,
-                exit_time: document.getElementById('straddleEndTime').value
+                exit_time: document.getElementById('straddleEndTime').value,
+                adjustments: {
+                    enabled: enableAdj,
+                    mode: adjMode,
+                    auto_config: {
+                        trigger_decay_percent: parseFloat(document.getElementById('straddleAdjDecayPct').value) || 20.0,
+                        lots: parseInt(document.getElementById('straddleAdjLots').value) || 1,
+                        sl_type: document.getElementById('straddleAdjSlType').value,
+                        sl_value: parseFloat(document.getElementById('straddleAdjSlValue').value) || 30.0,
+                        enable_tsl: document.getElementById('straddleAdjEnableTsl').checked,
+                        tsl_type: "POINTS",
+                        tsl_value: parseFloat(document.getElementById('straddleAdjTslVal').value) || 10.0,
+                        tsl_step: parseFloat(document.getElementById('straddleAdjTslStep').value) || 10.0
+                    },
+                    manual_legs: manualLegsData
+                }
             };
 
             try {
