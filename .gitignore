@@ -18,3 +18,4 @@ skeleton
 lot_sizes.json
 mtm_curve_data.json
 *.json
+*.csv

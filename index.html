@@ -1426,146 +1426,189 @@
                             </button>
                         </div>
 
-                        <!-- Strategy Type & Entry Action Toggles -->
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px;">
-                            <div>
-                                <label style="display: block; font-size: 11px; font-weight: 700; color: var(--text-secondary); margin-bottom: 6px; text-transform: uppercase;">Strategy Type</label>
-                                <div class="segment-control" style="margin-bottom: 0;">
-                                    <button id="btnStrangle" class="segment-btn active" type="button"
-                                        onclick="setStrategyType('STRANGLE')">Strangle</button>
-                                    <button id="btnStraddle" class="segment-btn" type="button"
-                                        onclick="setStrategyType('STRADDLE')">Straddle</button>
-                                </div>
-                            </div>
-                            <div>
-                                <label style="display: block; font-size: 11px; font-weight: 700; color: var(--text-secondary); margin-bottom: 6px; text-transform: uppercase;">Option Action (Trade Direction)</label>
-                                <div class="segment-control" style="margin-bottom: 0;">
-                                    <button id="btnActionSell" class="segment-btn active" type="button"
-                                        onclick="setEntryAction('SELL')">🔴 SELL (Short)</button>
-                                    <button id="btnActionBuy" class="segment-btn" type="button"
-                                        onclick="setEntryAction('BUY')">🟢 BUY (Long)</button>
-                                </div>
-                            </div>
-                        </div>
-
                         <form id="strategyForm" onsubmit="saveStrategyConfig(event)">
                             <input type="hidden" id="stratId" value="">
 
-                            <div class="form-group" style="margin-bottom: 14px;">
-                                <label for="stratName">Strategy Name</label>
-                                <input type="text" id="stratName" placeholder="e.g. Nifty 09:20 Morning Straddle" required
-                                    style="font-weight: 600;">
-                            </div>
-
-                            <div class="form-row">
-                                <div class="form-group">
-                                    <label for="indexName">Index Spot</label>
-                                    <select id="indexName">
-                                        <option value="NIFTY">NIFTY</option>
-                                        <option value="BANKNIFTY">BANKNIFTY</option>
-                                        <option value="FINNIFTY">FINNIFTY</option>
-                                        <option value="MIDCPNIFTY">MIDCPNIFTY</option>
-                                    </select>
+                            <!-- 1. Strategy Identity (Pastel Lavender) -->
+                            <div style="background: #f5f3ff; border: 1px solid #ddd6fe; border-left: 4px solid #6366f1; border-radius: var(--radius-sm); padding: 12px 14px; margin-bottom: 12px;">
+                                <div style="font-size: 11px; font-weight: 800; color: #4338ca; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; display: flex; align-items: center; gap: 6px;">
+                                    <span>🏷️ Strategy Identity</span>
                                 </div>
-                                <div class="form-group">
-                                    <label for="expirySelect">Weekly Expiry</label>
-                                    <select id="expirySelect" required>
-                                        <option value="">Loading expiries...</option>
-                                    </select>
-                                </div>
-                            </div>
-
-                            <div class="form-row">
-                                <div class="form-group">
-                                    <label id="lblCePremium" for="cePremium">Call Target Premium (CE)</label>
-                                    <input type="number" id="cePremium" step="1" value="100" required>
-                                </div>
-                                <div class="form-group">
-                                    <label id="lblPePremium" for="pePremium">Put Target Premium (PE)</label>
-                                    <input type="number" id="pePremium" step="1" value="100" required>
-                                </div>
-                            </div>
-
-                            <div class="form-row">
-                                <div class="form-group">
-                                    <label for="slType">Stop Loss Mode</label>
-                                    <select id="slType" onchange="updateSlInputDisplay()">
-                                        <option value="POINTS" selected>Points (pts)</option>
-                                        <option value="PERCENT">Percentage (%)</option>
-                                    </select>
-                                </div>
-                                <div class="form-group">
-                                    <label for="stopLossValue" id="lblStopLoss">Stop Loss (Points)</label>
-                                    <input type="number" id="stopLossValue" step="0.5" value="20" required>
-                                </div>
-                            </div>
-
-                            <div class="form-row">
-                                <div class="form-group">
-                                    <label for="productSelect">Product Type</label>
-                                    <select id="productSelect">
-                                        <option value="MIS" selected>MIS (Intraday)</option>
-                                        <option value="CNC">CNC (Delivery)</option>
-                                        <option value="NRML">NRML (Normal / F&amp;O)</option>
-                                    </select>
-                                </div>
-                                <div class="form-group">
-                                    <label for="reentryCount">🔄 Re-entry Count (on SL hit)</label>
-                                    <select id="reentryCount">
-                                        <option value="0" selected>0 (No Re-entry)</option>
-                                        <option value="1">1 Time</option>
-                                        <option value="2">2 Times</option>
-                                        <option value="3">3 Times</option>
-                                        <option value="4">4 Times</option>
-                                        <option value="5">5 Times</option>
-                                    </select>
-                                    <div class="time-hint">Re-enters leg at original entry price</div>
-                                </div>
-                            </div>
-
-                            <!-- Trailing Stop Loss (TSL) Section -->
-                            <div class="form-row" style="background: #f8fafc; padding: 10px 14px; border-radius: var(--radius-sm); border: 1px solid #e2e8f0; margin-bottom: 14px; align-items: center;">
                                 <div class="form-group" style="margin-bottom: 0;">
-                                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 700; font-size: 12px; color: var(--accent-light); margin-bottom: 0;">
-                                        <input type="checkbox" id="intraEnableTsl" onchange="toggleIntraTslInput()" style="width: 16px; height: 16px; accent-color: #2563eb;">
-                                        <span>🎯 Enable Trailing Stop Loss (TSL)</span>
-                                    </label>
-                                    <div class="time-hint" style="margin-top: 3px;">Active after 1 leg SL hit &amp; Breakeven SL placed</div>
-                                </div>
-                                <div class="form-group" id="intraTslPointsGroup" style="display: none; margin-bottom: 0;">
-                                    <label for="intraTslPoints" style="font-size: 11px;">TSL Trail Step (Points)</label>
-                                    <input type="number" id="intraTslPoints" step="0.5" value="10" min="0.5" placeholder="e.g. 10">
-                                    <div class="time-hint">Trails SL lower lockstep by this many pts</div>
+                                    <label for="stratName" style="color: #4338ca; font-weight: 700;">Strategy Name</label>
+                                    <input type="text" id="stratName" placeholder="e.g. Nifty 09:20 Morning Straddle" required
+                                        style="font-weight: 700; background: #ffffff; border-color: #c7d2fe;">
                                 </div>
                             </div>
 
-                            <div class="form-row">
-                                <div class="form-group">
-                                    <label for="startTime">⏰ Entry Time</label>
-                                    <input type="time" id="startTime" value="09:20:00" step="1" required
-                                        title="Click the clock icon to pick time">
-                                    <div class="time-hint">Orders placed at this time</div>
+                            <!-- 2. Strategy Type & Direction (Pastel Soft Violet / Fuchsia) -->
+                            <div style="background: #faf5ff; border: 1px solid #e9d5ff; border-left: 4px solid #a855f7; border-radius: var(--radius-sm); padding: 12px 14px; margin-bottom: 12px;">
+                                <div style="font-size: 11px; font-weight: 800; color: #7e22ce; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
+                                    <span>⚡ Strategy Structure &amp; Trade Action</span>
                                 </div>
-                                <div class="form-group">
-                                    <label for="endTime">🔔 Exit Time</label>
-                                    <input type="time" id="endTime" value="15:15:00" step="1" required
-                                        title="Click the clock icon to pick time">
-                                    <div class="time-hint">Strategy stops at this time</div>
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                                    <div>
+                                        <label style="display: block; font-size: 11px; font-weight: 700; color: #7e22ce; margin-bottom: 6px;">STRATEGY TYPE</label>
+                                        <div class="segment-control" style="margin-bottom: 0; background: #f3e8ff;">
+                                            <button id="btnStrangle" class="segment-btn active" type="button"
+                                                onclick="setStrategyType('STRANGLE')">Strangle</button>
+                                            <button id="btnStraddle" class="segment-btn" type="button"
+                                                onclick="setStrategyType('STRADDLE')">Straddle</button>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label style="display: block; font-size: 11px; font-weight: 700; color: #7e22ce; margin-bottom: 6px;">TRADE DIRECTION</label>
+                                        <div class="segment-control" style="margin-bottom: 0; background: #f3e8ff;">
+                                            <button id="btnActionSell" class="segment-btn active" type="button"
+                                                onclick="setEntryAction('SELL')">🔴 SELL</button>
+                                            <button id="btnActionBuy" class="segment-btn" type="button"
+                                                onclick="setEntryAction('BUY')">🟢 BUY</button>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
 
-                            <div class="form-group">
-                                <label for="quantity" id="lblQuantity">Quantity (Multiple of 65 for NIFTY / 30 for BANKNIFTY)</label>
-                                <input type="number" id="quantity" value="65" step="65" min="65" required>
+                            <!-- 3. Underlying Spot & Expiry (Pastel Warm Yellow) -->
+                            <div style="background: #fefce8; border: 1px solid #fef08a; border-left: 4px solid #eab308; border-radius: var(--radius-sm); padding: 12px 14px; margin-bottom: 12px;">
+                                <div style="font-size: 11px; font-weight: 800; color: #854d0e; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
+                                    <span>📊 Underlying Spot &amp; Expiry</span>
+                                </div>
+                                <div class="form-row" style="margin-bottom: 0;">
+                                    <div class="form-group" style="margin-bottom: 0;">
+                                        <label for="indexName" style="color: #854d0e; font-weight: 700;">Index Spot</label>
+                                        <select id="indexName" style="background: #ffffff; border-color: #fde68a; font-weight: 600;">
+                                            <option value="NIFTY">NIFTY</option>
+                                            <option value="BANKNIFTY">BANKNIFTY</option>
+                                            <option value="FINNIFTY">FINNIFTY</option>
+                                            <option value="MIDCPNIFTY">MIDCPNIFTY</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group" style="margin-bottom: 0;">
+                                        <label for="expirySelect" style="color: #854d0e; font-weight: 700;">Weekly Expiry</label>
+                                        <select id="expirySelect" required style="background: #ffffff; border-color: #fde68a; font-weight: 600;">
+                                            <option value="">Loading expiries...</option>
+                                        </select>
+                                    </div>
+                                </div>
                             </div>
 
-                            <div style="display: flex; gap: 10px; margin-top: 16px;">
+                            <!-- 4. Target Option Premiums (Pastel Sky Blue) -->
+                            <div style="background: #f0f9ff; border: 1px solid #bae6fd; border-left: 4px solid #0284c7; border-radius: var(--radius-sm); padding: 12px 14px; margin-bottom: 12px;">
+                                <div style="font-size: 11px; font-weight: 800; color: #0369a1; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
+                                    <span>🎯 Target Option Premiums</span>
+                                </div>
+                                <div class="form-row" style="margin-bottom: 0;">
+                                    <div class="form-group" style="margin-bottom: 0;">
+                                        <label id="lblCePremium" for="cePremium" style="color: #0369a1; font-weight: 700;">Call Target Premium (CE)</label>
+                                        <input type="number" id="cePremium" step="1" value="100" required style="background: #ffffff; border-color: #7dd3fc; font-weight: 700;">
+                                    </div>
+                                    <div class="form-group" style="margin-bottom: 0;">
+                                        <label id="lblPePremium" for="pePremium" style="color: #0369a1; font-weight: 700;">Put Target Premium (PE)</label>
+                                        <input type="number" id="pePremium" step="1" value="100" required style="background: #ffffff; border-color: #7dd3fc; font-weight: 700;">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 5. Stop Loss, Re-entry & TSL (Pastel Mint Green) -->
+                            <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-left: 4px solid #16a34a; border-radius: var(--radius-sm); padding: 12px 14px; margin-bottom: 12px;">
+                                <div style="font-size: 11px; font-weight: 800; color: #166534; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
+                                    <span>🛡️ Risk Management (SL, TSL &amp; Re-entry)</span>
+                                </div>
+                                <div class="form-row" style="margin-bottom: 10px;">
+                                    <div class="form-group" style="margin-bottom: 0;">
+                                        <label for="slType" style="color: #166534; font-weight: 700;">Stop Loss Mode</label>
+                                        <select id="slType" onchange="updateSlInputDisplay()" style="background: #ffffff; border-color: #86efac; font-weight: 600;">
+                                            <option value="POINTS" selected>Points (pts)</option>
+                                            <option value="PERCENT">Percentage (%)</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group" style="margin-bottom: 0;">
+                                        <label for="stopLossValue" id="lblStopLoss" style="color: #991b1b; font-weight: 700;">🛑 Stop Loss Value</label>
+                                        <input type="number" id="stopLossValue" step="0.5" value="20" required style="background: #ffffff; border-color: #fca5a5; font-weight: 700; color: #991b1b;">
+                                    </div>
+                                </div>
+
+                                <div class="form-row" style="margin-bottom: 10px;">
+                                    <div class="form-group" style="margin-bottom: 0;">
+                                        <label for="reentryCount" style="color: #166534; font-weight: 700;">🔄 Re-entry Count (on SL hit)</label>
+                                        <select id="reentryCount" style="background: #ffffff; border-color: #86efac; font-weight: 600;">
+                                            <option value="0" selected>0 (No Re-entry)</option>
+                                            <option value="1">1 Time</option>
+                                            <option value="2">2 Times</option>
+                                            <option value="3">3 Times</option>
+                                            <option value="4">4 Times</option>
+                                            <option value="5">5 Times</option>
+                                        </select>
+                                        <div class="time-hint" style="color: #166534;">Re-enters leg at original entry price</div>
+                                    </div>
+                                    <div class="form-group" style="margin-bottom: 0; align-self: flex-end;">
+                                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 700; font-size: 12px; color: #166534; margin-bottom: 8px;">
+                                            <input type="checkbox" id="intraEnableTsl" onchange="toggleIntraTslInput()" style="width: 16px; height: 16px; accent-color: #16a34a;">
+                                            <span>🎯 Enable Trailing SL (TSL)</span>
+                                        </label>
+                                        <div class="time-hint" style="color: #166534;">Active after 1 leg SL &amp; Breakeven SL</div>
+                                    </div>
+                                </div>
+
+                                <div id="intraTslPointsGroup" style="display: none; background: #ffffff; border: 1px dashed #86efac; border-radius: 6px; padding: 8px 10px; margin-top: 6px;">
+                                    <label for="intraTslPoints" style="font-size: 11px; font-weight: 700; color: #166534;">TSL Trail Step (Points)</label>
+                                    <input type="number" id="intraTslPoints" step="0.5" value="10" min="0.5" placeholder="e.g. 10" style="font-weight: 700;">
+                                    <div class="time-hint" style="color: #166534;">Trails SL lower lockstep by this many pts</div>
+                                </div>
+                            </div>
+
+                            <!-- 6. Product Type & Lot Size (Pastel Slate / Purple) -->
+                            <div style="background: #faf5ff; border: 1px solid #e9d5ff; border-left: 4px solid #9333ea; border-radius: var(--radius-sm); padding: 12px 14px; margin-bottom: 12px;">
+                                <div style="font-size: 11px; font-weight: 800; color: #6b21a8; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
+                                    <span>⚙️ Product Type &amp; Lot Quantity</span>
+                                </div>
+                                <div class="form-row" style="margin-bottom: 0;">
+                                    <div class="form-group" style="margin-bottom: 0;">
+                                        <label for="productSelect" style="color: #6b21a8; font-weight: 700;">Product Type</label>
+                                        <select id="productSelect" style="background: #ffffff; border-color: #d8b4fe; font-weight: 600;">
+                                            <option value="MIS" selected>MIS (Intraday)</option>
+                                            <option value="CNC">CNC (Delivery)</option>
+                                            <option value="NRML">NRML (Normal / F&amp;O)</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group" style="margin-bottom: 0;">
+                                        <label for="quantity" id="lblQuantity" style="color: #6b21a8; font-weight: 700;">Quantity (Multiple of Lot Size)</label>
+                                        <input type="number" id="quantity" value="65" step="65" min="65" required style="background: #ffffff; border-color: #d8b4fe; font-weight: 700;">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 7. Execution Schedule (Pastel Sunset Peach / Orange) -->
+                            <div style="background: #fff7ed; border: 1px solid #fed7aa; border-left: 4px solid #ea580c; border-radius: var(--radius-sm); padding: 12px 14px; margin-bottom: 14px;">
+                                <div style="font-size: 11px; font-weight: 800; color: #9a3412; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
+                                    <span>⏰ Execution Schedule &amp; Exit Window</span>
+                                </div>
+                                <div class="form-row" style="margin-bottom: 0;">
+                                    <div class="form-group" style="margin-bottom: 0;">
+                                        <label for="startTime" style="color: #9a3412; font-weight: 700;">⏰ Entry Time</label>
+                                        <input type="time" id="startTime" value="09:20:00" step="1" required
+                                            style="background: #ffffff; border-color: #fdba74; font-weight: 700;"
+                                            title="Click the clock icon to pick time">
+                                        <div class="time-hint" style="color: #9a3412;">Orders placed at this time</div>
+                                    </div>
+                                    <div class="form-group" style="margin-bottom: 0;">
+                                        <label for="endTime" style="color: #9a3412; font-weight: 700;">🔔 Exit Time</label>
+                                        <input type="time" id="endTime" value="15:15:00" step="1" required
+                                            style="background: #ffffff; border-color: #fdba74; font-weight: 700;"
+                                            title="Click the clock icon to pick time">
+                                        <div class="time-hint" style="color: #9a3412;">Strategy stops at this time</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Action Buttons -->
+                            <div style="display: flex; gap: 10px; margin-top: 18px;">
                                 <button type="submit" id="btnSaveStrategy" class="btn-primary"
-                                    style="flex: 1;">
-                                    💾 Save Strategy
+                                    style="flex: 1; padding: 12px; font-size: 14px; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 8px;">
+                                    <span>💾</span> Save Strategy
                                 </button>
                                 <button type="button" onclick="cancelEditForm()" class="btn-secondary"
-                                    style="padding: 0 16px;">
+                                    style="padding: 12px 20px; font-size: 14px; font-weight: 600;">
                                     Cancel
                                 </button>
                             </div>
@@ -1704,127 +1747,165 @@
                         <form id="posStrangleForm" onsubmit="savePosStrangleConfig(event)">
                             <input type="hidden" id="posStratId" value="">
 
-                            <div class="form-group" style="margin-bottom: 14px;">
-                                <label for="posStratName">Strategy Name</label>
-                                <input type="text" id="posStratName" placeholder="e.g. Nifty Weekly Positional Strangle" required style="font-weight: 600;">
-                            </div>
-
-                            <div class="form-row">
-                                <div class="form-group">
-                                    <label for="posIndexName">Underlying Instrument / Spot</label>
-                                    <select id="posIndexName" onchange="onPosIndexChange()">
-                                        <option value="NIFTY" selected>NIFTY</option>
-                                        <option value="BANKNIFTY">BANKNIFTY</option>
-                                        <option value="FINNIFTY">FINNIFTY</option>
-                                        <option value="MIDCPNIFTY">MIDCPNIFTY</option>
-                                        <option value="SENSEX">SENSEX</option>
-                                    </select>
+                            <!-- 1. Strategy Identity (Pastel Lavender) -->
+                            <div style="background: #f5f3ff; border: 1px solid #ddd6fe; border-left: 4px solid #6366f1; border-radius: var(--radius-sm); padding: 12px 14px; margin-bottom: 12px;">
+                                <div style="font-size: 11px; font-weight: 800; color: #4338ca; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; display: flex; align-items: center; gap: 6px;">
+                                    <span>🏷️ Strategy Identity</span>
                                 </div>
-                                <div class="form-group">
-                                    <label for="posExpirySelect">Monthly / Weekly Expiry</label>
-                                    <select id="posExpirySelect" required>
-                                        <option value="">Loading expiries...</option>
-                                    </select>
-                                </div>
-                            </div>
-
-                            <div class="form-row">
-                                <div class="form-group">
-                                    <label for="posCePremium">Call Target Premium (CE)</label>
-                                    <input type="number" id="posCePremium" step="1" value="80" required>
-                                </div>
-                                <div class="form-group">
-                                    <label for="posPePremium">Put Target Premium (PE)</label>
-                                    <input type="number" id="posPePremium" step="1" value="80" required>
-                                </div>
-                            </div>
-
-                            <div class="form-row">
-                                <div class="form-group">
-                                    <label for="posEntryAction">Trade Direction</label>
-                                    <select id="posEntryAction">
-                                        <option value="SELL" selected>🔴 SELL (Short Strangle)</option>
-                                        <option value="BUY">🟢 BUY (Long Strangle)</option>
-                                    </select>
-                                </div>
-                                <div class="form-group">
-                                    <label for="posProduct">Product Type</label>
-                                    <select id="posProduct">
-                                        <option value="NRML" selected>NRML (Overnight / Multi-Day)</option>
-                                        <option value="MIS">MIS (Intraday)</option>
-                                    </select>
-                                </div>
-                            </div>
-
-                            <div class="form-row">
-                                <div class="form-group">
-                                    <label for="posCeSlPercent">CE Stop Loss (%)</label>
-                                    <input type="number" id="posCeSlPercent" step="1" value="50" required>
-                                </div>
-                                <div class="form-group">
-                                    <label for="posPeSlPercent">PE Stop Loss (%)</label>
-                                    <input type="number" id="posPeSlPercent" step="1" value="50" required>
-                                </div>
-                            </div>
-
-                            <div class="form-row">
-                                <div class="form-group">
-                                    <label for="posTpPercent">Target Profit on Total Premium (%)</label>
-                                    <input type="number" id="posTpPercent" step="1" value="70" required title="Calculated on combined total premium (CE + PE)">
-                                </div>
-                                <div class="form-group">
-                                    <label for="posReentryCount">Max Re-entries (per Leg)</label>
-                                    <input type="number" id="posReentryCount" step="1" min="0" max="10" value="1" required title="When a leg SL is hit, re-enter original position up to this limit">
-                                </div>
-                            </div>
-
-                            <!-- Positional Trailing Stop Loss (TSL) Section -->
-                            <div class="form-row" style="background: #f8fafc; padding: 10px 14px; border-radius: var(--radius-sm); border: 1px solid #e2e8f0; margin-bottom: 14px; align-items: center;">
                                 <div class="form-group" style="margin-bottom: 0;">
-                                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 700; font-size: 12px; color: var(--accent-light); margin-bottom: 0;">
-                                        <input type="checkbox" id="posEnableTsl" onchange="togglePosTslInput()" style="width: 16px; height: 16px; accent-color: #2563eb;">
-                                        <span>🎯 Enable Trailing Stop Loss (TSL)</span>
-                                    </label>
-                                    <div class="time-hint" style="margin-top: 3px;">Active after 1 leg SL hit &amp; Breakeven SL placed</div>
-                                </div>
-                                <div class="form-group" id="posTslPointsGroup" style="display: none; margin-bottom: 0;">
-                                    <label for="posTslPoints" style="font-size: 11px;">TSL Trail Step (Points)</label>
-                                    <input type="number" id="posTslPoints" step="0.5" value="10" min="0.5" placeholder="e.g. 10">
-                                    <div class="time-hint">Trails SL lower lockstep by this many pts</div>
+                                    <label for="posStratName" style="color: #4338ca; font-weight: 700;">Strategy Name</label>
+                                    <input type="text" id="posStratName" placeholder="e.g. Nifty Weekly Positional Strangle" required style="font-weight: 700; background: #ffffff; border-color: #c7d2fe;">
                                 </div>
                             </div>
 
-                            <div class="form-row">
-                                <div class="form-group">
-                                    <label for="posStartTime">⏰ Scheduled Entry Time</label>
-                                    <input type="time" id="posStartTime" value="15:00:00" step="1" required
-                                        title="Initial position orders executed at this time">
-                                    <div class="time-hint">Executes initial position entry</div>
+                            <!-- 2. Underlying Spot & Expiry (Pastel Warm Yellow) -->
+                            <div style="background: #fefce8; border: 1px solid #fef08a; border-left: 4px solid #eab308; border-radius: var(--radius-sm); padding: 12px 14px; margin-bottom: 12px;">
+                                <div style="font-size: 11px; font-weight: 800; color: #854d0e; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
+                                    <span>📊 Underlying Spot &amp; Expiry</span>
                                 </div>
-                                <div class="form-group">
-                                    <label for="posMorningSlTime">🌅 Next-Day Morning SL Time</label>
-                                    <input type="time" id="posMorningSlTime" value="09:17:00" step="1" required
-                                        title="Sends/Restores Stop Loss orders on subsequent market days">
-                                    <div class="time-hint">Sends next-day SL orders at market open</div>
-                                </div>
-                                <div class="form-group">
-                                    <label for="posEndTime">🔔 Position Exit Time</label>
-                                    <input type="time" id="posEndTime" value="15:15:00" step="1" required
-                                        title="Position exit time">
-                                    <div class="time-hint">Positional monitoring exit window</div>
+                                <div class="form-row" style="margin-bottom: 0;">
+                                    <div class="form-group" style="margin-bottom: 0;">
+                                        <label for="posIndexName" style="color: #854d0e; font-weight: 700;">Underlying Instrument / Spot</label>
+                                        <select id="posIndexName" onchange="onPosIndexChange()" style="background: #ffffff; border-color: #fde68a; font-weight: 600;">
+                                            <option value="NIFTY" selected>NIFTY</option>
+                                            <option value="BANKNIFTY">BANKNIFTY</option>
+                                            <option value="FINNIFTY">FINNIFTY</option>
+                                            <option value="MIDCPNIFTY">MIDCPNIFTY</option>
+                                            <option value="SENSEX">SENSEX</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group" style="margin-bottom: 0;">
+                                        <label for="posExpirySelect" style="color: #854d0e; font-weight: 700;">Monthly / Weekly Expiry</label>
+                                        <select id="posExpirySelect" required style="background: #ffffff; border-color: #fde68a; font-weight: 600;">
+                                            <option value="">Loading expiries...</option>
+                                        </select>
+                                    </div>
                                 </div>
                             </div>
 
-                            <div class="form-group">
-                                <label for="posQuantity" id="lblPosQuantity">Quantity (Multiple of Lot Size)</label>
-                                <input type="number" id="posQuantity" value="65" step="65" min="65" required>
+                            <!-- 3. Target Option Premiums (Pastel Sky Blue) -->
+                            <div style="background: #f0f9ff; border: 1px solid #bae6fd; border-left: 4px solid #0284c7; border-radius: var(--radius-sm); padding: 12px 14px; margin-bottom: 12px;">
+                                <div style="font-size: 11px; font-weight: 800; color: #0369a1; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
+                                    <span>🎯 Target Option Premiums</span>
+                                </div>
+                                <div class="form-row" style="margin-bottom: 0;">
+                                    <div class="form-group" style="margin-bottom: 0;">
+                                        <label for="posCePremium" style="color: #0369a1; font-weight: 700;">Call Target Premium (CE)</label>
+                                        <input type="number" id="posCePremium" step="1" value="80" required style="background: #ffffff; border-color: #7dd3fc; font-weight: 700;">
+                                    </div>
+                                    <div class="form-group" style="margin-bottom: 0;">
+                                        <label for="posPePremium" style="color: #0369a1; font-weight: 700;">Put Target Premium (PE)</label>
+                                        <input type="number" id="posPePremium" step="1" value="80" required style="background: #ffffff; border-color: #7dd3fc; font-weight: 700;">
+                                    </div>
+                                </div>
                             </div>
 
+                            <!-- 4. Trade Direction, Product Type & Lot Size (Pastel Soft Purple) -->
+                            <div style="background: #faf5ff; border: 1px solid #e9d5ff; border-left: 4px solid #9333ea; border-radius: var(--radius-sm); padding: 12px 14px; margin-bottom: 12px;">
+                                <div style="font-size: 11px; font-weight: 800; color: #6b21a8; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
+                                    <span>⚡ Direction, Product &amp; Quantity</span>
+                                </div>
+                                <div class="form-row" style="margin-bottom: 10px;">
+                                    <div class="form-group" style="margin-bottom: 0;">
+                                        <label for="posEntryAction" style="color: #6b21a8; font-weight: 700;">Trade Direction</label>
+                                        <select id="posEntryAction" style="background: #ffffff; border-color: #d8b4fe; font-weight: 600;">
+                                            <option value="SELL" selected>🔴 SELL (Short Strangle)</option>
+                                            <option value="BUY">🟢 BUY (Long Strangle)</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group" style="margin-bottom: 0;">
+                                        <label for="posProduct" style="color: #6b21a8; font-weight: 700;">Product Type</label>
+                                        <select id="posProduct" style="background: #ffffff; border-color: #d8b4fe; font-weight: 600;">
+                                            <option value="NRML" selected>NRML (Overnight / Multi-Day)</option>
+                                            <option value="MIS">MIS (Intraday)</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="form-group" style="margin-bottom: 0;">
+                                    <label for="posQuantity" id="lblPosQuantity" style="color: #6b21a8; font-weight: 700;">Quantity (Multiple of Lot Size)</label>
+                                    <input type="number" id="posQuantity" value="65" step="65" min="65" required style="background: #ffffff; border-color: #d8b4fe; font-weight: 700;">
+                                </div>
+                            </div>
+
+                            <!-- 5. Stop Loss, Target Profit & Re-entries (Pastel Mint Green) -->
+                            <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-left: 4px solid #16a34a; border-radius: var(--radius-sm); padding: 12px 14px; margin-bottom: 12px;">
+                                <div style="font-size: 11px; font-weight: 800; color: #166534; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
+                                    <span>🛡️ Risk Management (SL, TP &amp; Re-entry)</span>
+                                </div>
+                                <div class="form-row" style="margin-bottom: 10px;">
+                                    <div class="form-group" style="margin-bottom: 0;">
+                                        <label for="posCeSlPercent" style="color: #991b1b; font-weight: 700;">CE Stop Loss (%)</label>
+                                        <input type="number" id="posCeSlPercent" step="1" value="50" required style="background: #ffffff; border-color: #fca5a5; font-weight: 700; color: #991b1b;">
+                                    </div>
+                                    <div class="form-group" style="margin-bottom: 0;">
+                                        <label for="posPeSlPercent" style="color: #991b1b; font-weight: 700;">PE Stop Loss (%)</label>
+                                        <input type="number" id="posPeSlPercent" step="1" value="50" required style="background: #ffffff; border-color: #fca5a5; font-weight: 700; color: #991b1b;">
+                                    </div>
+                                </div>
+
+                                <div class="form-row" style="margin-bottom: 10px;">
+                                    <div class="form-group" style="margin-bottom: 0;">
+                                        <label for="posTpPercent" style="color: #166534; font-weight: 700;">🎯 Target Profit on Combined Total (%)</label>
+                                        <input type="number" id="posTpPercent" step="1" value="70" required style="background: #ffffff; border-color: #86efac; font-weight: 700; color: #166534;">
+                                    </div>
+                                    <div class="form-group" style="margin-bottom: 0;">
+                                        <label for="posReentryCount" style="color: #166534; font-weight: 700;">🔄 Max Re-entries (per Leg)</label>
+                                        <input type="number" id="posReentryCount" step="1" min="0" max="10" value="1" required style="background: #ffffff; border-color: #86efac; font-weight: 700;">
+                                    </div>
+                                </div>
+
+                                <div class="form-row" style="margin-bottom: 0; align-items: center;">
+                                    <div class="form-group" style="margin-bottom: 0;">
+                                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 700; font-size: 12px; color: #166534; margin-bottom: 0;">
+                                            <input type="checkbox" id="posEnableTsl" onchange="togglePosTslInput()" style="width: 16px; height: 16px; accent-color: #16a34a;">
+                                            <span>🎯 Enable Trailing Stop Loss (TSL)</span>
+                                        </label>
+                                        <div class="time-hint" style="color: #166534; margin-top: 3px;">Active after 1 leg SL hit &amp; Breakeven SL placed</div>
+                                    </div>
+                                    <div class="form-group" id="posTslPointsGroup" style="display: none; margin-bottom: 0;">
+                                        <label for="posTslPoints" style="font-size: 11px; font-weight: 700; color: #166534;">TSL Trail Step (Points)</label>
+                                        <input type="number" id="posTslPoints" step="0.5" value="10" min="0.5" placeholder="e.g. 10" style="background: #ffffff; font-weight: 700;">
+                                        <div class="time-hint" style="color: #166534;">Trails SL lower lockstep by this many pts</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 6. Execution Schedule & Next-Day SL (Pastel Sunset Peach / Orange) -->
+                            <div style="background: #fff7ed; border: 1px solid #fed7aa; border-left: 4px solid #ea580c; border-radius: var(--radius-sm); padding: 12px 14px; margin-bottom: 14px;">
+                                <div style="font-size: 11px; font-weight: 800; color: #9a3412; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
+                                    <span>⏰ Execution Schedule &amp; Morning SL</span>
+                                </div>
+                                <div class="form-row" style="margin-bottom: 0;">
+                                    <div class="form-group" style="margin-bottom: 0;">
+                                        <label for="posStartTime" style="color: #9a3412; font-weight: 700;">⏰ Scheduled Entry Time</label>
+                                        <input type="time" id="posStartTime" value="15:00:00" step="1" required
+                                            style="background: #ffffff; border-color: #fdba74; font-weight: 700;"
+                                            title="Initial position orders executed at this time">
+                                        <div class="time-hint" style="color: #9a3412;">Executes initial entry</div>
+                                    </div>
+                                    <div class="form-group" style="margin-bottom: 0;">
+                                        <label for="posMorningSlTime" style="color: #9a3412; font-weight: 700;">🌅 Next-Day Morning SL</label>
+                                        <input type="time" id="posMorningSlTime" value="09:17:00" step="1" required
+                                            style="background: #ffffff; border-color: #fdba74; font-weight: 700;"
+                                            title="Sends/Restores Stop Loss orders on subsequent market days">
+                                        <div class="time-hint" style="color: #9a3412;">Restores morning SL orders</div>
+                                    </div>
+                                    <div class="form-group" style="margin-bottom: 0;">
+                                        <label for="posEndTime" style="color: #9a3412; font-weight: 700;">🔔 Position Exit Time</label>
+                                        <input type="time" id="posEndTime" value="15:15:00" step="1" required
+                                            style="background: #ffffff; border-color: #fdba74; font-weight: 700;"
+                                            title="Position exit time">
+                                        <div class="time-hint" style="color: #9a3412;">Positional exit window</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Action Buttons -->
                             <div style="display: flex; gap: 10px; margin-top: 18px;">
-                                <button type="submit" class="btn-primary" style="flex: 1;">
-                                    💾 Save Positional Strategy
+                                <button type="submit" class="btn-primary" style="flex: 1; padding: 12px; font-size: 14px; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 8px;">
+                                    <span>💾</span> Save Positional Strategy
                                 </button>
-                                <button type="button" onclick="cancelPosEditForm()" class="btn-secondary" style="padding: 0 16px;">
+                                <button type="button" onclick="cancelPosEditForm()" class="btn-secondary" style="padding: 12px 20px; font-size: 14px; font-weight: 600;">
                                     Cancel
                                 </button>
                             </div>
@@ -1933,99 +2014,146 @@
                         <form id="straddleStrategyForm" onsubmit="saveStraddleStrategyConfig(event)">
                             <input type="hidden" id="straddleStratId" value="">
 
-                            <div class="form-group" style="margin-bottom: 14px;">
-                                <label for="straddleStratName">Strategy Name</label>
-                                <input type="text" id="straddleStratName" placeholder="e.g. Nifty Weekly Straddle Total SL" required style="font-weight: 600;">
-                            </div>
-
-                            <div class="form-row">
-                                <div class="form-group">
-                                    <label for="straddleIndexName">Underlying Instrument / Spot</label>
-                                    <select id="straddleIndexName" onchange="onStraddleIndexChange()">
-                                        <option value="NIFTY" selected>NIFTY</option>
-                                        <option value="BANKNIFTY">BANKNIFTY</option>
-                                        <option value="FINNIFTY">FINNIFTY</option>
-                                        <option value="MIDCPNIFTY">MIDCPNIFTY</option>
-                                        <option value="SENSEX">SENSEX</option>
-                                        <option value="BANKEX">BANKEX</option>
-                                    </select>
+                            <!-- 1. Strategy Identity (Pastel Lavender / Soft Indigo) -->
+                            <div style="background: #f5f3ff; border: 1px solid #ddd6fe; border-left: 4px solid #6366f1; border-radius: var(--radius-sm); padding: 12px 14px; margin-bottom: 12px;">
+                                <div style="font-size: 11px; font-weight: 800; color: #4338ca; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; display: flex; align-items: center; gap: 6px;">
+                                    <span>🏷️ Strategy Identity</span>
                                 </div>
-                                <div class="form-group">
-                                    <label for="straddleExpirySelect">Monthly / Weekly Expiry</label>
-                                    <select id="straddleExpirySelect" required>
-                                        <option value="">Loading expiries...</option>
-                                    </select>
+                                <div class="form-group" style="margin-bottom: 0;">
+                                    <label for="straddleStratName" style="color: #4338ca; font-weight: 700;">Strategy Name</label>
+                                    <input type="text" id="straddleStratName" placeholder="e.g. Nifty Weekly Straddle Total SL" required style="font-weight: 700; background: #ffffff; border-color: #c7d2fe;">
                                 </div>
                             </div>
 
-                            <div class="form-row">
-                                <div class="form-group">
-                                    <label for="straddleStrikeInput">Strike Selection (ATM Default)</label>
-                                    <input type="text" id="straddleStrikeInput" value="ATM" placeholder="ATM or specific strike (e.g. 24500)" required>
-                                    <div class="time-hint">Pairs BOTH CE &amp; PE at the closest ATM strike</div>
-                                </div>
-                                <div class="form-group">
-                                    <label for="straddleEntryAction">Trade Direction</label>
-                                    <select id="straddleEntryAction">
-                                        <option value="SELL" selected>🔴 SELL (Short Straddle)</option>
-                                        <option value="BUY">🟢 BUY (Long Straddle)</option>
-                                    </select>
-                                </div>
-                            </div>
-
-                            <div class="form-row">
-                                <div class="form-group">
-                                    <label for="straddleProduct">Product Type</label>
-                                    <select id="straddleProduct">
-                                        <option value="NRML" selected>NRML (Overnight / Multi-Day)</option>
-                                        <option value="MIS">MIS (Intraday)</option>
-                                    </select>
-                                </div>
-                                <div class="form-group">
-                                    <label for="straddleQuantity" id="lblStraddleQuantity">Quantity (Multiple of Lot Size)</label>
-                                    <input type="number" id="straddleQuantity" value="65" step="65" min="65" required>
-                                </div>
-                            </div>
-
-                            <!-- Total Premium Stop Loss & Target Profit Controls -->
-                            <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: var(--radius-sm); padding: 14px; margin-bottom: 14px;">
-                                <div style="font-size: 12px; font-weight: 800; color: #166534; margin-bottom: 10px; display: flex; align-items: center; gap: 6px;">
-                                    <span>🛡️ COMBINED TOTAL PREMIUM (CE + PE) SL &amp; TARGET</span>
+                            <!-- 2. Underlying Instrument & Expiry (Pastel Warm Yellow) -->
+                            <div style="background: #fefce8; border: 1px solid #fef08a; border-left: 4px solid #eab308; border-radius: var(--radius-sm); padding: 12px 14px; margin-bottom: 12px;">
+                                <div style="font-size: 11px; font-weight: 800; color: #854d0e; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
+                                    <span>📊 Underlying Spot &amp; Expiry</span>
                                 </div>
                                 <div class="form-row" style="margin-bottom: 0;">
                                     <div class="form-group" style="margin-bottom: 0;">
-                                        <label for="straddleTotalSl" style="color: #991b1b; font-weight: 700;">🛑 Total Premium Stop Loss (%)</label>
-                                        <input type="number" id="straddleTotalSl" step="1" value="100" min="1" required placeholder="e.g. 100">
+                                        <label for="straddleIndexName" style="color: #854d0e; font-weight: 700;">Underlying Instrument / Spot</label>
+                                        <select id="straddleIndexName" onchange="onStraddleIndexChange()" style="background: #ffffff; border-color: #fde68a; font-weight: 600;">
+                                            <option value="NIFTY" selected>NIFTY</option>
+                                            <option value="BANKNIFTY">BANKNIFTY</option>
+                                            <option value="FINNIFTY">FINNIFTY</option>
+                                            <option value="MIDCPNIFTY">MIDCPNIFTY</option>
+                                            <option value="SENSEX">SENSEX</option>
+                                            <option value="BANKEX">BANKEX</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group" style="margin-bottom: 0;">
+                                        <label for="straddleExpirySelect" style="color: #854d0e; font-weight: 700;">Monthly / Weekly Expiry</label>
+                                        <select id="straddleExpirySelect" required style="background: #ffffff; border-color: #fde68a; font-weight: 600;">
+                                            <option value="">Loading expiries...</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 3. Strike Selection Mode (Pastel Sky Blue) -->
+                            <div style="background: #f0f9ff; border: 1px solid #bae6fd; border-left: 4px solid #0284c7; border-radius: var(--radius-sm); padding: 12px 14px; margin-bottom: 12px;">
+                                <div style="font-size: 11px; font-weight: 800; color: #0369a1; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
+                                    <span>🎯 Strike Selection Mode</span>
+                                </div>
+                                <div class="form-row" style="margin-bottom: 0;">
+                                    <div class="form-group" style="margin-bottom: 0;">
+                                        <label for="straddleStrikeMode" style="color: #0369a1; font-weight: 700;">Strike Selection Rule</label>
+                                        <select id="straddleStrikeMode" onchange="onStraddleStrikeModeChange()" style="background: #ffffff; border-color: #7dd3fc; font-weight: 600;">
+                                            <option value="ATM" selected>⚡ Nearest ATM Strike (Default)</option>
+                                            <option value="ROUND_OFF">🔢 Round Off to Strike Multiple (e.g. 500 / 1000)</option>
+                                            <option value="MANUAL">✍️ Manual Specific Strike (e.g. 24500)</option>
+                                        </select>
+                                        <div class="time-hint" id="straddleStrikeModeHint" style="color: #0369a1;">Pairs BOTH CE &amp; PE at closest ATM strike to Spot LTP</div>
+                                    </div>
+                                    <div class="form-group" id="straddleMultipleGroup" style="display: none; margin-bottom: 0;">
+                                        <label for="straddleStrikeMultiple" style="color: #0369a1; font-weight: 700;">Round-Off Multiple (Step)</label>
+                                        <input type="number" id="straddleStrikeMultiple" step="50" value="500" placeholder="e.g. 500" style="background: #ffffff; border-color: #7dd3fc; font-weight: 600;">
+                                        <div class="time-hint" style="color: #0369a1;">Rounds Spot to nearest multiple (e.g. 24300 ➔ 24500 CE/PE)</div>
+                                    </div>
+                                    <div class="form-group" id="straddleManualStrikeGroup" style="display: none; margin-bottom: 0;">
+                                        <label for="straddleManualStrike" style="color: #0369a1; font-weight: 700;">Manual Strike Price</label>
+                                        <input type="number" id="straddleManualStrike" step="50" placeholder="e.g. 24500" style="background: #ffffff; border-color: #7dd3fc; font-weight: 600;">
+                                        <div class="time-hint" style="color: #0369a1;">Sends orders &amp; monitors this exact strike for CE &amp; PE</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 4. Trade Direction, Product Type & Lot Size (Pastel Soft Purple) -->
+                            <div style="background: #faf5ff; border: 1px solid #e9d5ff; border-left: 4px solid #9333ea; border-radius: var(--radius-sm); padding: 12px 14px; margin-bottom: 12px;">
+                                <div style="font-size: 11px; font-weight: 800; color: #6b21a8; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
+                                    <span>⚡ Direction, Product &amp; Quantity</span>
+                                </div>
+                                <div class="form-row" style="margin-bottom: 10px;">
+                                    <div class="form-group" style="margin-bottom: 0;">
+                                        <label for="straddleEntryAction" style="color: #6b21a8; font-weight: 700;">Trade Direction</label>
+                                        <select id="straddleEntryAction" style="background: #ffffff; border-color: #d8b4fe; font-weight: 600;">
+                                            <option value="SELL" selected>🔴 SELL (Short Straddle)</option>
+                                            <option value="BUY">🟢 BUY (Long Straddle)</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group" style="margin-bottom: 0;">
+                                        <label for="straddleProduct" style="color: #6b21a8; font-weight: 700;">Product Type</label>
+                                        <select id="straddleProduct" style="background: #ffffff; border-color: #d8b4fe; font-weight: 600;">
+                                            <option value="NRML" selected>NRML (Overnight / Multi-Day)</option>
+                                            <option value="MIS">MIS (Intraday)</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="form-group" style="margin-bottom: 0;">
+                                    <label for="straddleQuantity" id="lblStraddleQuantity" style="color: #6b21a8; font-weight: 700;">Quantity (Multiple of Lot Size: 65 for NIFTY)</label>
+                                    <input type="number" id="straddleQuantity" value="65" step="65" min="65" required style="background: #ffffff; border-color: #d8b4fe; font-weight: 700;">
+                                </div>
+                            </div>
+
+                            <!-- 5. Combined Total Premium SL & Target (Pastel Emerald Green) -->
+                            <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-left: 4px solid #16a34a; border-radius: var(--radius-sm); padding: 12px 14px; margin-bottom: 12px;">
+                                <div style="font-size: 11px; font-weight: 800; color: #166534; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
+                                    <span>🛡️ Combined Total Premium (CE + PE) SL &amp; Target</span>
+                                </div>
+                                <div class="form-row" style="margin-bottom: 0;">
+                                    <div class="form-group" style="margin-bottom: 0;">
+                                        <label for="straddleTotalSl" style="color: #991b1b; font-weight: 700;">🛑 Stop Loss (%)</label>
+                                        <input type="number" id="straddleTotalSl" step="1" value="100" min="1" required placeholder="e.g. 100" style="background: #ffffff; border-color: #fca5a5; font-weight: 700; color: #991b1b;">
                                         <div class="time-hint" style="color: #991b1b;">Exit when combined premium expands by this %</div>
                                     </div>
                                     <div class="form-group" style="margin-bottom: 0;">
-                                        <label for="straddleTotalTp" style="color: #166534; font-weight: 700;">🎯 Total Premium Target Profit (%)</label>
-                                        <input type="number" id="straddleTotalTp" step="1" value="50" min="1" required placeholder="e.g. 50">
+                                        <label for="straddleTotalTp" style="color: #166534; font-weight: 700;">🎯 Target Profit (%)</label>
+                                        <input type="number" id="straddleTotalTp" step="1" value="50" min="1" required placeholder="e.g. 50" style="background: #ffffff; border-color: #86efac; font-weight: 700; color: #166534;">
                                         <div class="time-hint" style="color: #166534;">Exit when combined premium decays by this %</div>
                                     </div>
                                 </div>
                             </div>
 
-                            <div class="form-row">
-                                <div class="form-group">
-                                    <label for="straddleStartTime">⏰ Scheduled Entry Time</label>
-                                    <input type="time" id="straddleStartTime" value="15:00:00" step="1" required
-                                        title="Initial straddle orders executed at this time">
-                                    <div class="time-hint">Executes initial position entry</div>
+                            <!-- 6. Execution Schedule (Pastel Sunset Peach / Orange) -->
+                            <div style="background: #fff7ed; border: 1px solid #fed7aa; border-left: 4px solid #ea580c; border-radius: var(--radius-sm); padding: 12px 14px; margin-bottom: 14px;">
+                                <div style="font-size: 11px; font-weight: 800; color: #9a3412; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
+                                    <span>⏰ Execution Schedule &amp; Exit Window</span>
                                 </div>
-                                <div class="form-group">
-                                    <label for="straddleEndTime">🔔 Position Exit Time</label>
-                                    <input type="time" id="straddleEndTime" value="15:15:00" step="1" required
-                                        title="Position exit time">
-                                    <div class="time-hint">Straddle monitoring exit window</div>
+                                <div class="form-row" style="margin-bottom: 0;">
+                                    <div class="form-group" style="margin-bottom: 0;">
+                                        <label for="straddleStartTime" style="color: #9a3412; font-weight: 700;">⏰ Scheduled Entry Time</label>
+                                        <input type="time" id="straddleStartTime" value="15:00:00" step="1" required
+                                            style="background: #ffffff; border-color: #fdba74; font-weight: 700;"
+                                            title="Initial straddle orders executed at this time">
+                                        <div class="time-hint" style="color: #9a3412;">Executes initial position entry</div>
+                                    </div>
+                                    <div class="form-group" style="margin-bottom: 0;">
+                                        <label for="straddleEndTime" style="color: #9a3412; font-weight: 700;">🔔 Position Exit Time</label>
+                                        <input type="time" id="straddleEndTime" value="15:15:00" step="1" required
+                                            style="background: #ffffff; border-color: #fdba74; font-weight: 700;"
+                                            title="Position exit time">
+                                        <div class="time-hint" style="color: #9a3412;">Straddle monitoring exit window</div>
+                                    </div>
                                 </div>
                             </div>
 
+                            <!-- Form Action Buttons -->
                             <div style="display: flex; gap: 10px; margin-top: 18px;">
-                                <button type="submit" class="btn-primary" style="flex: 1;">
-                                    💾 Save Straddle Strategy
+                                <button type="submit" class="btn-primary" style="flex: 1; padding: 12px; font-size: 14px; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 8px;">
+                                    <span>💾</span> Save Straddle Strategy
                                 </button>
-                                <button type="button" onclick="cancelStraddleEditForm()" class="btn-secondary" style="padding: 0 16px;">
+                                <button type="button" onclick="cancelStraddleEditForm()" class="btn-secondary" style="padding: 12px 20px; font-size: 14px; font-weight: 600;">
                                     Cancel
                                 </button>
                             </div>
@@ -2180,7 +2308,10 @@
             document.getElementById('consoleView').style.display = 'block';
             document.getElementById('btnLogout').style.display = 'inline-flex';
             loadExpiries();
-            loadLotSizes();
+            loadLotSizes().then(() => {
+                onPosIndexChange();
+                onStraddleIndexChange();
+            });
             fetchAndRenderStrategies();
             fetchIntradayPnlSummary();
             loadSavedMtmChartData();
@@ -3391,6 +3522,83 @@
             }
         }
 
+        // ═══════════════════════════════════════════════════════════════
+        // STRATEGY NAME AUTO-SUGGEST HELPERS (NFT for Nifty, BNK for BankNifty)
+        // ═══════════════════════════════════════════════════════════════
+
+        const INSTRUMENT_PREFIX_MAP = {
+            'NIFTY': 'NFT',
+            'BANKNIFTY': 'BNK',
+            'FINNIFTY': 'FIN',
+            'MIDCPNIFTY': 'MID',
+            'SENSEX': 'SNX',
+            'BANKEX': 'BKX'
+        };
+
+        function getInstrumentPrefix(idx) {
+            if (!idx) return 'NFT';
+            const upper = String(idx).trim().toUpperCase();
+            return INSTRUMENT_PREFIX_MAP[upper] || upper.substring(0, 3);
+        }
+
+        function formatTimeForName(timeStr) {
+            if (!timeStr) return '09:20';
+            const parts = timeStr.split(':');
+            return parts.length >= 2 ? `${parts[0]}:${parts[1]}` : timeStr;
+        }
+
+        function isAutoPattern(val) {
+            if (!val) return true;
+            const v = val.trim();
+            if (v.startsWith('Strategy') || v.startsWith('Positional') || v.startsWith('Straddle')) return true;
+            const prefixes = ['NFT', 'BNK', 'FIN', 'MID', 'SNX', 'BKX', 'NIFTY', 'BANKNIFTY', 'Nifty', 'BankNifty'];
+            return prefixes.some(p => v.startsWith(p));
+        }
+
+        function autoSuggestIntradayName(force = false) {
+            const nameInput = document.getElementById('stratName');
+            if (!nameInput) return;
+            const currentVal = nameInput.value.trim();
+            if (force || !currentVal || isAutoPattern(currentVal)) {
+                const idx = document.getElementById('indexName').value || 'NIFTY';
+                const prefix = getInstrumentPrefix(idx);
+                const timeVal = formatTimeForName(document.getElementById('startTime').value || '09:20:00');
+                const stratType = activeStrategyType === 'STRADDLE' ? 'strddl' : 'strngl';
+                const prod = (document.getElementById('productSelect') ? document.getElementById('productSelect').value : 'MIS').toLowerCase();
+                nameInput.value = `${prefix}_${timeVal}_${stratType}_${prod}`;
+            }
+        }
+
+        function autoSuggestPosName(force = false) {
+            const nameInput = document.getElementById('posStratName');
+            if (!nameInput) return;
+            const currentVal = nameInput.value.trim();
+            if (force || !currentVal || isAutoPattern(currentVal)) {
+                const idx = document.getElementById('posIndexName').value || 'NIFTY';
+                const prefix = getInstrumentPrefix(idx);
+                const cePrem = document.getElementById('posCePremium') ? (document.getElementById('posCePremium').value || '80') : '80';
+                nameInput.value = `${prefix}_${cePrem}_Pos`;
+            }
+        }
+
+        function autoSuggestStraddleName(force = false) {
+            const nameInput = document.getElementById('straddleStratName');
+            if (!nameInput) return;
+            const currentVal = nameInput.value.trim();
+            if (force || !currentVal || isAutoPattern(currentVal)) {
+                const idx = document.getElementById('straddleIndexName').value || 'NIFTY';
+                const prefix = getInstrumentPrefix(idx);
+                const mode = document.getElementById('straddleStrikeMode') ? document.getElementById('straddleStrikeMode').value : 'ATM';
+                let strikeTag = 'ATM';
+                if (mode === 'ROUND_OFF') {
+                    strikeTag = document.getElementById('straddleStrikeMultiple') ? (document.getElementById('straddleStrikeMultiple').value || '500') : '500';
+                } else if (mode === 'MANUAL') {
+                    strikeTag = document.getElementById('straddleManualStrike') ? (document.getElementById('straddleManualStrike').value || 'Manual') : 'Manual';
+                }
+                nameInput.value = `${prefix}_${strikeTag}_Straddle_Pos`;
+            }
+        }
+
         function toggleIntraTslInput() {
             const enabled = document.getElementById('intraEnableTsl').checked;
             document.getElementById('intraTslPointsGroup').style.display = enabled ? 'block' : 'none';
@@ -3398,7 +3606,6 @@
 
         function openNewStrategyForm() {
             document.getElementById('stratId').value = '';
-            document.getElementById('stratName').value = `Strategy ${loadedStrategies.length + 1}`;
             setEntryAction('SELL');
             setStrategyType('STRANGLE');
             document.getElementById('slType').value = 'POINTS';
@@ -3409,6 +3616,7 @@
             toggleIntraTslInput();
             document.getElementById('reentryCount').value = '0';
             document.getElementById('formCardTitle').textContent = '➕ Create New Strategy';
+            autoSuggestIntradayName(true);
             switchMainTab('tabConfigLogs');
             document.getElementById('strategyFormCard').scrollIntoView({ behavior: 'smooth' });
         }
@@ -3478,6 +3686,7 @@
             document.getElementById('reentryCount').value = '0';
             document.getElementById('formCardTitle').textContent = '⚙️ Create / Edit Strategy';
             updateQuantityField(document.getElementById('indexName').value);
+            autoSuggestIntradayName(true);
         }
 
         function setStrategyType(type) {
@@ -3502,13 +3711,14 @@
 
                 ceField.removeEventListener('input', syncPremiums);
             }
+            autoSuggestIntradayName();
         }
 
         function syncPremiums(e) {
             document.getElementById('pePremium').value = e.target.value;
         }
 
-        function updateQuantityField(indexName) {
+        function updateQuantityField(indexName, resetToOneLot = false) {
             const lotSize = getBrokerLotSize(indexName);
             const qtyInput = document.getElementById('quantity');
             const qtyLabel = document.getElementById('lblQuantity');
@@ -3518,17 +3728,35 @@
             }
             if (qtyLabel) qtyLabel.textContent = `Quantity (Multiple of ${lotSize} for ${indexName || 'Index'})`;
             if (qtyInput) {
-                const current = parseInt(qtyInput.value) || lotSize;
-                const snapped = Math.max(lotSize, Math.round(current / lotSize) * lotSize);
-                qtyInput.value = snapped;
+                if (resetToOneLot) {
+                    qtyInput.value = lotSize;
+                } else {
+                    const current = parseInt(qtyInput.value) || lotSize;
+                    const snapped = Math.max(lotSize, Math.round(current / lotSize) * lotSize);
+                    qtyInput.value = snapped;
+                }
             }
         }
 
         document.getElementById('indexName').addEventListener('change', (e) => {
             const idx = e.target.value;
-            updateQuantityField(idx);
+            updateQuantityField(idx, true);
+            autoSuggestIntradayName();
             loadExpiries(idx);
         });
+
+        document.getElementById('startTime').addEventListener('change', () => {
+            autoSuggestIntradayName();
+        });
+        document.getElementById('startTime').addEventListener('input', () => {
+            autoSuggestIntradayName();
+        });
+
+        if (document.getElementById('productSelect')) {
+            document.getElementById('productSelect').addEventListener('change', () => {
+                autoSuggestIntradayName();
+            });
+        }
 
         document.getElementById('quantity').addEventListener('blur', (e) => {
             const idxName = document.getElementById('indexName').value;
@@ -3619,20 +3847,25 @@
 
         let loadedPosStrategies = [];
 
-        function onPosIndexChange() {
+        function onPosIndexChange(resetToOneLot = true) {
             const idx = document.getElementById('posIndexName').value || 'NIFTY';
             loadPosExpiries();
             const lot = getBrokerLotSize(idx);
             const qInput = document.getElementById('posQuantity');
             if (qInput) {
-                const current = parseInt(qInput.value) || lot;
-                const snapped = Math.max(lot, Math.round(current / lot) * lot);
-                qInput.value = snapped;
+                if (resetToOneLot) {
+                    qInput.value = lot;
+                } else {
+                    const current = parseInt(qInput.value) || lot;
+                    const snapped = Math.max(lot, Math.round(current / lot) * lot);
+                    qInput.value = snapped;
+                }
                 qInput.step = lot;
                 qInput.min = lot;
             }
             const lbl = document.getElementById('lblPosQuantity');
             if (lbl) lbl.textContent = `Quantity (Multiple of Lot Size: ${lot} for ${idx})`;
+            autoSuggestPosName();
         }
 
         async function loadPosExpiries(preferredExpiry) {
@@ -3896,9 +4129,9 @@
             switchMainTab('tabPosStrangle');
             document.getElementById('posFormCardTitle').textContent = '⚙️ Create Positional Strategy';
             document.getElementById('posStratId').value = '';
-            document.getElementById('posStratName').value = 'Nifty Positional Strangle';
             document.getElementById('posIndexName').value = 'NIFTY';
             await onPosIndexChange();
+            autoSuggestPosName(true);
             document.getElementById('posCePremium').value = 80;
             document.getElementById('posPePremium').value = 80;
             document.getElementById('posEntryAction').value = 'SELL';
@@ -3966,6 +4199,20 @@
                 const snapped = Math.max(lot, Math.round(current / lot) * lot);
                 e.target.value = snapped;
             });
+        }
+
+        if (document.getElementById('posStartTime')) {
+            document.getElementById('posStartTime').addEventListener('change', () => autoSuggestPosName());
+            document.getElementById('posStartTime').addEventListener('input', () => autoSuggestPosName());
+        }
+
+        if (document.getElementById('posCePremium')) {
+            document.getElementById('posCePremium').addEventListener('input', () => autoSuggestPosName());
+            document.getElementById('posCePremium').addEventListener('change', () => autoSuggestPosName());
+        }
+        if (document.getElementById('posPePremium')) {
+            document.getElementById('posPePremium').addEventListener('input', () => autoSuggestPosName());
+            document.getElementById('posPePremium').addEventListener('change', () => autoSuggestPosName());
         }
 
         async function savePosStrangleConfig(e) {
@@ -4179,41 +4426,71 @@
         let loadedStraddleStrategies = [];
         let straddlePnlSummaryData = { records_count: 0, history: [] };
 
-        function onStraddleIndexChange() {
-            const indexName = document.getElementById('straddleIndexName').value;
-            const lot = (window.lotSizesMap && window.lotSizesMap[indexName]) || DEFAULT_LOT_SIZES[indexName] || 65;
-            const qtyInput = document.getElementById('straddleQuantity');
-            if (qtyInput) {
-                qtyInput.value = lot;
-                qtyInput.step = lot;
-                qtyInput.min = lot;
+        function onStraddleIndexChange(resetToOneLot = true) {
+            const idx = document.getElementById('straddleIndexName').value || 'NIFTY';
+            loadStraddleExpiries();
+            const lot = getBrokerLotSize(idx);
+            const qInput = document.getElementById('straddleQuantity');
+            if (qInput) {
+                if (resetToOneLot) {
+                    qInput.value = lot;
+                } else {
+                    const current = parseInt(qInput.value) || lot;
+                    const snapped = Math.max(lot, Math.round(current / lot) * lot);
+                    qInput.value = snapped;
+                }
+                qInput.step = lot;
+                qInput.min = lot;
             }
             const lbl = document.getElementById('lblStraddleQuantity');
-            if (lbl) lbl.textContent = `Quantity (Multiple of Lot Size: ${lot} for ${indexName})`;
-            populateStraddleExpirySelect(indexName);
+            if (lbl) lbl.textContent = `Quantity (Multiple of Lot Size: ${lot} for ${idx})`;
+            autoSuggestStraddleName();
         }
 
-        function populateStraddleExpirySelect(indexName, currentVal) {
+        async function loadStraddleExpiries(preferredExpiry) {
+            const idx = document.getElementById('straddleIndexName').value || 'NIFTY';
+            const data = await api(`/api/expiries?index=${idx}`);
             const select = document.getElementById('straddleExpirySelect');
             if (!select) return;
-            const expiries = (window.expiriesMap && window.expiriesMap[indexName]) || [];
-            
-            let html = `
-                <option value="CURRENT_MONTH" ${currentVal === 'CURRENT_MONTH' || !currentVal ? 'selected' : ''}>⚡ Current Month Expiry (Monthly Straddle)</option>
-                <option value="CURRENT" ${currentVal === 'CURRENT' ? 'selected' : ''}>⚡ Nearest Weekly Expiry</option>
-                <option value="NEXT_MONTH" ${currentVal === 'NEXT_MONTH' ? 'selected' : ''}>📅 Next Month Expiry (Monthly Straddle)</option>
-                <option value="NEXT" ${currentVal === 'NEXT' ? 'selected' : ''}>📅 Next Week Expiry</option>
-            `;
-            
-            if (expiries.length > 0) {
-                html += `<optgroup label="Specific Dates">`;
-                expiries.forEach(exp => {
-                    html += `<option value="${exp}" ${currentVal === exp ? 'selected' : ''}>${exp}</option>`;
+            const dates = Array.isArray(data) ? data : (data?.dates || []);
+            const monthlyDates = (!Array.isArray(data) && data?.monthly_expiries) ? data.monthly_expiries : [];
+            const curMonthExp = (!Array.isArray(data) && data?.current_month_expiry) ? data.current_month_expiry : (monthlyDates[0] || dates[0] || '');
+            const nextMonthExp = (!Array.isArray(data) && data?.next_month_expiry) ? data.next_month_expiry : (monthlyDates[1] || curMonthExp);
+
+            if (dates && dates.length > 0) {
+                let optionsHtml = '';
+                optionsHtml += `<option value="CURRENT_MONTH">⚡ Current Month Expiry (${curMonthExp})</option>`;
+                if (nextMonthExp && nextMonthExp !== curMonthExp) {
+                    optionsHtml += `<option value="NEXT_MONTH">📅 Next Month Expiry (${nextMonthExp})</option>`;
+                }
+                optionsHtml += `<option value="CURRENT">⚡ Nearest Weekly Expiry (${dates[0]})</option>`;
+                if (dates.length > 1) {
+                    optionsHtml += `<option value="NEXT">📅 Next Weekly Expiry (${dates[1]})</option>`;
+                }
+                
+                if (monthlyDates.length > 0) {
+                    optionsHtml += `<optgroup label="Monthly Expiries (Last Expiry of Month)">`;
+                    monthlyDates.forEach(d => {
+                        optionsHtml += `<option value="${d}">${d} (Monthly)</option>`;
+                    });
+                    optionsHtml += `</optgroup>`;
+                }
+
+                optionsHtml += `<optgroup label="All Upcoming Expiry Dates">`;
+                dates.forEach(d => {
+                    optionsHtml += `<option value="${d}">${d}</option>`;
                 });
-                html += `</optgroup>`;
+                optionsHtml += `</optgroup>`;
+
+                select.innerHTML = optionsHtml;
+                if (preferredExpiry && (preferredExpiry === 'CURRENT' || preferredExpiry === 'NEXT' || preferredExpiry === 'CURRENT_MONTH' || preferredExpiry === 'NEXT_MONTH' || dates.includes(preferredExpiry))) {
+                    select.value = preferredExpiry;
+                } else {
+                    select.value = 'CURRENT_MONTH';
+                }
+            } else {
+                select.innerHTML = `<option value="CURRENT_MONTH">Current Month Expiry</option><option value="CURRENT">Current Expiry</option><option value="NEXT">Next Expiry</option>`;
             }
-            
-            select.innerHTML = html;
         }
 
         async function fetchStraddleStatus() {
@@ -4305,12 +4582,24 @@
                         : (isActive ? `<span style="background: #fef9c3; color: #854d0e; border: 1px solid #fef08a; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 4px;">⏳ Awaiting Entry (${s.entry_time || '15:00:00'})</span>` : '');
 
                     const hasCalculatedStrikes = Boolean(s.selected_strike && s.selected_strike !== '--');
+                    
+                    let modeBadge = '';
+                    if (s.strike_mode === 'ROUND_OFF' || (s.strike && String(s.strike).startsWith('ROUND'))) {
+                        modeBadge = `<span style="background:#e0f2fe; color:#0369a1; border:1px solid #bae6fd; font-size:10px; font-weight:700; padding:1px 5px; border-radius:4px;">🔢 Round ${s.strike_multiple || 500}</span>`;
+                    } else if (s.strike_mode === 'MANUAL' || (s.manual_strike && s.manual_strike > 0)) {
+                        modeBadge = `<span style="background:#ede9fe; color:#6d28d9; border:1px solid #ddd6fe; font-size:10px; font-weight:700; padding:1px 5px; border-radius:4px;">✍️ Manual</span>`;
+                    } else {
+                        modeBadge = `<span style="background:#f1f5f9; color:#475569; border:1px solid #e2e8f0; font-size:10px; font-weight:700; padding:1px 5px; border-radius:4px;">⚡ ATM</span>`;
+                    }
 
                     const strikesBoxHtml = hasCalculatedStrikes 
                         ? `<div style="background: #f8faf9; padding: 12px; border-radius: var(--radius-sm); border: 1px solid var(--border-color); font-size: 11px; margin-bottom: 12px;">
                             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; border-bottom: 1px dashed var(--border-color); padding-bottom: 4px;">
-                                <span style="font-weight: 800; color: #4338ca;">🎯 ATM Strike: ${s.selected_strike}</span>
-                                <span style="font-size: 10px; color: var(--text-muted);">${s.resolved_expiry || s.expiry || ''}</span>
+                                <div style="display: flex; align-items: center; gap: 6px;">
+                                    <span style="font-weight: 800; color: #4338ca;">🎯 Strike: ${s.selected_strike}</span>
+                                    ${modeBadge}
+                                </div>
+                                <span style="font-size: 10px; color: var(--text-muted); font-family: monospace;">${s.resolved_expiry || s.expiry || ''}</span>
                             </div>
                             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
                                 <span style="color: #137333; font-weight: 700;">CE: ${ceSym}</span>
@@ -4322,7 +4611,7 @@
                             </div>
                         </div>`
                         : `<div style="margin-bottom: 12px; padding: 10px; background: var(--pastel-blue-bg); border-radius: 6px; border: 1px dashed var(--pastel-blue-border); font-size: 11px; color: var(--pastel-blue-dark); text-align: center; font-weight: 600;">
-                            🎯 ATM Strikes not calculated — click <b>🔍 Calc ATM</b>
+                            🎯 Strikes not calculated — click <b>🔍 Calc ATM</b>
                         </div>`;
 
                     const totalPremBoxHtml = `
@@ -4413,19 +4702,43 @@
             }).join('');
         }
 
+        function onStraddleStrikeModeChange() {
+            const mode = document.getElementById('straddleStrikeMode').value;
+            const multGroup = document.getElementById('straddleMultipleGroup');
+            const manualGroup = document.getElementById('straddleManualStrikeGroup');
+            const hint = document.getElementById('straddleStrikeModeHint');
+
+            if (mode === 'ROUND_OFF') {
+                multGroup.style.display = 'block';
+                manualGroup.style.display = 'none';
+                if (hint) hint.textContent = 'Rounds Spot LTP to nearest multiple (e.g. 24300 ➔ 24500) and enters same strike for CE & PE';
+            } else if (mode === 'MANUAL') {
+                multGroup.style.display = 'none';
+                manualGroup.style.display = 'block';
+                if (hint) hint.textContent = 'Executes CE & PE orders directly at this user-specified strike';
+            } else {
+                multGroup.style.display = 'none';
+                manualGroup.style.display = 'none';
+                if (hint) hint.textContent = 'Pairs BOTH CE & PE at closest ATM strike to Spot LTP';
+            }
+        }
+
         function openNewStraddleStrategyForm() {
             document.getElementById('straddleStratId').value = '';
-            document.getElementById('straddleStratName').value = '';
             document.getElementById('straddleFormTitle').textContent = '➕ Create Straddle Total SL Strategy';
             document.getElementById('straddleIndexName').value = 'NIFTY';
-            document.getElementById('straddleStrikeInput').value = 'ATM';
+            document.getElementById('straddleStrikeMode').value = 'ATM';
+            document.getElementById('straddleStrikeMultiple').value = '500';
+            document.getElementById('straddleManualStrike').value = '';
+            onStraddleStrikeModeChange();
             document.getElementById('straddleEntryAction').value = 'SELL';
             document.getElementById('straddleProduct').value = 'NRML';
             document.getElementById('straddleTotalSl').value = '100';
             document.getElementById('straddleTotalTp').value = '50';
             document.getElementById('straddleStartTime').value = '15:00:00';
             document.getElementById('straddleEndTime').value = '15:15:00';
-            onStraddleIndexChange();
+            onStraddleIndexChange(true);
+            autoSuggestStraddleName(true);
             document.getElementById('straddleEditCard').scrollIntoView({ behavior: 'smooth' });
         }
 
@@ -4436,7 +4749,13 @@
             document.getElementById('straddleStratName').value = strat.name || '';
             document.getElementById('straddleFormTitle').textContent = `✏️ Edit '${strat.name || strat.id}'`;
             document.getElementById('straddleIndexName').value = strat.index_name || 'NIFTY';
-            document.getElementById('straddleStrikeInput').value = strat.strike || 'ATM';
+            
+            const mode = strat.strike_mode || (strat.manual_strike ? 'MANUAL' : (strat.strike_multiple ? 'ROUND_OFF' : 'ATM'));
+            document.getElementById('straddleStrikeMode').value = mode;
+            document.getElementById('straddleStrikeMultiple').value = strat.strike_multiple || 500;
+            document.getElementById('straddleManualStrike').value = strat.manual_strike || '';
+            onStraddleStrikeModeChange();
+
             document.getElementById('straddleEntryAction').value = strat.entry_action || 'SELL';
             document.getElementById('straddleProduct').value = strat.product || 'NRML';
             document.getElementById('straddleTotalSl').value = strat.total_sl_percent || 100;
@@ -4444,9 +4763,14 @@
             document.getElementById('straddleStartTime').value = strat.entry_time || '15:00:00';
             document.getElementById('straddleEndTime').value = strat.exit_time || '15:15:00';
             
-            const lot = (window.lotSizesMap && window.lotSizesMap[strat.index_name]) || DEFAULT_LOT_SIZES[strat.index_name] || 65;
+            const lot = getBrokerLotSize(strat.index_name || 'NIFTY');
             document.getElementById('straddleQuantity').value = strat.quantity || lot;
-            populateStraddleExpirySelect(strat.index_name || 'NIFTY', strat.expiry);
+            document.getElementById('straddleQuantity').step = lot;
+            document.getElementById('straddleQuantity').min = lot;
+            const lbl = document.getElementById('lblStraddleQuantity');
+            if (lbl) lbl.textContent = `Quantity (Multiple of Lot Size: ${lot} for ${strat.index_name || 'NIFTY'})`;
+            
+            loadStraddleExpiries(strat.expiry);
             document.getElementById('straddleEditCard').scrollIntoView({ behavior: 'smooth' });
         }
 
@@ -4458,12 +4782,19 @@
             e.preventDefault();
             const stratId = document.getElementById('straddleStratId').value;
             const indexName = document.getElementById('straddleIndexName').value;
+            const strikeMode = document.getElementById('straddleStrikeMode').value;
+            const strikeMultiple = parseFloat(document.getElementById('straddleStrikeMultiple').value) || 500;
+            const manualStrikeVal = parseFloat(document.getElementById('straddleManualStrike').value);
+
             const payload = {
                 id: stratId || undefined,
                 name: document.getElementById('straddleStratName').value.trim(),
                 index_name: indexName,
                 expiry: document.getElementById('straddleExpirySelect').value,
-                strike: document.getElementById('straddleStrikeInput').value.trim() || 'ATM',
+                strike_mode: strikeMode,
+                strike_multiple: strikeMultiple,
+                manual_strike: !isNaN(manualStrikeVal) && manualStrikeVal > 0 ? manualStrikeVal : undefined,
+                strike: strikeMode === 'MANUAL' && !isNaN(manualStrikeVal) ? String(manualStrikeVal) : (strikeMode === 'ROUND_OFF' ? `ROUND_${strikeMultiple}` : 'ATM'),
                 entry_action: document.getElementById('straddleEntryAction').value,
                 product: document.getElementById('straddleProduct').value,
                 total_sl_percent: parseFloat(document.getElementById('straddleTotalSl').value),
@@ -4485,6 +4816,23 @@
             } catch (err) {
                 toast('❌ Network or Server error while saving', true);
             }
+        }
+
+        if (document.getElementById('straddleStartTime')) {
+            document.getElementById('straddleStartTime').addEventListener('change', () => autoSuggestStraddleName());
+            document.getElementById('straddleStartTime').addEventListener('input', () => autoSuggestStraddleName());
+        }
+
+        if (document.getElementById('straddleStrikeMode')) {
+            document.getElementById('straddleStrikeMode').addEventListener('change', () => autoSuggestStraddleName());
+        }
+        if (document.getElementById('straddleStrikeMultiple')) {
+            document.getElementById('straddleStrikeMultiple').addEventListener('input', () => autoSuggestStraddleName());
+            document.getElementById('straddleStrikeMultiple').addEventListener('change', () => autoSuggestStraddleName());
+        }
+        if (document.getElementById('straddleManualStrike')) {
+            document.getElementById('straddleManualStrike').addEventListener('input', () => autoSuggestStraddleName());
+            document.getElementById('straddleManualStrike').addEventListener('change', () => autoSuggestStraddleName());
         }
 
         async function fetchStraddlePnlSummary() {

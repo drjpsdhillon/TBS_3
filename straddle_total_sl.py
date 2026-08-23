@@ -588,23 +588,43 @@ def calculate_straddle_strikes_for(strat):
     if not candidates:
         return False, f"No options found for {idx_name} on expiry {expiry}"
 
-    # 3. Determine ATM Strike
+    # 3. Determine Strike based on strike_mode (ATM / ROUND_OFF to Multiple / MANUAL)
     available_strikes = sorted(list({float(i.get("strike", 0)) for i in candidates if float(i.get("strike", 0)) > 0}))
     if not available_strikes:
         return False, "No strikes found in candidate options"
 
-    user_specified_strike = str(strat.get("strike") or "").strip().upper()
-    if user_specified_strike and user_specified_strike != "ATM" and user_specified_strike.replace(".", "").isdigit():
-        target_strike = float(user_specified_strike)
-        # Find closest available strike
+    strike_mode = str(strat.get("strike_mode") or "ATM").upper()
+    strike_multiple = float(strat.get("strike_multiple") or 500.0)
+    manual_strike = strat.get("manual_strike")
+    raw_strike = str(strat.get("strike") or "").strip().upper()
+
+    if strike_mode == "ROUND_OFF" or raw_strike.startswith("ROUND") or raw_strike.startswith("MULT"):
+        step = strike_multiple if strike_multiple > 0 else 500.0
+        if spot_ltp > 0:
+            target_strike = round(spot_ltp / step) * step
+            atm_strike = min(available_strikes, key=lambda x: abs(x - target_strike))
+            log_straddle(f"[{strat.get('name')}] 🎯 Rounding Spot ₹{spot_ltp:.2f} to nearest multiple of {int(step)} -> Target Strike: {int(target_strike)} (Selected: {atm_strike})")
+        else:
+            mid_val = available_strikes[len(available_strikes)//2]
+            target_strike = round(mid_val / step) * step
+            atm_strike = min(available_strikes, key=lambda x: abs(x - target_strike))
+    elif strike_mode == "MANUAL" or (manual_strike and float(manual_strike) > 0) or (raw_strike and raw_strike != "ATM" and raw_strike.replace(".", "").isdigit() and float(raw_strike) > 500):
+        target_strike = float(manual_strike) if (manual_strike and float(manual_strike) > 0) else float(raw_strike)
         atm_strike = min(available_strikes, key=lambda x: abs(x - target_strike))
+        log_straddle(f"[{strat.get('name')}] 🎯 Using Manual Strike: {int(target_strike)} (Selected Option Strike: {atm_strike})")
     else:
+        # Standard ATM Strike (closest to Spot LTP)
         if spot_ltp > 0:
             atm_strike = min(available_strikes, key=lambda x: abs(x - spot_ltp))
         else:
             atm_strike = available_strikes[len(available_strikes) // 2]
+        log_straddle(f"[{strat.get('name')}] 🎯 Using Standard ATM Strike for Spot ₹{spot_ltp:.2f} -> Selected Strike: {atm_strike}")
 
     strat["selected_strike"] = int(atm_strike) if atm_strike.is_integer() else atm_strike
+    strat["strike_mode"] = strike_mode
+    strat["strike_multiple"] = strike_multiple
+    if manual_strike:
+        strat["manual_strike"] = manual_strike
 
     # 4. Find CE and PE at ATM Strike
     ce_cand = next((i for i in candidates if float(i.get("strike", 0)) == atm_strike and i.get("instrument_type") == "CE"), None)

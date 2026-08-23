@@ -2343,7 +2343,7 @@ def api_straddle_total_sl_strategies():
             if strat_id:
                 target = next((s for s in strats if s.get("id") == strat_id), None)
                 if target:
-                    for k in ["name", "index_name", "expiry", "entry_action", "product", "strike", "total_sl_percent", "total_tp_percent", "quantity", "entry_time", "morning_sl_time", "exit_time"]:
+                    for k in ["name", "index_name", "expiry", "entry_action", "product", "strike", "strike_mode", "strike_multiple", "manual_strike", "total_sl_percent", "total_tp_percent", "quantity", "entry_time", "morning_sl_time", "exit_time"]:
                         if k in data:
                             target[k] = data[k]
                 else:
@@ -2537,8 +2537,32 @@ def api_save_mtm_chart_point():
 def api_clear_mtm_chart_data():
     """Clears MTM curve data file for today."""
     empty_data = {"date": datetime.now().strftime("%Y-%m-%d"), "points": []}
-    save_mtm_curve_data(empty_data)
-    return jsonify({"status": "ok", "message": "MTM curve data cleared"})
+@app.route("/api/greeks/calculate", methods=["POST"])
+def api_calculate_greeks():
+    """Calculates Option Greeks (Delta, Gamma, Theta, Vega, Rho, IV) for given option parameters."""
+    try:
+        import greeks
+        data = request.get_json(silent=True) or {}
+        spot = float(data.get("spot", 0.0))
+        strike = float(data.get("strike", 0.0))
+        expiry_date = data.get("expiry_date") or datetime.now().strftime("%Y-%m-%d")
+        ltp = float(data.get("ltp", 0.0)) if data.get("ltp") is not None else None
+        iv = float(data.get("iv", 0.0)) if data.get("iv") is not None else None
+        r = float(data.get("r", greeks.DEFAULT_RISK_FREE_RATE))
+        opt_type = str(data.get("opt_type", "CE")).upper()
+
+        res = greeks.calculate_greeks(
+            S=spot,
+            K=strike,
+            expiry_date=expiry_date,
+            ltp=ltp,
+            iv=iv,
+            r=r,
+            opt_type=opt_type
+        )
+        return jsonify({"status": "ok", "greeks": res})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 
 @app.route("/")

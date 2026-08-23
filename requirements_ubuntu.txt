@@ -56,4 +56,11 @@ pyotp>=2.9.0
 python-dateutil>=2.8.2
 six>=1.16.0
 
+# Option Greeks & Scientific Computing (Black-Scholes, IV, Delta, Theta, Gamma, Vega)
+numpy>=1.24.0
+scipy>=1.10.0
+py_vollib>=0.1.5
 
+# Data Storage & Excel/CSV Journal Processing
+pandas>=2.0.0
+openpyxl>=3.1.0
