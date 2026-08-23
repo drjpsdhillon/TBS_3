@@ -6,5 +6,5 @@ strategies.json
 pos_strangle.json
 requirements.txt
 skeleton
-session_cache.json
-strategies.json
+lot_sizes.json
+mtm_curve_data.json

@@ -1,0 +1,4 @@
+# ==========================================================================
+# INTRADAY STRATEGY P&L TRADE JOURNAL
+# ==========================================================================
+Serial_No,Date,Time,Strategy_Name,Instrument,Lot_Size,CE_Symbol,CE_Entry_Price,CE_Exit_Price,PE_Symbol,PE_Entry_Price,PE_Exit_Price,Day_PnL,Cumulative_PnL,Status

@@ -77,7 +77,59 @@ def get_pos_lot_size(index_name):
         return 25
     if "SENSEX" in name:
         return 10
-    return DEFAULT_POS_LOT_SIZES.get(name, 65)
+PENDING_POS_ORDERS_FILE = os.path.join(BASE_DIR, "pending_pos_orders.json")
+
+
+def get_pos_exchange(index_name):
+    """Returns correct broker exchange for instrument: BFO for SENSEX/BANKEX, else NFO."""
+    idx = str(index_name or "").upper()
+    if "SENSEX" in idx or "BANKEX" in idx or "BSE" in idx:
+        return "BFO"
+    return "NFO"
+
+
+def load_pending_pos_orders():
+    """Loads local persistent record of pending positional orders from pending_pos_orders.json."""
+    if not os.path.exists(PENDING_POS_ORDERS_FILE):
+        return {}
+    try:
+        with open(PENDING_POS_ORDERS_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            return data if isinstance(data, dict) else {}
+    except Exception as e:
+        logger.warning(f"Failed loading {PENDING_POS_ORDERS_FILE}: {e}")
+        return {}
+
+
+def save_pending_pos_orders(orders_dict):
+    """Saves local persistent record of pending positional orders to pending_pos_orders.json."""
+    try:
+        with open(PENDING_POS_ORDERS_FILE, "w", encoding="utf-8") as f:
+            json.dump(orders_dict, f, indent=2)
+    except Exception as e:
+        logger.error(f"Failed saving {PENDING_POS_ORDERS_FILE}: {e}")
+
+
+def upsert_pending_pos_order(order_key, order_info):
+    """Upserts a pending positional order in the local pending orders book."""
+    orders = load_pending_pos_orders()
+    now_ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    order_info["updated_at"] = now_ts
+    if order_key not in orders:
+        order_info["created_at"] = now_ts
+    else:
+        order_info["created_at"] = orders[order_key].get("created_at", now_ts)
+    orders[order_key] = order_info
+    save_pending_pos_orders(orders)
+    return orders
+
+
+def remove_pending_pos_order(order_key):
+    """Removes or clears an order from the local pending orders book."""
+    orders = load_pending_pos_orders()
+    if order_key in orders:
+        del orders[order_key]
+        save_pending_pos_orders(orders)
 
 
 # In-memory execution logs
@@ -102,19 +154,45 @@ def load_pos_pnl_records():
         with open(POS_PNL_CSV, "r", encoding="utf-8") as f:
             lines = [l.strip() for l in f if l.strip() and not l.startswith("#")]
             if len(lines) > 1:
-                header = [h.strip() for h in lines[0].split(",")]
                 for line in lines[1:]:
                     parts = [p.strip() for p in line.split(",")]
-                    if len(parts) >= 7:
+                    if len(parts) >= 15:
+                        # Full comprehensive trading journal schema
                         records.append({
-                            "Serial_No": int(parts[0]) if parts[0].isdigit() else 1,
-                            "Start_Date": parts[1],
+                            "Serial_No": int(parts[0]) if parts[0].isdigit() else len(records) + 1,
+                            "Date": parts[1],
                             "Strategy_Name": parts[2],
                             "Instrument": parts[3],
-                            "Exit_Date": parts[4],
-                            "Total_PnL": float(parts[5]) if parts[5].replace("-","").replace(".","").isdigit() else 0.0,
+                            "Lot_Size": int(parts[4]) if parts[4].isdigit() else parts[4],
+                            "CE_Symbol": parts[5],
+                            "CE_Entry_Price": parts[6],
+                            "CE_Exit_Price": parts[7],
+                            "PE_Symbol": parts[8],
+                            "PE_Entry_Price": parts[9],
+                            "PE_Exit_Price": parts[10],
+                            "Day_PnL": float(parts[11]) if parts[11].replace("-","").replace(".","").isdigit() else 0.0,
+                            "Cumulative_PnL": float(parts[12]) if parts[12].replace("-","").replace(".","").isdigit() else 0.0,
+                            "Exit_Date": parts[13],
+                            "Status": parts[14] if len(parts) > 14 else "OPEN"
+                        })
+                    elif len(parts) >= 7:
+                        # Backward compatibility fallback
+                        records.append({
+                            "Serial_No": int(parts[0]) if parts[0].isdigit() else len(records) + 1,
+                            "Date": parts[1],
+                            "Strategy_Name": parts[2],
+                            "Instrument": parts[3],
+                            "Lot_Size": 65,
+                            "CE_Symbol": "--",
+                            "CE_Entry_Price": "--",
+                            "CE_Exit_Price": "--",
+                            "PE_Symbol": "--",
+                            "PE_Entry_Price": "--",
+                            "PE_Exit_Price": "--",
+                            "Day_PnL": float(parts[5]) if parts[5].replace("-","").replace(".","").isdigit() else 0.0,
                             "Cumulative_PnL": float(parts[6]) if parts[6].replace("-","").replace(".","").isdigit() else 0.0,
-                            "Status": parts[7] if len(parts) > 7 else "ACTIVE"
+                            "Exit_Date": parts[4],
+                            "Status": parts[7] if len(parts) > 7 else "CLOSED"
                         })
     except Exception as e:
         logger.warning(f"Failed parsing {POS_PNL_CSV}: {e}")
@@ -122,47 +200,69 @@ def load_pos_pnl_records():
 
 
 def record_pos_trade_entry(strat):
-    """Logs initial position entry in pos_strategy_PnL.csv and Excel sheet."""
+    """Logs initial position entry with CE and PE positions & entry prices in pos_strategy_PnL.csv and Excel journal."""
     try:
         strat_id = strat.get("id")
         strat_name = strat.get("name", "Positional Strangle")
         instrument = (strat.get("index_name") or "NIFTY").upper()
+        lot_size = int(strat.get("quantity") or get_pos_lot_size(instrument))
         now_dt = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         strat["start_date"] = now_dt
+
+        ce_sym = strat.get("selected_ce") or strat.get("orders", {}).get("CE", {}).get("symbol") or "--"
+        pe_sym = strat.get("selected_pe") or strat.get("orders", {}).get("PE", {}).get("symbol") or "--"
+
+        ce_entry = strat.get("orders", {}).get("CE", {}).get("first_entry_price") or strat.get("orders", {}).get("CE", {}).get("entry_price") or strat.get("selected_ce_ltp") or 0.0
+        pe_entry = strat.get("orders", {}).get("PE", {}).get("first_entry_price") or strat.get("orders", {}).get("PE", {}).get("entry_price") or strat.get("selected_pe_ltp") or 0.0
 
         records = load_pos_pnl_records()
         serial_no = len(records) + 1
 
-        # Calculate previous cumulative PnL for this instrument
-        inst_records = [r for r in records if r.get("Instrument") == instrument]
-        prev_cum_pnl = inst_records[-1]["Cumulative_PnL"] if inst_records else 0.0
+        # Calculate previous cumulative PnL
+        prev_cum_pnl = records[-1]["Cumulative_PnL"] if records else 0.0
 
         new_entry = {
             "Serial_No": serial_no,
-            "Start_Date": now_dt,
+            "Date": now_dt,
             "Strategy_Name": strat_name,
             "Instrument": instrument,
-            "Exit_Date": "-- (RUNNING)",
-            "Total_PnL": 0.0,
+            "Lot_Size": lot_size,
+            "CE_Symbol": ce_sym,
+            "CE_Entry_Price": f"{float(ce_entry):.2f}" if ce_entry else "--",
+            "CE_Exit_Price": "--",
+            "PE_Symbol": pe_sym,
+            "PE_Entry_Price": f"{float(pe_entry):.2f}" if pe_entry else "--",
+            "PE_Exit_Price": "--",
+            "Day_PnL": 0.0,
             "Cumulative_PnL": prev_cum_pnl,
+            "Exit_Date": "-- (OPEN)",
             "Status": "OPEN"
         }
         records.append(new_entry)
 
-        # Write CSV with instrument groupings/sections
         rewrite_pos_pnl_files(records)
-        log_pos(f"[{strat_name}] 📝 Entry recorded in {POS_PNL_CSV} (S.No #{serial_no}, Start: {now_dt})")
+        log_pos(f"[{strat_name}] 📝 Entry recorded in {POS_PNL_CSV} (S.No #{serial_no}, Date: {now_dt}, CE: {ce_sym} @ ₹{ce_entry:.2f}, PE: {pe_sym} @ ₹{pe_entry:.2f})")
     except Exception as e:
         logger.error(f"Error recording positional trade entry: {e}")
 
 
 def record_pos_trade_exit(strat, final_pnl):
-    """Updates exit date, final total PnL and cumulative PnL in pos_strategy_PnL.csv and Excel sheet."""
+    """Updates exit date, CE/PE exit prices, final PnL and cumulative PnL in pos_strategy_PnL.csv and Excel sheet."""
     try:
         strat_name = strat.get("name", "Positional Strangle")
         instrument = (strat.get("index_name") or "NIFTY").upper()
+        lot_size = int(strat.get("quantity") or get_pos_lot_size(instrument))
         exit_dt = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         records = load_pos_pnl_records()
+
+        ce_sym = strat.get("selected_ce") or strat.get("orders", {}).get("CE", {}).get("symbol") or "--"
+        pe_sym = strat.get("selected_pe") or strat.get("orders", {}).get("PE", {}).get("symbol") or "--"
+
+        ce_entry = strat.get("orders", {}).get("CE", {}).get("first_entry_price") or strat.get("orders", {}).get("CE", {}).get("entry_price") or strat.get("selected_ce_ltp") or 0.0
+        pe_entry = strat.get("orders", {}).get("PE", {}).get("first_entry_price") or strat.get("orders", {}).get("PE", {}).get("entry_price") or strat.get("selected_pe_ltp") or 0.0
+
+        ce_exit = strat.get("orders", {}).get("CE", {}).get("exit_price") or strat.get("orders", {}).get("CE", {}).get("current_ltp") or 0.0
+        pe_exit = strat.get("orders", {}).get("PE", {}).get("exit_price") or strat.get("orders", {}).get("PE", {}).get("current_ltp") or 0.0
 
         # Find matching open record for this strategy name / instrument
         target_rec = None
@@ -173,38 +273,46 @@ def record_pos_trade_exit(strat, final_pnl):
 
         if target_rec:
             target_rec["Exit_Date"] = exit_dt
-            target_rec["Total_PnL"] = round(float(final_pnl), 2)
+            target_rec["Day_PnL"] = round(float(final_pnl), 2)
+            target_rec["CE_Exit_Price"] = f"{float(ce_exit):.2f}" if ce_exit else "--"
+            target_rec["PE_Exit_Price"] = f"{float(pe_exit):.2f}" if pe_exit else "--"
             target_rec["Status"] = "CLOSED"
         else:
             # Create fresh exit record if start was not logged in session
             serial_no = len(records) + 1
             target_rec = {
                 "Serial_No": serial_no,
-                "Start_Date": strat.get("start_date") or exit_dt,
+                "Date": strat.get("start_date") or exit_dt,
                 "Strategy_Name": strat_name,
                 "Instrument": instrument,
-                "Exit_Date": exit_dt,
-                "Total_PnL": round(float(final_pnl), 2),
+                "Lot_Size": lot_size,
+                "CE_Symbol": ce_sym,
+                "CE_Entry_Price": f"{float(ce_entry):.2f}" if ce_entry else "--",
+                "CE_Exit_Price": f"{float(ce_exit):.2f}" if ce_exit else "--",
+                "PE_Symbol": pe_sym,
+                "PE_Entry_Price": f"{float(pe_entry):.2f}" if pe_entry else "--",
+                "PE_Exit_Price": f"{float(pe_exit):.2f}" if pe_exit else "--",
+                "Day_PnL": round(float(final_pnl), 2),
                 "Cumulative_PnL": 0.0,
+                "Exit_Date": exit_dt,
                 "Status": "CLOSED"
             }
             records.append(target_rec)
 
-        # Recompute instrument-wise cumulative PnL
-        inst_cumulative = {}
+        # Recalculate cumulative PnL across all records
+        running_cum = 0.0
         for r in records:
-            inst = r["Instrument"]
-            inst_cumulative[inst] = round(inst_cumulative.get(inst, 0.0) + float(r.get("Total_PnL", 0.0)), 2)
-            r["Cumulative_PnL"] = inst_cumulative[inst]
+            running_cum = round(running_cum + float(r.get("Day_PnL", 0.0)), 2)
+            r["Cumulative_PnL"] = running_cum
 
         rewrite_pos_pnl_files(records)
-        log_pos(f"[{strat_name}] 🏁 Exit recorded in {POS_PNL_CSV} (Exit: {exit_dt}, PnL: ₹{final_pnl:.2f}, Cumulative: ₹{target_rec.get('Cumulative_PnL', 0):.2f})")
+        log_pos(f"[{strat_name}] 🏁 Exit recorded in {POS_PNL_CSV} (Exit: {exit_dt}, PnL: ₹{final_pnl:.2f}, Cumulative: ₹{target_rec.get('Cumulative_PnL', 0):.2f}, CE Exit: ₹{ce_exit}, PE Exit: ₹{pe_exit})")
     except Exception as e:
         logger.error(f"Error recording positional trade exit: {e}")
 
 
 def record_pos_trade_running_pnl(strat, current_pnl):
-    """Updates live running PnL for active OPEN trade in pos_strategy_PnL.csv."""
+    """Updates live running PnL and current leg exit prices for active OPEN trade in pos_strategy_PnL.csv."""
     try:
         strat_name = strat.get("name", "Positional Strangle")
         instrument = (strat.get("index_name") or "NIFTY").upper()
@@ -212,15 +320,20 @@ def record_pos_trade_running_pnl(strat, current_pnl):
         updated = False
         for r in reversed(records):
             if r.get("Strategy_Name") == strat_name and r.get("Instrument") == instrument and r.get("Status") == "OPEN":
-                r["Total_PnL"] = round(float(current_pnl), 2)
+                r["Day_PnL"] = round(float(current_pnl), 2)
+                ce_exit = strat.get("orders", {}).get("CE", {}).get("exit_price")
+                pe_exit = strat.get("orders", {}).get("PE", {}).get("exit_price")
+                if ce_exit:
+                    r["CE_Exit_Price"] = f"{float(ce_exit):.2f}"
+                if pe_exit:
+                    r["PE_Exit_Price"] = f"{float(pe_exit):.2f}"
                 updated = True
                 break
         if updated:
-            inst_cumulative = {}
+            running_cum = 0.0
             for r in records:
-                inst = r["Instrument"]
-                inst_cumulative[inst] = round(inst_cumulative.get(inst, 0.0) + float(r.get("Total_PnL", 0.0)), 2)
-                r["Cumulative_PnL"] = inst_cumulative[inst]
+                running_cum = round(running_cum + float(r.get("Day_PnL", 0.0)), 2)
+                r["Cumulative_PnL"] = running_cum
             rewrite_pos_pnl_files(records)
     except Exception as e:
         logger.debug(f"Could not update running pnl in CSV: {e}")
@@ -233,11 +346,11 @@ def rewrite_pos_pnl_files(records):
         f.write("# ==========================================================================\n")
         f.write("# POSITIONAL STRATEGY P&L TRADE JOURNAL\n")
         f.write("# ==========================================================================\n")
-        f.write("Serial_No,Start_Date,Strategy_Name,Instrument,Exit_Date,Total_PnL,Cumulative_PnL,Status\n")
+        f.write("Serial_No,Date,Strategy_Name,Instrument,Lot_Size,CE_Symbol,CE_Entry_Price,CE_Exit_Price,PE_Symbol,PE_Entry_Price,PE_Exit_Price,Day_PnL,Cumulative_PnL,Exit_Date,Status\n")
         for r in records:
-            f.write(f"{r['Serial_No']},{r['Start_Date']},{r['Strategy_Name']},{r['Instrument']},{r['Exit_Date']},{r['Total_PnL']:.2f},{r['Cumulative_PnL']:.2f},{r['Status']}\n")
+            f.write(f"{r['Serial_No']},{r['Date']},{r['Strategy_Name']},{r['Instrument']},{r.get('Lot_Size','--')},{r.get('CE_Symbol','--')},{r.get('CE_Entry_Price','--')},{r.get('CE_Exit_Price','--')},{r.get('PE_Symbol','--')},{r.get('PE_Entry_Price','--')},{r.get('PE_Exit_Price','--')},{float(r.get('Day_PnL', 0.0)):.2f},{float(r.get('Cumulative_PnL', 0.0)):.2f},{r.get('Exit_Date','--')},{r.get('Status','OPEN')}\n")
 
-    # 2. Write multi-sheet Excel file (one sheet per instrument)
+    # 2. Write multi-sheet Excel file (one sheet per instrument + full journal)
     try:
         import pandas as pd
         inst_groups = {}
@@ -247,15 +360,25 @@ def rewrite_pos_pnl_files(records):
                 inst_groups[inst] = []
             inst_groups[inst].append({
                 "Serial No": r["Serial_No"],
-                "Start Date": r["Start_Date"],
+                "Date": r["Date"],
                 "Strategy Name": r["Strategy_Name"],
-                "Exit Date": r["Exit_Date"],
-                "Total PnL": r["Total_PnL"],
-                "Cumulative PnL": r["Cumulative_PnL"],
-                "Status": r["Status"]
+                "Instrument": r["Instrument"],
+                "Lot Size": r.get("Lot_Size", "--"),
+                "CE Symbol": r.get("CE_Symbol", "--"),
+                "CE Entry": r.get("CE_Entry_Price", "--"),
+                "CE Exit": r.get("CE_Exit_Price", "--"),
+                "PE Symbol": r.get("PE_Symbol", "--"),
+                "PE Entry": r.get("PE_Entry_Price", "--"),
+                "PE Exit": r.get("PE_Exit_Price", "--"),
+                "Day PnL": r.get("Day_PnL", 0.0),
+                "Cumulative PnL": r.get("Cumulative_PnL", 0.0),
+                "Exit Date": r.get("Exit_Date", "--"),
+                "Status": r.get("Status", "OPEN")
             })
 
         with pd.ExcelWriter(POS_PNL_XLSX, engine="openpyxl", mode="w") as writer:
+            df_all = pd.DataFrame(records)
+            df_all.to_excel(writer, sheet_name="All_Trades", index=False)
             for inst, rows in inst_groups.items():
                 df = pd.DataFrame(rows)
                 sheet_name = f"{inst}_Trades"[:31]
@@ -595,8 +718,239 @@ def calculate_pos_strikes_for(strat):
     save_pos_strategies(pos_strategies_store)
     return True, f"Strikes calculated for '{strat.get('name')}'"
 
+def place_or_retry_pos_order(strat, leg_type, purpose, target_trigger, target_price=None, order_dict=None):
+    """
+    Guaranteed order placement for positional Stop Loss and Re-entry orders:
+    1. Checks if order is already live on broker (OPEN / TRIGGER PENDING).
+    2. Validates trigger vs current LTP to prevent Zerodha rejection (handles gap up/down).
+    3. Handles correct exchange (NFO vs BFO for BSE/Sensex/Bankex).
+    4. Automatically records order state locally in pending_pos_orders.json.
+    5. Returns (bool, order_id_or_msg).
+    """
+    kite = get_kite_client()
+    if not kite:
+        return False, "Not logged in to Kite"
+
+    strat_id = strat.get("id", "pos_strat")
+    sname = strat.get("name", "Positional Strangle")
+    instrument = (strat.get("index_name") or "NIFTY").upper()
+    exchange = get_pos_exchange(instrument)
+    qty = int(strat.get("quantity") or get_pos_lot_size(instrument))
+    product = strat.get("product", "NRML").upper()
+    entry_action = strat.get("entry_action", "SELL").upper()
+    pos_tag = strat.get("run_tag") or f"ps_{strat_id[-4:]}"[:20]
+
+    leg_data = strat["orders"].get(leg_type, {})
+    sym = leg_data.get("symbol") or strat.get(f"selected_{leg_type.lower()}")
+    if not sym:
+        return False, f"Missing symbol for {leg_type}"
+
+    order_key = f"{strat_id}_{leg_type}_{purpose}"
+    order_dict = order_dict or {}
+
+    # Check if existing broker order is alive in order book
+    existing_order_id = str(leg_data.get("sl_order_id") if purpose in ["SL", "BREAKEVEN_SL"] else leg_data.get("reentry_order_id") or "")
+    if existing_order_id and existing_order_id in order_dict:
+        st = order_dict[existing_order_id].get("status")
+        if st in ["OPEN", "TRIGGER PENDING"]:
+            upsert_pending_pos_order(order_key, {
+                "strategy_id": strat_id,
+                "strategy_name": sname,
+                "instrument": instrument,
+                "leg": leg_type,
+                "purpose": purpose,
+                "symbol": sym,
+                "exchange": exchange,
+                "transaction_type": order_dict[existing_order_id].get("transaction_type", ""),
+                "quantity": qty,
+                "product": product,
+                "order_type": order_dict[existing_order_id].get("order_type", "SL"),
+                "trigger_price": float(target_trigger) if target_trigger else None,
+                "price": float(order_dict[existing_order_id].get("price", 0.0)),
+                "tag": pos_tag,
+                "broker_order_id": existing_order_id,
+                "status": "PLACED_ON_BROKER",
+                "last_error": None
+            })
+            return True, existing_order_id
+
+    # Fetch live LTP to validate trigger/limit rules
+    curr_ltp = 0.0
+    try:
+        q = kite.ltp(f"{exchange}:{sym}")
+        curr_ltp = float(q.get(f"{exchange}:{sym}", {}).get("last_price", 0.0) or 0.0)
+    except Exception as e:
+        logger.warning(f"Could not fetch LTP for {sym}: {e}")
+        curr_ltp = float(leg_data.get("current_ltp") or leg_data.get("first_entry_price") or target_trigger)
+
+    if curr_ltp <= 0:
+        curr_ltp = float(target_trigger)
+
+    sl_trigger = None
+    sl_price = 0.0
+
+    # -------------------------------------------------------------
+    # 1. STOP LOSS (SL / BREAKEVEN_SL) PLACEMENT
+    # -------------------------------------------------------------
+    if purpose in ["SL", "BREAKEVEN_SL"]:
+        if entry_action == "SELL":
+            # For short position, SL is a BUY order
+            txn_type = kite.TRANSACTION_TYPE_BUY
+            sl_trigger = round(float(target_trigger) * 20) / 20
+
+            # Zerodha rule: BUY SL trigger MUST be >= LTP
+            if curr_ltp >= sl_trigger:
+                # Market already breached trigger: place adjusted trigger above LTP to guarantee acceptance
+                sl_trigger = round((curr_ltp + 0.5) * 20) / 20
+                sl_price = round((sl_trigger * 1.02) * 20) / 20
+                log_pos(f"[{sname}] ⚠️ {leg_type} LTP (₹{curr_ltp:.2f}) >= SL Trigger (₹{target_trigger:.2f}). Adjusting Trigger to ₹{sl_trigger:.2f} (Limit: ₹{sl_price:.2f})")
+            else:
+                sl_price = round((sl_trigger * 1.02) * 20) / 20
+
+            order_type = kite.ORDER_TYPE_SL
+        else:
+            # For long position, SL is a SELL order
+            txn_type = kite.TRANSACTION_TYPE_SELL
+            sl_trigger = round(float(target_trigger) * 20) / 20
+
+            # Zerodha rule: SELL SL trigger MUST be <= LTP
+            if curr_ltp <= sl_trigger:
+                sl_trigger = round(max(0.05, curr_ltp - 0.5) * 20) / 20
+                sl_price = round((sl_trigger * 0.98) * 20) / 20
+                log_pos(f"[{sname}] ⚠️ {leg_type} LTP (₹{curr_ltp:.2f}) <= SL Trigger (₹{target_trigger:.2f}). Adjusting Trigger to ₹{sl_trigger:.2f} (Limit: ₹{sl_price:.2f})")
+            else:
+                sl_price = round((sl_trigger * 0.98) * 20) / 20
+
+            order_type = kite.ORDER_TYPE_SL
+
+    # -------------------------------------------------------------
+    # 2. RE-ENTRY PLACEMENT
+    # -------------------------------------------------------------
+    elif purpose == "REENTRY":
+        first_p = float(target_trigger)
+        if entry_action == "SELL":
+            txn_type = kite.TRANSACTION_TYPE_SELL
+            if curr_ltp >= first_p:
+                # Price is above first entry: place standard SELL SL order (trigger <= LTP)
+                order_type = kite.ORDER_TYPE_SL
+                sl_trigger = round(first_p * 20) / 20
+                sl_price = round((sl_trigger * 0.99) * 20) / 20
+            else:
+                # Price is already below first entry: place standard LIMIT SELL order
+                order_type = kite.ORDER_TYPE_LIMIT
+                sl_trigger = None
+                sl_price = round(first_p * 20) / 20
+        else:
+            txn_type = kite.TRANSACTION_TYPE_BUY
+            if curr_ltp <= first_p:
+                # Price is below first entry: place standard BUY SL order (trigger >= LTP)
+                order_type = kite.ORDER_TYPE_SL
+                sl_trigger = round(first_p * 20) / 20
+                sl_price = round((sl_trigger * 1.01) * 20) / 20
+            else:
+                # Price is already above first entry: place standard LIMIT BUY order
+                order_type = kite.ORDER_TYPE_LIMIT
+                sl_trigger = None
+                sl_price = round(first_p * 20) / 20
+
+    # Save to local pending orders book
+    upsert_pending_pos_order(order_key, {
+        "strategy_id": strat_id,
+        "strategy_name": sname,
+        "instrument": instrument,
+        "leg": leg_type,
+        "purpose": purpose,
+        "symbol": sym,
+        "exchange": exchange,
+        "transaction_type": txn_type,
+        "quantity": qty,
+        "product": product,
+        "order_type": order_type,
+        "trigger_price": float(sl_trigger) if sl_trigger else None,
+        "price": float(sl_price),
+        "tag": pos_tag,
+        "broker_order_id": None,
+        "status": "PENDING_PLACEMENT",
+        "last_error": None
+    })
+
+    # Place order on Kite
+    try:
+        order_kwargs = {
+            "variety": kite.VARIETY_REGULAR,
+            "exchange": exchange,
+            "tradingsymbol": sym,
+            "transaction_type": txn_type,
+            "quantity": qty,
+            "product": product,
+            "order_type": order_type,
+            "price": float(sl_price),
+            "tag": pos_tag
+        }
+        if sl_trigger is not None:
+            order_kwargs["trigger_price"] = float(sl_trigger)
+
+        log_pos(f"[{sname}] 🚀 Placing {purpose} for {leg_type} ({sym}) on {exchange} (Qty:{qty}, Price:₹{sl_price:.2f}" + (f", Trigger:₹{sl_trigger:.2f}" if sl_trigger else "") + ")...")
+        placed_order_id = kite.place_order(**order_kwargs)
+        log_pos(f"[{sname}] ✅ {purpose} for {leg_type} ({sym}) successfully placed on broker! Order ID: {placed_order_id}")
+
+        if purpose in ["SL", "BREAKEVEN_SL"]:
+            leg_data["sl_order_id"] = placed_order_id
+            if sl_trigger:
+                leg_data["current_sl_trigger"] = sl_trigger
+        elif purpose == "REENTRY":
+            leg_data["reentry_order_id"] = placed_order_id
+            leg_data["status"] = "REENTRY_PENDING"
+
+        upsert_pending_pos_order(order_key, {
+            "strategy_id": strat_id,
+            "strategy_name": sname,
+            "instrument": instrument,
+            "leg": leg_type,
+            "purpose": purpose,
+            "symbol": sym,
+            "exchange": exchange,
+            "transaction_type": txn_type,
+            "quantity": qty,
+            "product": product,
+            "order_type": order_type,
+            "trigger_price": float(sl_trigger) if sl_trigger else None,
+            "price": float(sl_price),
+            "tag": pos_tag,
+            "broker_order_id": placed_order_id,
+            "status": "PLACED_ON_BROKER",
+            "last_error": None
+        })
+        save_pos_strategies(pos_strategies_store)
+        return True, str(placed_order_id)
+
+    except Exception as e:
+        err_msg = str(e)
+        log_pos(f"[{sname}] ❌ Broker rejected {purpose} order for {leg_type} ({sym}): {err_msg}")
+        upsert_pending_pos_order(order_key, {
+            "strategy_id": strat_id,
+            "strategy_name": sname,
+            "instrument": instrument,
+            "leg": leg_type,
+            "purpose": purpose,
+            "symbol": sym,
+            "exchange": exchange,
+            "transaction_type": txn_type,
+            "quantity": qty,
+            "product": product,
+            "order_type": order_type,
+            "trigger_price": float(sl_trigger) if sl_trigger else None,
+            "price": float(sl_price),
+            "tag": pos_tag,
+            "broker_order_id": None,
+            "status": "FAILED",
+            "last_error": err_msg
+        })
+        return False, err_msg
+
+
 def place_positional_orders_for(strat):
-    """Places fresh multi-day positional strangle entry orders for a given strategy."""
+    """Places fresh multi-day positional strangle entry orders and registers SL orders locally."""
     kite = get_kite_client()
     if not kite:
         log_pos(f"[{strat.get('name')}] Order placement failed: Not logged in.")
@@ -605,7 +959,9 @@ def place_positional_orders_for(strat):
     sname = strat.get("name", "Positional Strangle")
     ce_sym = strat.get("selected_ce")
     pe_sym = strat.get("selected_pe")
-    qty = int(strat.get("quantity", 65))
+    instrument = (strat.get("index_name") or "NIFTY").upper()
+    exchange = get_pos_exchange(instrument)
+    qty = int(strat.get("quantity") or get_pos_lot_size(instrument))
     product = strat.get("product", "NRML").upper()
     entry_action = strat.get("entry_action", "SELL").upper()
     sl_type = strat.get("sl_type", "PERCENT").upper()
@@ -622,7 +978,7 @@ def place_positional_orders_for(strat):
     pos_tag = f"ps_{today_str}_{strat_id_suffix}"[:20]
     strat["run_tag"] = pos_tag
 
-    # Store combined initial total premium for overall Target Profit calculation
+    # Store combined initial total premium
     ce_init_ltp = float(strat.get("selected_ce_ltp", 80.0))
     pe_init_ltp = float(strat.get("selected_pe_ltp", 80.0))
     strat["initial_total_premium"] = round(ce_init_ltp + pe_init_ltp, 2)
@@ -638,10 +994,10 @@ def place_positional_orders_for(strat):
                 order_price = round((last_ltp * 0.98) * 20) / 20
                 entry_txn = kite.TRANSACTION_TYPE_SELL
 
-            log_pos(f"[{sname}] Placing {entry_action} {sym} Qty:{qty} ({product}) Limit ₹{order_price:.2f}...")
+            log_pos(f"[{sname}] Placing {entry_action} {sym} Qty:{qty} ({product}) on {exchange} Limit ₹{order_price:.2f}...")
             order_id = kite.place_order(
                 variety=kite.VARIETY_REGULAR,
-                exchange=kite.EXCHANGE_NFO,
+                exchange=exchange,
                 tradingsymbol=sym,
                 transaction_type=entry_txn,
                 quantity=qty,
@@ -666,30 +1022,11 @@ def place_positional_orders_for(strat):
             if entry_action == "BUY":
                 calc_sl = last_ltp * (1.0 - (leg_sl_pct / 100.0)) if sl_type == "PERCENT" else last_ltp - sl_points
                 calc_sl = max(0.05, calc_sl)
-                sl_trigger = round(calc_sl * 20) / 20
-                sl_price = round((sl_trigger * 0.98) * 20) / 20
-                sl_txn = kite.TRANSACTION_TYPE_SELL
             else:
                 calc_sl = last_ltp * (1.0 + (leg_sl_pct / 100.0)) if sl_type == "PERCENT" else last_ltp + sl_points
-                sl_trigger = round(calc_sl * 20) / 20
-                sl_price = round((sl_trigger * 1.02) * 20) / 20
-                sl_txn = kite.TRANSACTION_TYPE_BUY
 
-            log_pos(f"[{sname}] Placing SL order for {sym} (SL:{leg_sl_pct}%, Trigger: ₹{sl_trigger:.2f}, Limit: ₹{sl_price:.2f})...")
-            sl_order_id = kite.place_order(
-                variety=kite.VARIETY_REGULAR,
-                exchange=kite.EXCHANGE_NFO,
-                tradingsymbol=sym,
-                transaction_type=sl_txn,
-                quantity=qty,
-                product=product,
-                order_type=kite.ORDER_TYPE_SL,
-                price=float(sl_price),
-                trigger_price=float(sl_trigger),
-                tag=pos_tag
-            )
-            log_pos(f"[{sname}] SL Order for {sym} placed. ID: {sl_order_id}")
-            strat["orders"][opt_type]["sl_order_id"] = sl_order_id
+            # Place SL order with local pending orders book tracking
+            place_or_retry_pos_order(strat, opt_type, "SL", calc_sl)
 
         except Exception as e:
             log_pos(f"[{sname}] Failed order placement for {sym}: {e}")
@@ -709,8 +1046,6 @@ def place_positional_orders_for(strat):
         target_in_store["last_sl_date"] = now_date
 
     save_pos_strategies(pos_strategies_store)
-
-    # 📝 Record position entry in pos_strategy_PnL.csv
     record_pos_trade_entry(strat)
     return True, "Orders placed successfully"
 
@@ -726,7 +1061,7 @@ def modify_pos_sl_to_breakeven(strat, leg_type):
     sl_id = leg_data.get("sl_order_id")
     entry_p = float(leg_data.get("first_entry_price") or leg_data.get("entry_price", 0.0))
     sym = leg_data.get("symbol")
-    qty = int(strat.get("quantity", 65))
+    qty = int(strat.get("quantity") or get_pos_lot_size(strat.get("index_name")))
     entry_action = strat.get("entry_action", "SELL").upper()
 
     if not sl_id or entry_p <= 0 or leg_data.get("sl_modified_to_be"):
@@ -747,6 +1082,24 @@ def modify_pos_sl_to_breakeven(strat, leg_type):
         leg_data["sl_modified_to_be"] = True
         leg_data["current_sl_trigger"] = sl_trigger
         leg_data["tsl_base_ltp"] = float(leg_data.get("current_ltp") or entry_p)
+
+        order_key = f"{strat.get('id')}_{leg_type}_BREAKEVEN_SL"
+        upsert_pending_pos_order(order_key, {
+            "strategy_id": strat.get("id"),
+            "strategy_name": sname,
+            "instrument": strat.get("index_name"),
+            "leg": leg_type,
+            "purpose": "BREAKEVEN_SL",
+            "symbol": sym,
+            "exchange": get_pos_exchange(strat.get("index_name")),
+            "quantity": qty,
+            "product": strat.get("product", "NRML"),
+            "trigger_price": float(sl_trigger),
+            "price": float(sl_price),
+            "broker_order_id": sl_id,
+            "status": "PLACED_ON_BROKER",
+            "last_error": None
+        })
 
         if strat.get("enable_tsl"):
             leg_data["tsl_active"] = True
@@ -782,11 +1135,10 @@ def trail_pos_sl_for_leg(strat, leg_type, curr_ltp):
     base_ltp = float(leg_data.get("tsl_base_ltp") or leg_data.get("first_entry_price") or leg_data.get("entry_price", 0.0))
     curr_trigger = float(leg_data.get("current_sl_trigger") or leg_data.get("first_entry_price") or leg_data.get("entry_price", 0.0))
     entry_action = strat.get("entry_action", "SELL").upper()
-    qty = int(strat.get("quantity", 65))
+    qty = int(strat.get("quantity") or get_pos_lot_size(strat.get("index_name")))
     sym = leg_data.get("symbol")
 
     if entry_action == "SELL":
-        # For SELL, favorable movement is price moving down
         if curr_ltp <= (base_ltp - tsl_pts):
             steps = int((base_ltp - curr_ltp) // tsl_pts)
             if steps >= 1:
@@ -814,7 +1166,6 @@ def trail_pos_sl_for_leg(strat, leg_type, curr_ltp):
                     except Exception as e:
                         logger.warning(f"[{sname}] Could not trail SL for {leg_type}: {e}")
     else:
-        # For BUY, favorable movement is price moving up
         if curr_ltp >= (base_ltp + tsl_pts):
             steps = int((curr_ltp - base_ltp) // tsl_pts)
             if steps >= 1:
@@ -844,126 +1195,43 @@ def trail_pos_sl_for_leg(strat, leg_type, curr_ltp):
 
 
 def place_pos_reentry_order_for_leg(strat, hit_leg_type, order_dict=None):
-    """Places re-entry limit order at the original first entry price (stored in pos_strangle.json)."""
-    kite = get_kite_client()
-    if not kite:
-        return
-
-    sname = strat.get("name", "Positional Strangle")
+    """Places re-entry order at original first entry price using guaranteed smart placement."""
     leg_data = strat["orders"].get(hit_leg_type, {})
-    done_reentry = int(leg_data.get("reentries_done", 0))
-
-    sym = leg_data.get("symbol") or strat.get(f"selected_{hit_leg_type.lower()}")
-    if not sym:
-        return
-
-    # Check if an existing open re-entry order already exists in order book
-    existing_reentry_id = str(leg_data.get("reentry_order_id") or "")
-    if existing_reentry_id and order_dict and existing_reentry_id in order_dict:
-        st = order_dict[existing_reentry_id].get("status")
-        if st in ["OPEN", "TRIGGER PENDING"]:
-            return  # Already alive in market
-
     first_p = float(leg_data.get("first_entry_price") or leg_data.get("entry_price", 0.0))
     if first_p <= 0:
-        log_pos(f"[{sname}] Cannot re-enter {hit_leg_type}: Original first entry price not recorded.")
+        log_pos(f"[{strat.get('name')}] Cannot re-enter {hit_leg_type}: Original first entry price not recorded.")
         return
 
-    qty = int(strat.get("quantity", 65))
-    product = strat.get("product", "NRML").upper()
-    entry_action = strat.get("entry_action", "SELL").upper()
-    pos_tag = strat.get("run_tag") or "ps_reentry"
-
-    sl_trigger = round(first_p * 20) / 20
-    if entry_action == "BUY":
-        sl_limit = round((sl_trigger * 1.01) * 20) / 20
-    else:
-        sl_limit = round((sl_trigger * 0.99) * 20) / 20
-
-    entry_txn = kite.TRANSACTION_TYPE_BUY if entry_action == "BUY" else kite.TRANSACTION_TYPE_SELL
-
-    log_pos(f"[{sname}] 🔄 Placing Re-entry SL Order #{done_reentry + 1} for {hit_leg_type} ({sym}) (Trigger: ₹{sl_trigger:.2f}, Limit: ₹{sl_limit:.2f})...")
-
-    try:
-        reentry_order_id = kite.place_order(
-            variety=kite.VARIETY_REGULAR,
-            exchange=kite.EXCHANGE_NFO,
-            tradingsymbol=sym,
-            transaction_type=entry_txn,
-            quantity=qty,
-            product=product,
-            order_type=kite.ORDER_TYPE_SL,
-            price=float(sl_limit),
-            trigger_price=float(sl_trigger),
-            tag=pos_tag
-        )
-        leg_data["reentry_order_id"] = reentry_order_id
-        leg_data["status"] = "REENTRY_PENDING"
-        log_pos(f"[{sname}] ✅ Re-entry SL Order for {hit_leg_type} placed (Trigger: ₹{sl_trigger:.2f}, Limit: ₹{sl_limit:.2f}). ID: {reentry_order_id} (Awaiting Execution)")
-        save_pos_strategies(pos_strategies_store)
-    except Exception as e:
-        log_pos(f"[{sname}] Failed placing Re-entry order for {hit_leg_type}: {e}")
+    place_or_retry_pos_order(strat, hit_leg_type, "REENTRY", first_p, order_dict=order_dict)
 
 
 def place_pos_sl_for_reentered_leg(strat, leg_type):
     """Places fresh Stop Loss order AFTER the re-entry limit order has been executed."""
-    kite = get_kite_client()
-    if not kite:
-        return
-
-    sname = strat.get("name", "Positional Strangle")
-    leg_data = strat["orders"].get(leg_type, {})
-    sym = leg_data.get("symbol")
-    qty = int(strat.get("quantity", 65))
-    product = strat.get("product", "NRML").upper()
-    entry_action = strat.get("entry_action", "SELL").upper()
-    pos_tag = strat.get("run_tag") or "ps_reentry_sl"
     leg_sl_pct = float(strat.get(f"{leg_type.lower()}_sl_percent", strat.get("sl_percent", 50.0)))
     sl_type = strat.get("sl_type", "PERCENT").upper()
     sl_points = float(strat.get("sl_points", 40.0))
-    first_p = float(leg_data.get("first_entry_price") or leg_data.get("entry_price", 80.0))
+    first_p = float(strat["orders"][leg_type].get("first_entry_price") or strat["orders"][leg_type].get("entry_price", 80.0))
+    entry_action = strat.get("entry_action", "SELL").upper()
 
     if entry_action == "BUY":
         calc_sl = first_p * (1.0 - (leg_sl_pct / 100.0)) if sl_type == "PERCENT" else first_p - sl_points
         calc_sl = max(0.05, calc_sl)
-        sl_trigger = round(calc_sl * 20) / 20
-        sl_price = round((sl_trigger * 0.98) * 20) / 20
-        sl_txn = kite.TRANSACTION_TYPE_SELL
     else:
         calc_sl = first_p * (1.0 + (leg_sl_pct / 100.0)) if sl_type == "PERCENT" else first_p + sl_points
-        sl_trigger = round(calc_sl * 20) / 20
-        sl_price = round((sl_trigger * 1.02) * 20) / 20
-        sl_txn = kite.TRANSACTION_TYPE_BUY
 
-    log_pos(f"[{sname}] Placing fresh SL for re-entered {leg_type} ({sym}) (SL:{leg_sl_pct}%, Trigger: ₹{sl_trigger:.2f}, Limit: ₹{sl_price:.2f})...")
-    try:
-        sl_order_id = kite.place_order(
-            variety=kite.VARIETY_REGULAR,
-            exchange=kite.EXCHANGE_NFO,
-            tradingsymbol=sym,
-            transaction_type=sl_txn,
-            quantity=qty,
-            product=product,
-            order_type=kite.ORDER_TYPE_SL,
-            price=float(sl_price),
-            trigger_price=float(sl_trigger),
-            tag=pos_tag
-        )
-        leg_data["sl_order_id"] = sl_order_id
-        log_pos(f"[{sname}] ✅ Fresh SL for {leg_type} Re-entry placed. ID: {sl_order_id} (Trigger: ₹{sl_trigger:.2f})")
-        save_pos_strategies(pos_strategies_store)
-    except Exception as e:
-        log_pos(f"[{sname}] Failed placing SL for {leg_type} re-entry: {e}")
+    place_or_retry_pos_order(strat, leg_type, "SL", calc_sl)
 
 
 def squareoff_positional_strangle_for(strat):
-    """Squares off all active positional strangle legs for a given strategy."""
+    """Squares off all active positional strangle legs for a given strategy and clears pending orders."""
     kite = get_kite_client()
     if not kite:
         return False, "Not logged in"
 
     sname = strat.get("name", "Positional Strangle")
-    qty = int(strat.get("quantity", 65))
+    instrument = (strat.get("index_name") or "NIFTY").upper()
+    exchange = get_pos_exchange(instrument)
+    qty = int(strat.get("quantity") or get_pos_lot_size(instrument))
     product = strat.get("product", "NRML").upper()
     entry_action = strat.get("entry_action", "SELL").upper()
     exit_txn = kite.TRANSACTION_TYPE_BUY if entry_action == "SELL" else kite.TRANSACTION_TYPE_SELL
@@ -989,14 +1257,23 @@ def squareoff_positional_strangle_for(strat):
             except Exception as e:
                 logger.warning(f"Could not cancel Re-entry {reentry_id}: {e}")
 
+        # Clear from pending orders book
+        remove_pending_pos_order(f"{strat.get('id')}_{leg}_SL")
+        remove_pending_pos_order(f"{strat.get('id')}_{leg}_BREAKEVEN_SL")
+        remove_pending_pos_order(f"{strat.get('id')}_{leg}_REENTRY")
+
     # 2. Place Market square-off orders for ACTIVE legs
     for leg in ["CE", "PE"]:
         sym = strat["orders"][leg].get("symbol")
+        curr_ltp = strat["orders"][leg].get("current_ltp", 0.0)
+        if not strat["orders"][leg].get("exit_price") or float(strat["orders"][leg].get("exit_price", 0.0)) == 0.0:
+            strat["orders"][leg]["exit_price"] = curr_ltp
+
         if sym and strat["orders"][leg].get("status") == "ACTIVE":
             try:
                 oid = kite.place_order(
                     variety=kite.VARIETY_REGULAR,
-                    exchange=kite.EXCHANGE_NFO,
+                    exchange=exchange,
                     tradingsymbol=sym,
                     transaction_type=exit_txn,
                     quantity=qty,
@@ -1004,7 +1281,7 @@ def squareoff_positional_strangle_for(strat):
                     order_type=kite.ORDER_TYPE_MARKET,
                     tag=pos_tag
                 )
-                log_pos(f"[{sname}] Market exit order placed for {leg} ({sym}). Order ID: {oid}")
+                log_pos(f"[{sname}] Market exit order placed for {leg} ({sym}) on {exchange}. Order ID: {oid}")
                 strat["orders"][leg]["status"] = "SQUARED_OFF"
             except Exception as e:
                 log_pos(f"[{sname}] Error placing exit order for {leg} ({sym}): {e}")
@@ -1019,43 +1296,25 @@ def squareoff_positional_strangle_for(strat):
     return True, f"Square off executed for '{sname}'"
 
 
-_last_sl_restored_date = ""
-
-def get_day_high_low_for(symbol):
-    """Fetches the day's high and low for a symbol from Kite OHLC quote."""
-    kite = get_kite_client()
-    if not kite:
-        return 0.0, 0.0
-    try:
-        q = kite.quote(f"NFO:{symbol}")
-        ohlc = q.get(f"NFO:{symbol}", {}).get("ohlc", {})
-        high_p = float(ohlc.get("high", 0.0) or q.get(f"NFO:{symbol}", {}).get("last_price", 0.0))
-        low_p = float(ohlc.get("low", 0.0) or q.get(f"NFO:{symbol}", {}).get("last_price", 0.0))
-        return high_p, low_p
-    except Exception as e:
-        logger.warning(f"Could not fetch OHLC quote for {symbol}: {e}")
-        return 0.0, 0.0
-
-
 def ensure_daily_positional_sl_orders_for(strat, order_dict):
     """
-    On market open at morning_sl_time (default 09:17:00 AM) each day:
-    1. For ACTIVE legs: Restores missing Stop Loss orders (with Breakeven or Day High/Low breach protection).
-    2. For SL_HIT / REENTRY_PENDING legs: If re-entry is available, places/restores the Re-entry limit order at the original first entry price.
+    On market open at morning_sl_time each day:
+    1. For ACTIVE legs: Restores missing Stop Loss orders in pending orders book and places them on broker.
+    2. For SL_HIT / REENTRY_PENDING legs: Restores Re-entry orders at original first entry price.
+    3. Confirms all orders are live before marking daily SL task complete.
     """
     kite = get_kite_client()
     if not kite or not strat.get("active") or not strat.get("orders", {}).get("orders_placed"):
         return
 
     sname = strat.get("name", "Positional Strangle")
-    qty = int(strat.get("quantity", 65))
-    product = strat.get("product", "NRML").upper()
     entry_action = strat.get("entry_action", "SELL").upper()
-    pos_tag = strat.get("run_tag") or "ps_morning_sl"
     sl_type = strat.get("sl_type", "PERCENT").upper()
     sl_points = float(strat.get("sl_points", 40.0))
     morning_sl_t = strat.get("morning_sl_time", "09:17:00")
     max_reentry = int(strat.get("reentry_count", 1))
+
+    all_legs_confirmed = True
 
     for leg in ["CE", "PE"]:
         leg_data = strat["orders"].get(leg, {})
@@ -1066,120 +1325,43 @@ def ensure_daily_positional_sl_orders_for(strat, order_dict):
         if not sym:
             continue
 
-        # -------------------------------------------------------------
         # A. If leg SL was hit previously and re-entry is pending:
-        # -------------------------------------------------------------
         if status in ["SL_HIT", "REENTRY_PENDING"] and done_reentry < max_reentry:
-            reentry_id = str(leg_data.get("reentry_order_id") or "")
-            is_reentry_alive = False
-            if reentry_id and reentry_id in order_dict:
-                st = order_dict[reentry_id].get("status")
-                if st in ["OPEN", "TRIGGER PENDING"]:
-                    is_reentry_alive = True
+            first_p = float(leg_data.get("first_entry_price") or leg_data.get("entry_price", 0.0))
+            if first_p > 0:
+                ok, _ = place_or_retry_pos_order(strat, leg, "REENTRY", first_p, order_dict=order_dict)
+                if not ok:
+                    all_legs_confirmed = False
 
-            if not is_reentry_alive:
-                first_p = float(leg_data.get("first_entry_price") or leg_data.get("entry_price", 0.0))
-                if first_p > 0:
-                    log_pos(f"[{sname}] 🌅 {morning_sl_t}: {leg} SL was hit previously. Restoring Re-entry Limit Order at FIRST ENTRY PRICE ₹{first_p:.2f}...")
-                    place_pos_reentry_order_for_leg(strat, leg, order_dict)
-
-        # -------------------------------------------------------------
         # B. If leg is ACTIVE: Check and restore Stop Loss order
-        # -------------------------------------------------------------
         elif status == "ACTIVE":
-            existing_sl_id = str(leg_data.get("sl_order_id") or "")
-            is_sl_alive = False
-            if existing_sl_id and existing_sl_id in order_dict:
-                sl_status = order_dict[existing_sl_id].get("status")
-                if sl_status in ["OPEN", "TRIGGER PENDING"]:
-                    is_sl_alive = True
+            entry_p = float(leg_data.get("first_entry_price") or leg_data.get("entry_price", 0.0))
+            if entry_p <= 0:
+                continue
 
-            if not is_sl_alive:
-                entry_p = float(leg_data.get("first_entry_price") or leg_data.get("entry_price", 0.0))
-                if entry_p <= 0:
-                    continue
+            leg_sl_pct = float(strat.get(f"{leg.lower()}_sl_percent", strat.get("sl_percent", 50.0)))
+            is_be = leg_data.get("sl_modified_to_be", False)
 
-                leg_sl_pct = float(strat.get(f"{leg.lower()}_sl_percent", strat.get("sl_percent", 50.0)))
-                is_be = leg_data.get("sl_modified_to_be", False)
-
-                # 1. Calculate Standard SL Price
-                if is_be:
-                    standard_sl_trigger = round(entry_p * 20) / 20
+            if is_be:
+                sl_trigger = round(entry_p * 20) / 20
+                purpose = "BREAKEVEN_SL"
+            else:
+                if entry_action == "BUY":
+                    calc_sl = entry_p * (1.0 - (leg_sl_pct / 100.0)) if sl_type == "PERCENT" else entry_p - sl_points
+                    sl_trigger = round(max(0.05, calc_sl) * 20) / 20
                 else:
-                    if entry_action == "BUY":
-                        calc_sl = entry_p * (1.0 - (leg_sl_pct / 100.0)) if sl_type == "PERCENT" else entry_p - sl_points
-                        standard_sl_trigger = round(max(0.05, calc_sl) * 20) / 20
-                    else:
-                        calc_sl = entry_p * (1.0 + (leg_sl_pct / 100.0)) if sl_type == "PERCENT" else entry_p + sl_points
-                        standard_sl_trigger = round(calc_sl * 20) / 20
+                    calc_sl = entry_p * (1.0 + (leg_sl_pct / 100.0)) if sl_type == "PERCENT" else entry_p + sl_points
+                    sl_trigger = round(calc_sl * 20) / 20
+                purpose = "SL"
 
-                # 2. Fetch live LTP and today's High/Low at morning SL time
-                curr_ltp = 0.0
-                try:
-                    q = kite.ltp(f"NFO:{sym}")
-                    curr_ltp = q.get(f"NFO:{sym}", {}).get("last_price", 0.0)
-                except Exception:
-                    curr_ltp = entry_p
+            ok, _ = place_or_retry_pos_order(strat, leg, purpose, sl_trigger, order_dict=order_dict)
+            if not ok:
+                all_legs_confirmed = False
 
-                day_high, day_low = get_day_high_low_for(sym)
-                if day_high <= 0: day_high = max(curr_ltp, entry_p)
-                if day_low <= 0: day_low = min(curr_ltp, entry_p)
-
-                # 3. Check if LTP has already crossed the standard SL price at morning SL time
-                has_breached_sl = False
-                if entry_action == "SELL":
-                    if curr_ltp >= standard_sl_trigger:
-                        has_breached_sl = True
-                else:
-                    if curr_ltp <= standard_sl_trigger:
-                        has_breached_sl = True
-
-                if has_breached_sl:
-                    if entry_action == "SELL":
-                        adjusted_trigger = round((day_high * 1.01) * 20) / 20
-                        adjusted_price = round((adjusted_trigger * 1.02) * 20) / 20
-                        sl_txn = kite.TRANSACTION_TYPE_BUY
-                        log_pos(f"[{sname}] ⚠️ {morning_sl_t}: {leg} LTP (₹{curr_ltp:.2f}) crossed standard SL (₹{standard_sl_trigger:.2f})! Setting SL at Day High +1%: ₹{adjusted_trigger:.2f}")
-                    else:
-                        adjusted_trigger = round(max(0.05, (day_low * 0.99)) * 20) / 20
-                        adjusted_price = round((adjusted_trigger * 0.98) * 20) / 20
-                        sl_txn = kite.TRANSACTION_TYPE_SELL
-                        log_pos(f"[{sname}] ⚠️ {morning_sl_t}: {leg} LTP (₹{curr_ltp:.2f}) crossed standard SL (₹{standard_sl_trigger:.2f})! Setting SL at Day Low -1%: ₹{adjusted_trigger:.2f}")
-
-                    sl_trigger = adjusted_trigger
-                    sl_price = adjusted_price
-                else:
-                    if is_be:
-                        sl_trigger = standard_sl_trigger
-                        sl_price = round((sl_trigger * 1.02) * 20) / 20 if entry_action == "SELL" else round((sl_trigger * 0.98) * 20) / 20
-                        sl_txn = kite.TRANSACTION_TYPE_BUY if entry_action == "SELL" else kite.TRANSACTION_TYPE_SELL
-                        log_pos(f"[{sname}] 🌅 {morning_sl_t}: Restoring Morning Breakeven SL for {leg} ({sym}) at First Entry ₹{entry_p:.2f}...")
-                    else:
-                        sl_trigger = standard_sl_trigger
-                        sl_price = round((sl_trigger * 1.02) * 20) / 20 if entry_action == "SELL" else round((sl_trigger * 0.98) * 20) / 20
-                        sl_txn = kite.TRANSACTION_TYPE_BUY if entry_action == "SELL" else kite.TRANSACTION_TYPE_SELL
-                        log_pos(f"[{sname}] 🌅 {morning_sl_t}: Placing Morning SL order for {leg} ({sym}) (SL:{leg_sl_pct}%, Trigger: ₹{sl_trigger:.2f})...")
-
-                try:
-                    sl_order_id = kite.place_order(
-                        variety=kite.VARIETY_REGULAR,
-                        exchange=kite.EXCHANGE_NFO,
-                        tradingsymbol=sym,
-                        transaction_type=sl_txn,
-                        quantity=qty,
-                        product=product,
-                        order_type=kite.ORDER_TYPE_SL,
-                        price=float(sl_price),
-                        trigger_price=float(sl_trigger),
-                        tag=pos_tag
-                    )
-                    leg_data["sl_order_id"] = sl_order_id
-                    log_pos(f"[{sname}] ✅ Morning {morning_sl_t} SL Order placed for {leg} ({sym}). Order ID: {sl_order_id} (Trigger: ₹{sl_trigger:.2f})")
-                except Exception as e:
-                    log_pos(f"[{sname}] Failed placing Morning {morning_sl_t} SL for {leg} ({sym}): {e}")
-
-    strat["last_sl_date"] = datetime.now().strftime("%Y-%m-%d")
-    save_pos_strategies(pos_strategies_store)
+    if all_legs_confirmed:
+        strat["last_sl_date"] = datetime.now().strftime("%Y-%m-%d")
+        save_pos_strategies(pos_strategies_store)
+        log_pos(f"[{sname}] 🌅 All morning ({morning_sl_t}) SL & Re-entry orders confirmed live on broker!")
 
 
 def monitor_positional_strategies_cycle():
@@ -1224,7 +1406,6 @@ def monitor_positional_strategies_cycle():
                         log_pos(f"[{sname}] ⚠️ Strike calculation for entry failed: {msg}. Retrying in next cycle.")
                         continue
                 
-                # Place positional CE & PE orders + initial SL orders
                 place_positional_orders_for(s)
             else:
                 s["status"] = f"Awaiting Entry ({entry_t})"
@@ -1237,7 +1418,7 @@ def monitor_positional_strategies_cycle():
             if s.get("status", "").startswith("Awaiting") or s.get("status") == "Active":
                 s["status"] = "Holding Position"
 
-            # Check if next-day morning SL time has arrived and SLs/re-entries have not been placed today
+            # Check if morning SL time has arrived and SLs/re-entries have not been placed today
             if now_time >= morning_sl_t and now_time <= "15:30:00":
                 if s.get("last_sl_date") != today_str:
                     log_pos(f"[{sname}] 🌅 Next-day SL Time ({morning_sl_t}) reached. Position is ON (holding overnight). Sending morning SL and pending re-entries...")
@@ -1249,10 +1430,11 @@ def monitor_positional_strategies_cycle():
     symbols_to_quote = set()
     for s in active_strats:
         if s.get("orders", {}).get("orders_placed"):
+            exch = get_pos_exchange(s.get("index_name"))
             for leg in ["CE", "PE"]:
                 sym = s["orders"][leg].get("symbol")
                 if sym:
-                    symbols_to_quote.add(f"NFO:{sym}")
+                    symbols_to_quote.add(f"{exch}:{sym}")
 
     if not symbols_to_quote:
         return
@@ -1264,8 +1446,9 @@ def monitor_positional_strategies_cycle():
                 continue
 
             sname = s.get("name", "Positional Strangle")
+            exch = get_pos_exchange(s.get("index_name"))
             total_pnl = 0.0
-            qty = int(s.get("quantity", 65))
+            qty = int(s.get("quantity") or get_pos_lot_size(s.get("index_name")))
             entry_action = s.get("entry_action", "SELL").upper()
             tp_percent = float(s.get("tp_percent", 70.0))
 
@@ -1279,8 +1462,11 @@ def monitor_positional_strategies_cycle():
             # Check if CE SL hit -> Move PE SL to Breakeven & Place CE Re-entry Limit Order
             # -------------------------------------------------------------
             if ce_sl_status == "COMPLETE" and s["orders"]["CE"].get("status") == "ACTIVE":
+                ce_order_info = order_dict.get(ce_sl_id, {})
+                ce_exit_p = float(ce_order_info.get("average_price") or ce_order_info.get("price") or s["orders"]["CE"].get("current_sl_trigger") or quotes.get(f"{exch}:{s['orders']['CE'].get('symbol')}", {}).get("last_price", 0.0))
+                s["orders"]["CE"]["exit_price"] = ce_exit_p
                 if s["orders"]["CE"].get("tsl_active"):
-                    log_pos(f"[{sname}] 🛑 CE Trailed Stop-Loss (TSL) triggered!")
+                    log_pos(f"[{sname}] 🛑 CE Trailed Stop-Loss (TSL) triggered at ₹{ce_exit_p:.2f}!")
                     s["orders"]["CE"]["status"] = "TSL_HIT"
                     s["orders"]["CE"]["tsl_hit"] = True
                     s["orders"]["CE"]["awaiting_1pct_reentry"] = True
@@ -1288,7 +1474,7 @@ def monitor_positional_strategies_cycle():
                     threshold_p = first_p * 1.01 if entry_action == "SELL" else first_p * 0.99
                     log_pos(f"[{sname}] ⏳ CE TSL Hit: Re-entry is ON HOLD and will only be placed once LTP moves 1% beyond original entry (Trigger Threshold: ₹{threshold_p:.2f}).")
                 else:
-                    log_pos(f"[{sname}] 🛑 CE Stop-Loss triggered!")
+                    log_pos(f"[{sname}] 🛑 CE Stop-Loss triggered at ₹{ce_exit_p:.2f}!")
                     s["orders"]["CE"]["status"] = "SL_HIT"
                     modify_pos_sl_to_breakeven(s, "PE")
                     place_pos_reentry_order_for_leg(s, "CE", order_dict)
@@ -1297,8 +1483,11 @@ def monitor_positional_strategies_cycle():
             # Check if PE SL hit -> Move CE SL to Breakeven & Place PE Re-entry Limit Order
             # -------------------------------------------------------------
             if pe_sl_status == "COMPLETE" and s["orders"]["PE"].get("status") == "ACTIVE":
+                pe_order_info = order_dict.get(pe_sl_id, {})
+                pe_exit_p = float(pe_order_info.get("average_price") or pe_order_info.get("price") or s["orders"]["PE"].get("current_sl_trigger") or quotes.get(f"{exch}:{s['orders']['PE'].get('symbol')}", {}).get("last_price", 0.0))
+                s["orders"]["PE"]["exit_price"] = pe_exit_p
                 if s["orders"]["PE"].get("tsl_active"):
-                    log_pos(f"[{sname}] 🛑 PE Trailed Stop-Loss (TSL) triggered!")
+                    log_pos(f"[{sname}] 🛑 PE Trailed Stop-Loss (TSL) triggered at ₹{pe_exit_p:.2f}!")
                     s["orders"]["PE"]["status"] = "TSL_HIT"
                     s["orders"]["PE"]["tsl_hit"] = True
                     s["orders"]["PE"]["awaiting_1pct_reentry"] = True
@@ -1306,7 +1495,7 @@ def monitor_positional_strategies_cycle():
                     threshold_p = first_p * 1.01 if entry_action == "SELL" else first_p * 0.99
                     log_pos(f"[{sname}] ⏳ PE TSL Hit: Re-entry is ON HOLD and will only be placed once LTP moves 1% beyond original entry (Trigger Threshold: ₹{threshold_p:.2f}).")
                 else:
-                    log_pos(f"[{sname}] 🛑 PE Stop-Loss triggered!")
+                    log_pos(f"[{sname}] 🛑 PE Stop-Loss triggered at ₹{pe_exit_p:.2f}!")
                     s["orders"]["PE"]["status"] = "SL_HIT"
                     modify_pos_sl_to_breakeven(s, "CE")
                     place_pos_reentry_order_for_leg(s, "PE", order_dict)
@@ -1339,8 +1528,9 @@ def monitor_positional_strategies_cycle():
             current_total_premium = 0.0
             for leg in ["CE", "PE"]:
                 sym = s["orders"][leg].get("symbol")
-                if sym and f"NFO:{sym}" in quotes:
-                    curr_ltp = quotes[f"NFO:{sym}"]["last_price"]
+                q_key = f"{exch}:{sym}"
+                if sym and q_key in quotes:
+                    curr_ltp = quotes[q_key]["last_price"]
                     s["orders"][leg]["current_ltp"] = curr_ltp
                     current_total_premium += curr_ltp
                     entry_p = float(s["orders"][leg].get("entry_price", curr_ltp))

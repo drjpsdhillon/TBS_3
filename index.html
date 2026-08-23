@@ -1363,7 +1363,7 @@
                     <!-- Collapsible History Table -->
                     <div id="intraHistoryContainer" style="display: none; margin-top: 16px; border-top: 1px solid var(--border-color); padding-top: 14px;">
                         <div style="font-size: 12px; font-weight: 700; color: var(--accent-light); margin-bottom: 8px; text-transform: uppercase;">
-                            📜 Past Days Intraday P&amp;L History Journal (intraday_PnL.csv)
+                            📜 Intraday Strategy Trading Journal (intraday_PnL.csv)
                         </div>
                         <div class="table-responsive">
                             <table class="custom-table" id="intraHistoryTable">
@@ -1371,20 +1371,21 @@
                                     <tr>
                                         <th>#</th>
                                         <th>Date</th>
-                                        <th>Recorded Time</th>
-                                        <th>Day Total P&amp;L</th>
+                                        <th>Time</th>
+                                        <th>Strategy Name</th>
+                                        <th>Instrument</th>
+                                        <th>Lot Size</th>
+                                        <th>CE Leg (Entry / Exit)</th>
+                                        <th>PE Leg (Entry / Exit)</th>
+                                        <th>Day P&amp;L</th>
                                         <th>Cumulative P&amp;L</th>
-                                        <th>NIFTY</th>
-                                        <th>BANKNIFTY</th>
-                                        <th>FINNIFTY</th>
-                                        <th>MIDCPNIFTY</th>
                                         <th>Status</th>
                                     </tr>
                                 </thead>
                                 <tbody id="intraHistoryBody">
                                     <tr>
-                                        <td colspan="10" style="text-align: center; color: var(--text-muted); padding: 16px;">
-                                            No previous days records in intraday_PnL.csv yet.
+                                        <td colspan="11" style="text-align: center; color: var(--text-muted); padding: 16px;">
+                                            No trade records in intraday_PnL.csv yet.
                                         </td>
                                     </tr>
                                 </tbody>
@@ -1633,6 +1634,54 @@
                         <button onclick="openNewPosStrategyForm()" class="btn-primary" style="padding: 9px 16px; font-size: 13px;">
                             ➕ New Positional Strategy
                         </button>
+                    </div>
+                </div>
+
+                <!-- Positional Trading Journal Card (pos_strategy_PnL.csv) -->
+                <div class="card" style="margin-bottom: 24px;">
+                    <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+                        <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                            <div class="card-title">📖 Positional Trading Journal (pos_strategy_PnL.csv)</div>
+                            <span id="posJournalTradesBadge" style="background: var(--pastel-blue-bg); color: var(--pastel-blue-dark); border: 1px solid var(--pastel-blue-border); padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 700;">0 Trades</span>
+                            <span id="posPendingOrdersBadge" style="background: #fef3c7; color: #92400e; border: 1px solid #fde68a; padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 700;">💾 0 Local Orders Tracked</span>
+                        </div>
+                        <div style="display: flex; gap: 8px;">
+                            <button onclick="togglePosHistoryTable()" class="btn-secondary" style="padding: 6px 14px; font-size: 12px;">
+                                📜 Toggle Journal History
+                            </button>
+                            <button onclick="downloadPosPnlCsv()" class="btn-secondary" style="padding: 6px 14px; font-size: 12px;" title="Download pos_strategy_PnL.csv">
+                                📥 Download CSV
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div id="posHistoryContainer" style="display: none; padding-top: 10px;">
+                        <div class="table-responsive">
+                            <table class="custom-table" id="posHistoryTable">
+                                <thead>
+                                    <tr>
+                                        <th>#</th>
+                                        <th>Date</th>
+                                        <th>Strategy Name</th>
+                                        <th>Instrument</th>
+                                        <th>Lot Size</th>
+                                        <th>CE Leg (Entry / Exit)</th>
+                                        <th>PE Leg (Entry / Exit)</th>
+                                        <th>Day P&amp;L</th>
+                                        <th>Cumulative P&amp;L</th>
+                                        <th>Exit Date</th>
+                                        <th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="posHistoryBody">
+                                    <tr>
+                                        <td colspan="11" style="text-align: center; color: var(--text-muted); padding: 16px;">
+                                            No positional trade records in pos_strategy_PnL.csv yet.
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
 
@@ -2580,33 +2629,35 @@
             if (!records || records.length === 0) {
                 tbody.innerHTML = `
                     <tr>
-                        <td colspan="10" style="text-align: center; color: var(--text-muted); padding: 16px;">
-                            No previous days records in intraday_PnL.csv yet. Records are automatically added upon daily exit.
+                        <td colspan="11" style="text-align: center; color: var(--text-muted); padding: 16px;">
+                            No trade records in intraday_PnL.csv yet. Records are automatically added upon daily trade execution and exit.
                         </td>
                     </tr>`;
                 return;
             }
 
             tbody.innerHTML = records.map(r => {
-                const dayPnl = parseFloat(r.Day_Total_PnL || 0);
+                const dayPnl = parseFloat(r.Day_PnL !== undefined ? r.Day_PnL : (r.Day_Total_PnL || 0));
                 const cumPnl = parseFloat(r.Cumulative_PnL || 0);
-                const niftyPnl = parseFloat(r.NIFTY_PnL || 0);
-                const bnfPnl = parseFloat(r.BANKNIFTY_PnL || 0);
-                const finPnl = parseFloat(r.FINNIFTY_PnL || 0);
-                const midPnl = parseFloat(r.MIDCPNIFTY_PnL || 0);
+                const sname = r.Strategy_Name || 'Intraday Strategy';
+                const inst = r.Instrument || '--';
+                const lot = r.Lot_Size || '--';
+                const ceInfo = r.CE_Symbol && r.CE_Symbol !== '--' ? `<span style="font-weight:600;">${r.CE_Symbol}</span><br><span style="font-size: 10px; color: var(--text-muted);">Entry: ₹${r.CE_Entry_Price || '--'} | Exit: ₹${r.CE_Exit_Price || '--'}</span>` : '--';
+                const peInfo = r.PE_Symbol && r.PE_Symbol !== '--' ? `<span style="font-weight:600;">${r.PE_Symbol}</span><br><span style="font-size: 10px; color: var(--text-muted);">Entry: ₹${r.PE_Entry_Price || '--'} | Exit: ₹${r.PE_Exit_Price || '--'}</span>` : '--';
 
                 return `
                 <tr>
                     <td style="font-family: 'JetBrains Mono', monospace; font-weight: 700;">#${r.Serial_No}</td>
                     <td style="font-weight: 700; color: var(--text-primary); font-family: monospace;">${r.Date}</td>
-                    <td style="font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--text-muted);">${r.Time}</td>
+                    <td style="font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--text-muted);">${r.Time || '--'}</td>
+                    <td style="font-weight: 700; color: var(--accent-light);">${sname}</td>
+                    <td><span class="badge-tag badge-nifty" style="font-size: 11px;">${inst}</span></td>
+                    <td style="font-family: 'JetBrains Mono', monospace; font-weight: 600;">${lot}</td>
+                    <td style="font-family: 'JetBrains Mono', monospace; font-size: 11px;">${ceInfo}</td>
+                    <td style="font-family: 'JetBrains Mono', monospace; font-size: 11px;">${peInfo}</td>
                     <td style="font-family: 'JetBrains Mono', monospace; font-weight: 800;" class="${getPnlClass(dayPnl)}">${formatPnl(dayPnl)}</td>
                     <td style="font-family: 'JetBrains Mono', monospace; font-weight: 800;" class="${getPnlClass(cumPnl)}">${formatPnl(cumPnl)}</td>
-                    <td style="font-family: 'JetBrains Mono', monospace; font-size: 11px;" class="${getPnlClass(niftyPnl)}">${formatPnl(niftyPnl)}</td>
-                    <td style="font-family: 'JetBrains Mono', monospace; font-size: 11px;" class="${getPnlClass(bnfPnl)}">${formatPnl(bnfPnl)}</td>
-                    <td style="font-family: 'JetBrains Mono', monospace; font-size: 11px;" class="${getPnlClass(finPnl)}">${formatPnl(finPnl)}</td>
-                    <td style="font-family: 'JetBrains Mono', monospace; font-size: 11px;" class="${getPnlClass(midPnl)}">${formatPnl(midPnl)}</td>
-                    <td><span class="badge-tag badge-complete">${r.Status}</span></td>
+                    <td><span class="badge-tag badge-complete">${r.Status || 'RECORDED'}</span></td>
                 </tr>`;
             }).join('');
         }
@@ -3420,6 +3471,8 @@
                     renderPosInstrumentGroups(loadedPosStrategies);
                     renderPosLogs(res.logs || []);
                 }
+                fetchPosPnlSummary();
+                fetchPosPendingOrders();
             } catch (e) {
                 // Polling error
             }
@@ -3769,6 +3822,90 @@
                 console.error("Save strategy error:", err);
                 toast('❌ Network or Server error while saving', true);
             }
+        }
+
+        let posPnlSummaryData = { records_count: 0, history: [] };
+
+        async function fetchPosPnlSummary() {
+            try {
+                const res = await api('/api/pos_strangle/pnl/summary');
+                if (res.status === 'ok') {
+                    posPnlSummaryData = res;
+                    renderPosHistoryTable(res.history || []);
+                    const badge = document.getElementById('posJournalTradesBadge');
+                    if (badge) badge.textContent = `${res.records_count || 0} Trade${res.records_count === 1 ? '' : 's'} in Journal`;
+                }
+            } catch (e) {
+                // Polling error
+            }
+        }
+
+        async function fetchPosPendingOrders() {
+            try {
+                const res = await api('/api/pos_strangle/pending_orders');
+                if (res.status === 'ok') {
+                    const badge = document.getElementById('posPendingOrdersBadge');
+                    if (badge) {
+                        const count = res.orders_count || 0;
+                        badge.textContent = `💾 ${count} Local Order${count === 1 ? '' : 's'} Tracked`;
+                        badge.style.background = count > 0 ? '#fef3c7' : '#f1f5f9';
+                        badge.style.color = count > 0 ? '#92400e' : '#64748b';
+                        badge.style.borderColor = count > 0 ? '#fde68a' : '#e2e8f0';
+                    }
+                }
+            } catch (e) {
+                // Polling error
+            }
+        }
+
+        function togglePosHistoryTable() {
+            const container = document.getElementById('posHistoryContainer');
+            if (container) {
+                const isHidden = container.style.display === 'none';
+                container.style.display = isHidden ? 'block' : 'none';
+                if (isHidden) fetchPosPnlSummary();
+            }
+        }
+
+        function renderPosHistoryTable(records) {
+            const tbody = document.getElementById('posHistoryBody');
+            if (!tbody) return;
+            if (!records || records.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="11" style="text-align: center; color: var(--text-muted); padding: 16px;">
+                            No positional trade records in pos_strategy_PnL.csv yet. Records are automatically added upon trade entry and exit.
+                        </td>
+                    </tr>`;
+                return;
+            }
+
+            tbody.innerHTML = records.map(r => {
+                const dayPnl = parseFloat(r.Day_PnL !== undefined ? r.Day_PnL : (r.Total_PnL || 0));
+                const cumPnl = parseFloat(r.Cumulative_PnL || 0);
+                const sname = r.Strategy_Name || 'Positional Strategy';
+                const inst = r.Instrument || '--';
+                const lot = r.Lot_Size || '--';
+                const ceInfo = r.CE_Symbol && r.CE_Symbol !== '--' ? `<span style="font-weight:600;">${r.CE_Symbol}</span><br><span style="font-size: 10px; color: var(--text-muted);">Entry: ₹${r.CE_Entry_Price || '--'} | Exit: ₹${r.CE_Exit_Price || '--'}</span>` : '--';
+                const peInfo = r.PE_Symbol && r.PE_Symbol !== '--' ? `<span style="font-weight:600;">${r.PE_Symbol}</span><br><span style="font-size: 10px; color: var(--text-muted);">Entry: ₹${r.PE_Entry_Price || '--'} | Exit: ₹${r.PE_Exit_Price || '--'}</span>` : '--';
+                const exitDate = r.Exit_Date || '-- (OPEN)';
+                const isClosed = r.Status === 'CLOSED';
+
+                return `
+                <tr>
+                    <td style="font-family: 'JetBrains Mono', monospace; font-weight: 700;">#${r.Serial_No}</td>
+                    <td style="font-weight: 700; color: var(--text-primary); font-family: monospace;">${r.Date}</td>
+                    <td style="font-weight: 700; color: var(--accent-light);">${sname}</td>
+                    <td><span class="badge-tag badge-nifty" style="font-size: 11px;">${inst}</span></td>
+                    <td style="font-family: 'JetBrains Mono', monospace; font-weight: 600;">${lot}</td>
+                    <td style="font-family: 'JetBrains Mono', monospace; font-size: 11px;">${ceInfo}</td>
+                    <td style="font-family: 'JetBrains Mono', monospace; font-size: 11px;">${peInfo}</td>
+                    <td style="font-family: 'JetBrains Mono', monospace; font-weight: 800;" class="${getPnlClass(dayPnl)}">${formatPnl(dayPnl)}</td>
+                    <td style="font-family: 'JetBrains Mono', monospace; font-weight: 800;" class="${getPnlClass(cumPnl)}">${formatPnl(cumPnl)}</td>
+                    <td style="font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--text-muted);">${exitDate}</td>
+                    <td><span class="badge-tag ${isClosed ? 'badge-complete' : 'badge-active'}">${r.Status || 'OPEN'}</span></td>
+                </tr>`;
+            }).join('');
         }
 
         function downloadPosPnlCsv() {

@@ -571,7 +571,7 @@ INTRADAY_PNL_XLSX = os.path.join(BASE_DIR, "intraday_PnL.xlsx")
 _last_eod_recorded_date = ""
 
 def load_intraday_pnl_records():
-    """Loads existing daily summary records from intraday_PnL.csv."""
+    """Loads existing trade journal records from intraday_PnL.csv."""
     records = []
     if not os.path.exists(INTRADAY_PNL_CSV):
         return records
@@ -581,19 +581,42 @@ def load_intraday_pnl_records():
             if len(lines) > 1:
                 for line in lines[1:]:
                     parts = [p.strip() for p in line.split(",")]
-                    if len(parts) >= 11:
+                    if len(parts) >= 15:
                         records.append({
                             "Serial_No": int(parts[0]) if parts[0].isdigit() else len(records) + 1,
                             "Date": parts[1],
                             "Time": parts[2],
-                            "Day_Total_PnL": float(parts[3]) if parts[3].replace("-","").replace(".","").isdigit() else 0.0,
+                            "Strategy_Name": parts[3],
+                            "Instrument": parts[4],
+                            "Lot_Size": int(parts[5]) if parts[5].isdigit() else parts[5],
+                            "CE_Symbol": parts[6],
+                            "CE_Entry_Price": parts[7],
+                            "CE_Exit_Price": parts[8],
+                            "PE_Symbol": parts[9],
+                            "PE_Entry_Price": parts[10],
+                            "PE_Exit_Price": parts[11],
+                            "Day_PnL": float(parts[12]) if parts[12].replace("-","").replace(".","").isdigit() else 0.0,
+                            "Cumulative_PnL": float(parts[13]) if parts[13].replace("-","").replace(".","").isdigit() else 0.0,
+                            "Status": parts[14] if len(parts) > 14 else "RECORDED"
+                        })
+                    elif len(parts) >= 11:
+                        # Legacy fallback
+                        records.append({
+                            "Serial_No": int(parts[0]) if parts[0].isdigit() else len(records) + 1,
+                            "Date": parts[1],
+                            "Time": parts[2],
+                            "Strategy_Name": "Daily Intraday Summary",
+                            "Instrument": "ALL",
+                            "Lot_Size": "--",
+                            "CE_Symbol": "--",
+                            "CE_Entry_Price": "--",
+                            "CE_Exit_Price": "--",
+                            "PE_Symbol": "--",
+                            "PE_Entry_Price": "--",
+                            "PE_Exit_Price": "--",
+                            "Day_PnL": float(parts[3]) if parts[3].replace("-","").replace(".","").isdigit() else 0.0,
                             "Cumulative_PnL": float(parts[4]) if parts[4].replace("-","").replace(".","").isdigit() else 0.0,
-                            "NIFTY_PnL": float(parts[5]) if parts[5].replace("-","").replace(".","").isdigit() else 0.0,
-                            "BANKNIFTY_PnL": float(parts[6]) if parts[6].replace("-","").replace(".","").isdigit() else 0.0,
-                            "FINNIFTY_PnL": float(parts[7]) if parts[7].replace("-","").replace(".","").isdigit() else 0.0,
-                            "MIDCPNIFTY_PnL": float(parts[8]) if parts[8].replace("-","").replace(".","").isdigit() else 0.0,
-                            "SENSEX_PnL": float(parts[9]) if parts[9].replace("-","").replace(".","").isdigit() else 0.0,
-                            "Status": parts[10] if len(parts) > 10 else "CLOSED"
+                            "Status": parts[10] if len(parts) > 10 else "RECORDED"
                         })
     except Exception as e:
         logger.warning(f"Failed parsing {INTRADAY_PNL_CSV}: {e}")
@@ -647,18 +670,18 @@ def save_mtm_curve_data(data):
 
 
 def rewrite_intraday_pnl_file(records):
-    """Writes clean structured intraday_PnL.csv."""
+    """Writes clean structured intraday_PnL.csv trading journal."""
     with open(INTRADAY_PNL_CSV, "w", encoding="utf-8") as f:
         f.write("# ==========================================================================\n")
-        f.write("# DAILY INTRADAY P&L & CUMULATIVE STRATEGY JOURNAL\n")
+        f.write("# INTRADAY STRATEGY P&L TRADE JOURNAL\n")
         f.write("# ==========================================================================\n")
-        f.write("Serial_No,Date,Time,Day_Total_PnL,Cumulative_PnL,NIFTY_PnL,BANKNIFTY_PnL,FINNIFTY_PnL,MIDCPNIFTY_PnL,SENSEX_PnL,Status\n")
+        f.write("Serial_No,Date,Time,Strategy_Name,Instrument,Lot_Size,CE_Symbol,CE_Entry_Price,CE_Exit_Price,PE_Symbol,PE_Entry_Price,PE_Exit_Price,Day_PnL,Cumulative_PnL,Status\n")
         for r in records:
-            f.write(f"{r['Serial_No']},{r['Date']},{r['Time']},{r['Day_Total_PnL']:.2f},{r['Cumulative_PnL']:.2f},{r['NIFTY_PnL']:.2f},{r['BANKNIFTY_PnL']:.2f},{r['FINNIFTY_PnL']:.2f},{r['MIDCPNIFTY_PnL']:.2f},{r['SENSEX_PnL']:.2f},{r['Status']}\n")
+            f.write(f"{r['Serial_No']},{r['Date']},{r.get('Time','--')},{r['Strategy_Name']},{r['Instrument']},{r.get('Lot_Size','--')},{r.get('CE_Symbol','--')},{r.get('CE_Entry_Price','--')},{r.get('CE_Exit_Price','--')},{r.get('PE_Symbol','--')},{r.get('PE_Entry_Price','--')},{r.get('PE_Exit_Price','--')},{float(r.get('Day_PnL', 0.0)):.2f},{float(r.get('Cumulative_PnL', 0.0)):.2f},{r.get('Status','RECORDED')}\n")
 
 
 def record_eod_intraday_pnl(force=False):
-    """Calculates each instrument's daily PnL, computes cumulative intraday total, and saves to CSV and Excel."""
+    """Calculates each strategy's daily PnL, updates cumulative intraday total, and saves to CSV and Excel journal."""
     global kite_client, strategies_store, _last_eod_recorded_date
     today_str = datetime.now().strftime("%Y-%m-%d")
     now_time_str = datetime.now().strftime("%H:%M:%S")
@@ -670,94 +693,89 @@ def record_eod_intraday_pnl(force=False):
         return False, "Not connected to Kite"
 
     try:
-        log_execution(f"📊 Recording Daily Intraday P&L at {now_time_str}...")
+        log_execution(f"📊 Recording Daily Intraday Strategy P&L at {now_time_str}...")
         positions_res = kite_client.positions()
         net_pos = positions_res.get("net", []) if isinstance(positions_res, dict) else (positions_res or [])
 
-        # Map active & historical strategy symbols to instruments
-        strat_symbols_map = {}
-        for s in strategies_store:
-            idx = s.get("index_name", "NIFTY")
-            if s.get("selected_ce"): strat_symbols_map[s["selected_ce"]] = idx
-            if s.get("selected_pe"): strat_symbols_map[s["selected_pe"]] = idx
-            if s.get("orders"):
-                for leg in ["CE", "PE"]:
-                    sym = s["orders"].get(leg, {}).get("symbol")
-                    if sym: strat_symbols_map[sym] = idx
-
-        # Aggregate PnL per instrument
+        # Build position lookup map for MIS
+        pos_by_sym = {}
         instrument_pnl = {"NIFTY": 0.0, "BANKNIFTY": 0.0, "FINNIFTY": 0.0, "MIDCPNIFTY": 0.0, "SENSEX": 0.0}
-        instrument_records = {}
 
         for p in net_pos:
             product = str(p.get("product", "")).upper()
-            # Only record Intraday (MIS) trades in intraday_PnL.csv
-            if product in ["NRML", "CNC"]:
-                continue
-
-            sym = p.get("tradingsymbol", "")
-            pnl = float(p.get("pnl", 0.0) or p.get("m2m", 0.0) or 0.0)
-            
-            detected_inst = strat_symbols_map.get(sym)
-            if not detected_inst:
-                for inst_key in ["BANKNIFTY", "FINNIFTY", "MIDCPNIFTY", "SENSEX", "NIFTY"]:
+            if product not in ["NRML", "CNC"]:
+                sym = p.get("tradingsymbol", "")
+                pnl = float(p.get("pnl", 0.0) or p.get("m2m", 0.0) or 0.0)
+                if sym:
+                    pos_by_sym[sym] = p
+                for inst_key in instrument_pnl.keys():
                     if sym.startswith(inst_key):
-                        detected_inst = inst_key
+                        instrument_pnl[inst_key] = round(instrument_pnl[inst_key] + pnl, 2)
                         break
 
-            if detected_inst:
-                instrument_pnl[detected_inst] = round(instrument_pnl.get(detected_inst, 0.0) + pnl, 2)
-                if detected_inst not in instrument_records:
-                    instrument_records[detected_inst] = []
-                instrument_records[detected_inst].append({
+        existing_records = load_intraday_pnl_records()
+
+        # Update or record each configured intraday strategy
+        for strat in strategies_store:
+            sname = strat.get("name", "Intraday Strategy")
+            instrument = (strat.get("index_name") or "NIFTY").upper()
+            lot_size = int(strat.get("quantity") or get_broker_lot_size(instrument) or 65)
+
+            ce_sym = strat.get("selected_ce") or strat.get("orders", {}).get("CE", {}).get("symbol") or "--"
+            pe_sym = strat.get("selected_pe") or strat.get("orders", {}).get("PE", {}).get("symbol") or "--"
+
+            ce_entry = strat.get("orders", {}).get("CE", {}).get("first_entry_price") or strat.get("orders", {}).get("CE", {}).get("entry_price") or 0.0
+            pe_entry = strat.get("orders", {}).get("PE", {}).get("first_entry_price") or strat.get("orders", {}).get("PE", {}).get("entry_price") or 0.0
+
+            ce_pos = pos_by_sym.get(ce_sym, {})
+            pe_pos = pos_by_sym.get(pe_sym, {})
+
+            ce_pnl = float(ce_pos.get("pnl", 0.0) or ce_pos.get("m2m", 0.0) or 0.0)
+            pe_pnl = float(pe_pos.get("pnl", 0.0) or pe_pos.get("m2m", 0.0) or 0.0)
+            strat_day_pnl = round(ce_pnl + pe_pnl, 2)
+
+            ce_exit = strat.get("orders", {}).get("CE", {}).get("exit_price") or (ce_pos.get("sell_price") if strat.get("entry_action") == "BUY" else ce_pos.get("buy_price")) or 0.0
+            pe_exit = strat.get("orders", {}).get("PE", {}).get("exit_price") or (pe_pos.get("sell_price") if strat.get("entry_action") == "BUY" else pe_pos.get("buy_price")) or 0.0
+
+            # Find matching record for today & strategy name
+            target_rec = next((r for r in existing_records if r.get("Date") == today_str and r.get("Strategy_Name") == sname), None)
+
+            if target_rec:
+                target_rec["Time"] = now_time_str
+                target_rec["Instrument"] = instrument
+                target_rec["Lot_Size"] = lot_size
+                target_rec["CE_Symbol"] = ce_sym
+                target_rec["CE_Entry_Price"] = f"{float(ce_entry):.2f}" if ce_entry else "--"
+                target_rec["CE_Exit_Price"] = f"{float(ce_exit):.2f}" if ce_exit else "--"
+                target_rec["PE_Symbol"] = pe_sym
+                target_rec["PE_Entry_Price"] = f"{float(pe_entry):.2f}" if pe_entry else "--"
+                target_rec["PE_Exit_Price"] = f"{float(pe_exit):.2f}" if pe_exit else "--"
+                target_rec["Day_PnL"] = strat_day_pnl
+                target_rec["Status"] = "RECORDED"
+            else:
+                new_rec = {
+                    "Serial_No": len(existing_records) + 1,
                     "Date": today_str,
                     "Time": now_time_str,
-                    "Instrument": detected_inst,
-                    "Contract": sym,
-                    "Qty": p.get("quantity", 0),
-                    "BuyAvg": p.get("buy_price", 0.0) or p.get("average_price", 0.0),
-                    "SellAvg": p.get("sell_price", 0.0),
-                    "LTP": p.get("last_price", 0.0),
-                    "RealizedPnL": round(float(p.get("realised", 0.0) or 0.0), 2),
-                    "UnrealizedPnL": round(float(p.get("unrealised", 0.0) or 0.0), 2),
-                    "TotalPnL": round(pnl, 2)
-                })
+                    "Strategy_Name": sname,
+                    "Instrument": instrument,
+                    "Lot_Size": lot_size,
+                    "CE_Symbol": ce_sym,
+                    "CE_Entry_Price": f"{float(ce_entry):.2f}" if ce_entry else "--",
+                    "CE_Exit_Price": f"{float(ce_exit):.2f}" if ce_exit else "--",
+                    "PE_Symbol": pe_sym,
+                    "PE_Entry_Price": f"{float(pe_entry):.2f}" if pe_entry else "--",
+                    "PE_Exit_Price": f"{float(pe_exit):.2f}" if pe_exit else "--",
+                    "Day_PnL": strat_day_pnl,
+                    "Cumulative_PnL": 0.0,
+                    "Status": "RECORDED"
+                }
+                existing_records.append(new_rec)
 
-        today_day_pnl = round(sum(instrument_pnl.values()), 2)
-
-        # 1. Update Daily Journal with Cumulative P&L Tracking
-        existing_records = load_intraday_pnl_records()
-        target_rec = next((r for r in existing_records if r.get("Date") == today_str), None)
-
-        if target_rec:
-            target_rec["Time"] = now_time_str
-            target_rec["Day_Total_PnL"] = today_day_pnl
-            target_rec["NIFTY_PnL"] = instrument_pnl.get("NIFTY", 0.0)
-            target_rec["BANKNIFTY_PnL"] = instrument_pnl.get("BANKNIFTY", 0.0)
-            target_rec["FINNIFTY_PnL"] = instrument_pnl.get("FINNIFTY", 0.0)
-            target_rec["MIDCPNIFTY_PnL"] = instrument_pnl.get("MIDCPNIFTY", 0.0)
-            target_rec["SENSEX_PnL"] = instrument_pnl.get("SENSEX", 0.0)
-            target_rec["Status"] = "RECORDED"
-        else:
-            new_rec = {
-                "Serial_No": len(existing_records) + 1,
-                "Date": today_str,
-                "Time": now_time_str,
-                "Day_Total_PnL": today_day_pnl,
-                "Cumulative_PnL": 0.0,
-                "NIFTY_PnL": instrument_pnl.get("NIFTY", 0.0),
-                "BANKNIFTY_PnL": instrument_pnl.get("BANKNIFTY", 0.0),
-                "FINNIFTY_PnL": instrument_pnl.get("FINNIFTY", 0.0),
-                "MIDCPNIFTY_PnL": instrument_pnl.get("MIDCPNIFTY", 0.0),
-                "SENSEX_PnL": instrument_pnl.get("SENSEX", 0.0),
-                "Status": "RECORDED"
-            }
-            existing_records.append(new_rec)
-
-        # Recalculate cumulative PnL across all days
+        # Recalculate cumulative PnL across all days & entries
         running_cum = 0.0
         for r in existing_records:
-            running_cum = round(running_cum + float(r.get("Day_Total_PnL", 0.0)), 2)
+            running_cum = round(running_cum + float(r.get("Day_PnL", 0.0)), 2)
             r["Cumulative_PnL"] = running_cum
 
         rewrite_intraday_pnl_file(existing_records)
@@ -766,23 +784,15 @@ def record_eod_intraday_pnl(force=False):
         try:
             import pandas as pd
             excel_path = INTRADAY_PNL_XLSX
-            with pd.ExcelWriter(excel_path, engine="openpyxl", mode="a" if os.path.exists(excel_path) else "w") as writer:
-                # Write Daily Summary Sheet
-                df_summary = pd.DataFrame(existing_records)
-                df_summary.to_excel(writer, sheet_name="Daily_Summary", index=False)
-
-                # Write contract breakdowns per instrument
-                for inst, records in instrument_records.items():
-                    if records:
-                        df = pd.DataFrame(records)
-                        sheet_name = f"{inst}_{today_str.replace('-', '')}"[:31]
-                        df.to_excel(writer, sheet_name=sheet_name, index=False)
+            df_summary = pd.DataFrame(existing_records)
+            with pd.ExcelWriter(excel_path, engine="openpyxl", mode="w") as writer:
+                df_summary.to_excel(writer, sheet_name="Trading_Journal", index=False)
         except Exception:
             pass
 
         _last_eod_recorded_date = today_str
-        log_execution(f"✅ Intraday PnL saved to {INTRADAY_PNL_CSV} (Today: ₹{today_day_pnl:.2f}, Cumulative: ₹{running_cum:.2f})")
-        return True, {"today_pnl": today_day_pnl, "cumulative_pnl": running_cum, "instruments": instrument_pnl}
+        log_execution(f"✅ Intraday Strategy Journal saved to {INTRADAY_PNL_CSV} (Cumulative: ₹{running_cum:.2f})")
+        return True, {"records": len(existing_records), "cumulative_pnl": running_cum, "instruments": instrument_pnl}
     except Exception as e:
         logger.error(f"Error recording EOD Intraday PnL: {e}")
         return False, str(e)
@@ -2258,8 +2268,8 @@ def api_get_intraday_pnl_summary():
     """Returns past days journal records and cumulative Intraday P&L."""
     records = load_intraday_pnl_records()
     today_str = datetime.now().strftime("%Y-%m-%d")
-    today_rec = next((r for r in records if r["Date"] == today_str), None)
-    today_recorded_pnl = today_rec["Day_Total_PnL"] if today_rec else 0.0
+    today_recs = [r for r in records if r.get("Date") == today_str]
+    today_recorded_pnl = sum(float(r.get("Day_PnL", 0.0)) for r in today_recs) if today_recs else 0.0
     cum_recorded_pnl = records[-1]["Cumulative_PnL"] if records else 0.0
 
     return jsonify({
@@ -2278,6 +2288,38 @@ def api_download_pos_pnl_csv():
     if os.path.exists(pos_strngl.POS_PNL_CSV):
         return send_from_directory(BASE_DIR, "pos_strategy_PnL.csv", as_attachment=True)
     return jsonify({"status": "error", "message": "pos_strategy_PnL.csv has not been created yet."}), 404
+
+
+@app.route("/api/pos_strangle/pnl/summary", methods=["GET"])
+def api_get_pos_pnl_summary():
+    """Returns all positional strategy trade journal records and cumulative P&L."""
+    import pos_strngl
+    records = pos_strngl.load_pos_pnl_records()
+    today_str = datetime.now().strftime("%Y-%m-%d")
+    today_recs = [r for r in records if str(r.get("Date", "")).startswith(today_str)]
+    today_recorded_pnl = sum(float(r.get("Day_PnL", 0.0)) for r in today_recs) if today_recs else 0.0
+    cum_recorded_pnl = records[-1]["Cumulative_PnL"] if records else 0.0
+
+    return jsonify({
+        "status": "ok",
+        "today_recorded_pnl": today_recorded_pnl,
+        "cumulative_recorded_pnl": cum_recorded_pnl,
+        "records_count": len(records),
+        "history": records
+    })
+
+
+@app.route("/api/pos_strangle/pending_orders", methods=["GET"])
+def api_get_pos_pending_orders():
+    """Returns all locally tracked pending positional orders from pending_pos_orders.json."""
+    import pos_strngl
+    orders_dict = pos_strngl.load_pending_pos_orders()
+    orders_list = list(orders_dict.values())
+    return jsonify({
+        "status": "ok",
+        "orders_count": len(orders_list),
+        "orders": orders_list
+    })
 
 
 @app.route("/api/mtm_chart/data", methods=["GET"])
