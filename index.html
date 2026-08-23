@@ -1170,6 +1170,10 @@
                     <span>🧭 Positional Strategy</span>
                     <span class="tab-badge" id="posStatusBadge" style="background:#e0f2fe; color:#0369a1;">Idle</span>
                 </button>
+                <button class="tab-btn" onclick="switchMainTab('tabStraddleTotalSl', this)">
+                    <span>🎯 Straddle Total SL</span>
+                    <span class="tab-badge" id="straddleStatusBadge" style="background:#e0f2fe; color:#0369a1;">Idle</span>
+                </button>
             </div>
 
             <!-- TAB 1: ORDER BOOK & STOP LOSS TRACKER -->
@@ -1843,6 +1847,207 @@
                 </div>
             </div>
 
+            <!-- TAB 6: STRADDLE TOTAL SL (POSITIONAL STRADDLE STRATEGY) -->
+            <div id="tabStraddleTotalSl" class="tab-pane" style="margin-bottom: 28px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 12px;">
+                    <div>
+                        <h2 style="font-size: 20px; font-weight: 800; letter-spacing: -0.5px; color: var(--text-primary);">🎯 Positional Straddle Console (Total Premium SL &amp; Target)</h2>
+                        <p style="font-size: 13px; color: var(--text-secondary); margin-top: 2px;">Multi-day ATM Straddles managed by Combined Total Premium (CE + PE) Stop Loss (%) and Target Profit (%).</p>
+                    </div>
+                    <div style="display: flex; gap: 8px;">
+                        <button onclick="downloadStraddlePnlCsv()" class="btn-secondary" style="padding: 9px 16px; font-size: 13px;" title="Download straddle_total_sl_PnL.csv">
+                            📥 Download Straddle P&amp;L CSV
+                        </button>
+                        <button onclick="openNewStraddleStrategyForm()" class="btn-primary" style="padding: 9px 16px; font-size: 13px;">
+                            ➕ New Straddle Strategy
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Straddle Trading Journal Card (straddle_total_sl_PnL.csv) -->
+                <div class="card" style="margin-bottom: 24px;">
+                    <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+                        <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                            <div class="card-title">📖 Straddle Total SL Trading Journal (straddle_total_sl_PnL.csv)</div>
+                            <span id="straddleJournalTradesBadge" style="background: var(--pastel-blue-bg); color: var(--pastel-blue-dark); border: 1px solid var(--pastel-blue-border); padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 700;">0 Trades</span>
+                            <span id="straddlePendingOrdersBadge" style="background: #fef3c7; color: #92400e; border: 1px solid #fde68a; padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 700;">💾 0 Local Orders Tracked</span>
+                        </div>
+                        <div style="display: flex; gap: 8px;">
+                            <button onclick="toggleStraddleHistoryTable()" class="btn-secondary" style="padding: 6px 14px; font-size: 12px;">
+                                📜 Toggle Journal History
+                            </button>
+                            <button onclick="downloadStraddlePnlCsv()" class="btn-secondary" style="padding: 6px 14px; font-size: 12px;" title="Download straddle_total_sl_PnL.csv">
+                                📥 Download CSV
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div id="straddleHistoryContainer" style="display: none; padding-top: 10px;">
+                        <div class="table-responsive">
+                            <table class="custom-table" id="straddleHistoryTable">
+                                <thead>
+                                    <tr>
+                                        <th>#</th>
+                                        <th>Date</th>
+                                        <th>Strategy Name</th>
+                                        <th>Instrument</th>
+                                        <th>ATM Strike</th>
+                                        <th>Lot Size</th>
+                                        <th>CE Leg (Entry / Exit)</th>
+                                        <th>PE Leg (Entry / Exit)</th>
+                                        <th>Initial Total Prem</th>
+                                        <th>Exit Total Prem</th>
+                                        <th>Day P&amp;L</th>
+                                        <th>Cumulative P&amp;L</th>
+                                        <th>Exit Date</th>
+                                        <th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="straddleHistoryBody">
+                                    <tr>
+                                        <td colspan="14" style="text-align: center; color: var(--text-muted); padding: 16px;">
+                                            No straddle trade records in straddle_total_sl_PnL.csv yet.
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Straddle Instrument Groups Container -->
+                <div id="straddleInstrumentGroupsContainer" style="margin-bottom: 24px;">
+                    <!-- Rendered dynamically grouped by instrument (NIFTY, BANKNIFTY, etc.) -->
+                </div>
+
+                <!-- Straddle Configuration & Logs 2-Column Section -->
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: start;">
+                    
+                    <!-- Create / Edit Straddle Strategy Card -->
+                    <div class="card" id="straddleEditCard">
+                        <div class="card-header">
+                            <div class="card-title" id="straddleFormTitle">⚙️ Create / Edit Straddle Total SL Strategy</div>
+                            <span class="mtm-sync-badge">ATM Straddle Engine</span>
+                        </div>
+
+                        <form id="straddleStrategyForm" onsubmit="saveStraddleStrategyConfig(event)">
+                            <input type="hidden" id="straddleStratId" value="">
+
+                            <div class="form-group" style="margin-bottom: 14px;">
+                                <label for="straddleStratName">Strategy Name</label>
+                                <input type="text" id="straddleStratName" placeholder="e.g. Nifty Weekly Straddle Total SL" required style="font-weight: 600;">
+                            </div>
+
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="straddleIndexName">Underlying Instrument / Spot</label>
+                                    <select id="straddleIndexName" onchange="onStraddleIndexChange()">
+                                        <option value="NIFTY" selected>NIFTY</option>
+                                        <option value="BANKNIFTY">BANKNIFTY</option>
+                                        <option value="FINNIFTY">FINNIFTY</option>
+                                        <option value="MIDCPNIFTY">MIDCPNIFTY</option>
+                                        <option value="SENSEX">SENSEX</option>
+                                        <option value="BANKEX">BANKEX</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="straddleExpirySelect">Monthly / Weekly Expiry</label>
+                                    <select id="straddleExpirySelect" required>
+                                        <option value="">Loading expiries...</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="straddleStrikeInput">Strike Selection (ATM Default)</label>
+                                    <input type="text" id="straddleStrikeInput" value="ATM" placeholder="ATM or specific strike (e.g. 24500)" required>
+                                    <div class="time-hint">Pairs BOTH CE &amp; PE at the closest ATM strike</div>
+                                </div>
+                                <div class="form-group">
+                                    <label for="straddleEntryAction">Trade Direction</label>
+                                    <select id="straddleEntryAction">
+                                        <option value="SELL" selected>🔴 SELL (Short Straddle)</option>
+                                        <option value="BUY">🟢 BUY (Long Straddle)</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="straddleProduct">Product Type</label>
+                                    <select id="straddleProduct">
+                                        <option value="NRML" selected>NRML (Overnight / Multi-Day)</option>
+                                        <option value="MIS">MIS (Intraday)</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="straddleQuantity" id="lblStraddleQuantity">Quantity (Multiple of Lot Size)</label>
+                                    <input type="number" id="straddleQuantity" value="65" step="65" min="65" required>
+                                </div>
+                            </div>
+
+                            <!-- Total Premium Stop Loss & Target Profit Controls -->
+                            <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: var(--radius-sm); padding: 14px; margin-bottom: 14px;">
+                                <div style="font-size: 12px; font-weight: 800; color: #166534; margin-bottom: 10px; display: flex; align-items: center; gap: 6px;">
+                                    <span>🛡️ COMBINED TOTAL PREMIUM (CE + PE) SL &amp; TARGET</span>
+                                </div>
+                                <div class="form-row" style="margin-bottom: 0;">
+                                    <div class="form-group" style="margin-bottom: 0;">
+                                        <label for="straddleTotalSl" style="color: #991b1b; font-weight: 700;">🛑 Total Premium Stop Loss (%)</label>
+                                        <input type="number" id="straddleTotalSl" step="1" value="100" min="1" required placeholder="e.g. 100">
+                                        <div class="time-hint" style="color: #991b1b;">Exit when combined premium expands by this %</div>
+                                    </div>
+                                    <div class="form-group" style="margin-bottom: 0;">
+                                        <label for="straddleTotalTp" style="color: #166534; font-weight: 700;">🎯 Total Premium Target Profit (%)</label>
+                                        <input type="number" id="straddleTotalTp" step="1" value="50" min="1" required placeholder="e.g. 50">
+                                        <div class="time-hint" style="color: #166534;">Exit when combined premium decays by this %</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="straddleStartTime">⏰ Scheduled Entry Time</label>
+                                    <input type="time" id="straddleStartTime" value="15:00:00" step="1" required
+                                        title="Initial straddle orders executed at this time">
+                                    <div class="time-hint">Executes initial position entry</div>
+                                </div>
+                                <div class="form-group">
+                                    <label for="straddleEndTime">🔔 Position Exit Time</label>
+                                    <input type="time" id="straddleEndTime" value="15:15:00" step="1" required
+                                        title="Position exit time">
+                                    <div class="time-hint">Straddle monitoring exit window</div>
+                                </div>
+                            </div>
+
+                            <div style="display: flex; gap: 10px; margin-top: 18px;">
+                                <button type="submit" class="btn-primary" style="flex: 1;">
+                                    💾 Save Straddle Strategy
+                                </button>
+                                <button type="button" onclick="cancelStraddleEditForm()" class="btn-secondary" style="padding: 0 16px;">
+                                    Cancel
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <!-- Straddle Execution Logs Card -->
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-title">📜 Straddle Total SL Engine Logs</div>
+                            <span class="mtm-sync-badge" id="straddleLastChecked">Sync: Just now</span>
+                        </div>
+
+                        <div>
+                            <div id="straddleLogsTerminal" class="logs-terminal" style="height: 440px;">
+                                <div class="log-line">Straddle Total SL logs streaming...</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
         </div>
 
     </div>
@@ -2437,11 +2642,20 @@
                     if (s.orders.PE && s.orders.PE.symbol) posSymbols.add(s.orders.PE.symbol);
                 }
             });
+            loadedStraddleStrategies.forEach(s => {
+                if (s.run_tag) posTags.add(s.run_tag);
+                if (s.selected_ce) posSymbols.add(s.selected_ce);
+                if (s.selected_pe) posSymbols.add(s.selected_pe);
+                if (s.orders) {
+                    if (s.orders.CE && s.orders.CE.symbol) posSymbols.add(s.orders.CE.symbol);
+                    if (s.orders.PE && s.orders.PE.symbol) posSymbols.add(s.orders.PE.symbol);
+                }
+            });
 
             orders.forEach(o => {
                 const tag = (o.tag || '').trim();
                 const sym = (o.tradingsymbol || '').trim();
-                if (tag.startsWith('ps_') || posTags.has(tag)) {
+                if (tag.startsWith('ps_') || tag.startsWith('std_') || posTags.has(tag)) {
                     if (sym) posSymbols.add(sym);
                 } else if (tag.startsWith('s') || tag.startsWith('straddle') || intradayTags.has(tag)) {
                     if (sym) intradaySymbols.add(sym);
@@ -3958,13 +4172,451 @@
             }
         }
 
+        // ═══════════════════════════════════════════════════════════════
+        // STRADDLE TOTAL SL STRATEGY (straddle_total_sl.py Bridge)
+        // ═══════════════════════════════════════════════════════════════
+
+        let loadedStraddleStrategies = [];
+        let straddlePnlSummaryData = { records_count: 0, history: [] };
+
+        function onStraddleIndexChange() {
+            const indexName = document.getElementById('straddleIndexName').value;
+            const lot = (window.lotSizesMap && window.lotSizesMap[indexName]) || DEFAULT_LOT_SIZES[indexName] || 65;
+            const qtyInput = document.getElementById('straddleQuantity');
+            if (qtyInput) {
+                qtyInput.value = lot;
+                qtyInput.step = lot;
+                qtyInput.min = lot;
+            }
+            const lbl = document.getElementById('lblStraddleQuantity');
+            if (lbl) lbl.textContent = `Quantity (Multiple of Lot Size: ${lot} for ${indexName})`;
+            populateStraddleExpirySelect(indexName);
+        }
+
+        function populateStraddleExpirySelect(indexName, currentVal) {
+            const select = document.getElementById('straddleExpirySelect');
+            if (!select) return;
+            const expiries = (window.expiriesMap && window.expiriesMap[indexName]) || [];
+            
+            let html = `
+                <option value="CURRENT_MONTH" ${currentVal === 'CURRENT_MONTH' || !currentVal ? 'selected' : ''}>⚡ Current Month Expiry (Monthly Straddle)</option>
+                <option value="CURRENT" ${currentVal === 'CURRENT' ? 'selected' : ''}>⚡ Nearest Weekly Expiry</option>
+                <option value="NEXT_MONTH" ${currentVal === 'NEXT_MONTH' ? 'selected' : ''}>📅 Next Month Expiry (Monthly Straddle)</option>
+                <option value="NEXT" ${currentVal === 'NEXT' ? 'selected' : ''}>📅 Next Week Expiry</option>
+            `;
+            
+            if (expiries.length > 0) {
+                html += `<optgroup label="Specific Dates">`;
+                expiries.forEach(exp => {
+                    html += `<option value="${exp}" ${currentVal === exp ? 'selected' : ''}>${exp}</option>`;
+                });
+                html += `</optgroup>`;
+            }
+            
+            select.innerHTML = html;
+        }
+
+        async function fetchStraddleStatus() {
+            if (document.getElementById('consoleView').style.display !== 'block') return;
+            try {
+                const res = await api('/api/straddle_total_sl/status');
+                if (res.status === 'ok') {
+                    loadedStraddleStrategies = res.strategies || [];
+                    renderStraddleInstrumentGroups(loadedStraddleStrategies);
+                    renderStraddleLogs(res.logs || []);
+                }
+                fetchStraddlePnlSummary();
+                fetchStraddlePendingOrders();
+            } catch (e) {
+                // Polling error
+            }
+        }
+
+        function renderStraddleLogs(logs) {
+            const term = document.getElementById('straddleLogsTerminal');
+            if (logs && logs.length > 0) {
+                term.innerHTML = logs.map(l => `<div class="log-line">${l}</div>`).join('');
+                term.scrollTop = term.scrollHeight;
+            }
+            const lastSync = document.getElementById('straddleLastChecked');
+            if (lastSync) lastSync.textContent = `Sync: ${new Date().toLocaleTimeString('en-IN')}`;
+        }
+
+        function renderStraddleInstrumentGroups(strategies) {
+            const container = document.getElementById('straddleInstrumentGroupsContainer');
+            if (!strategies || strategies.length === 0) {
+                container.innerHTML = `
+                    <div class="card" style="text-align: center; padding: 32px; color: var(--text-muted);">
+                        <p style="font-size: 14px; margin-bottom: 8px;">No Straddle Total SL strategies created yet.</p>
+                        <button onclick="openNewStraddleStrategyForm()" class="btn-primary" style="width: auto; padding: 6px 16px;">
+                            ➕ Create Straddle Strategy
+                        </button>
+                    </div>`;
+                return;
+            }
+
+            const groups = {};
+            strategies.forEach(s => {
+                const idx = s.index_name || 'NIFTY';
+                if (!groups[idx]) groups[idx] = [];
+                groups[idx].push(s);
+            });
+
+            const activeCount = strategies.filter(s => s.active).length;
+            const tabBadge = document.getElementById('straddleStatusBadge');
+            if (tabBadge) {
+                tabBadge.textContent = activeCount > 0 ? `${activeCount} Active` : `${strategies.length} Strats`;
+                tabBadge.style.background = activeCount > 0 ? '#dcfce7' : '#e0f2fe';
+                tabBadge.style.color = activeCount > 0 ? '#15803d' : '#0369a1';
+            }
+
+            container.innerHTML = Object.keys(groups).map(instrumentName => {
+                const list = groups[instrumentName];
+                const instPnl = list.reduce((acc, curr) => acc + (parseFloat(curr.pnl) || 0), 0);
+
+                const cardsHtml = list.map(s => {
+                    const isActive = s.active;
+                    const statusClass = isActive ? 'connected' : 'disconnected';
+                    const statusText = s.status || (isActive ? 'Active' : 'Idle');
+                    const pnl = parseFloat(s.pnl || 0);
+
+                    const ceSym = s.selected_ce || (s.orders && s.orders.CE && s.orders.CE.symbol) || '--';
+                    const ceLtp = parseFloat(s.selected_ce_ltp || (s.orders && s.orders.CE && s.orders.CE.current_ltp) || 0).toFixed(2);
+                    const ceEntry = parseFloat(s.orders && s.orders.CE && s.orders.CE.entry_price || 0).toFixed(2);
+
+                    const peSym = s.selected_pe || (s.orders && s.orders.PE && s.orders.PE.symbol) || '--';
+                    const peLtp = parseFloat(s.selected_pe_ltp || (s.orders && s.orders.PE && s.orders.PE.current_ltp) || 0).toFixed(2);
+                    const peEntry = parseFloat(s.orders && s.orders.PE && s.orders.PE.entry_price || 0).toFixed(2);
+
+                    const initPrem = parseFloat(s.initial_total_premium || 0).toFixed(2);
+                    const currPrem = parseFloat(s.current_total_premium || 0).toFixed(2);
+                    const slPrem = parseFloat(s.sl_trigger_premium || 0).toFixed(2);
+                    const tpPrem = parseFloat(s.tp_trigger_premium || 0).toFixed(2);
+                    const slPct = parseFloat(s.total_sl_percent || 100);
+                    const tpPct = parseFloat(s.total_tp_percent || 50);
+
+                    const actionBadge = s.entry_action === 'BUY' 
+                        ? `<span style="background: #e6f4ea; color: #137333; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 4px; border: 1px solid #ceead6;">🟢 BUY (Long Straddle)</span>`
+                        : `<span style="background: #fce8e6; color: #c5221f; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 4px; border: 1px solid #fad2cf;">🔴 SELL (Short Straddle)</span>`;
+
+                    const isOrdersPlaced = s.orders && s.orders.orders_placed;
+                    const positionBadge = isOrdersPlaced 
+                        ? `<span style="background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 4px;">🟢 Straddle ON (Holding)</span>`
+                        : (isActive ? `<span style="background: #fef9c3; color: #854d0e; border: 1px solid #fef08a; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 4px;">⏳ Awaiting Entry (${s.entry_time || '15:00:00'})</span>` : '');
+
+                    const hasCalculatedStrikes = Boolean(s.selected_strike && s.selected_strike !== '--');
+
+                    const strikesBoxHtml = hasCalculatedStrikes 
+                        ? `<div style="background: #f8faf9; padding: 12px; border-radius: var(--radius-sm); border: 1px solid var(--border-color); font-size: 11px; margin-bottom: 12px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; border-bottom: 1px dashed var(--border-color); padding-bottom: 4px;">
+                                <span style="font-weight: 800; color: #4338ca;">🎯 ATM Strike: ${s.selected_strike}</span>
+                                <span style="font-size: 10px; color: var(--text-muted);">${s.resolved_expiry || s.expiry || ''}</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                                <span style="color: #137333; font-weight: 700;">CE: ${ceSym}</span>
+                                <span>LTP: <b style="font-family: monospace;">₹${ceLtp}</b> (Entry: ₹${ceEntry})</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <span style="color: #c5221f; font-weight: 700;">PE: ${peSym}</span>
+                                <span>LTP: <b style="font-family: monospace;">₹${peLtp}</b> (Entry: ₹${peEntry})</span>
+                            </div>
+                        </div>`
+                        : `<div style="margin-bottom: 12px; padding: 10px; background: var(--pastel-blue-bg); border-radius: 6px; border: 1px dashed var(--pastel-blue-border); font-size: 11px; color: var(--pastel-blue-dark); text-align: center; font-weight: 600;">
+                            🎯 ATM Strikes not calculated — click <b>🔍 Calc ATM</b>
+                        </div>`;
+
+                    const totalPremBoxHtml = `
+                        <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: var(--radius-sm); padding: 10px; font-size: 11px; margin-bottom: 12px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                                <span style="color: #166534; font-weight: 800;">🛡️ Combined Total Premium (CE + PE):</span>
+                                <span style="font-family: monospace; font-size: 13px; font-weight: 800; color: #166534;">₹${currPrem}</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; font-size: 10px; color: var(--text-secondary); margin-bottom: 4px;">
+                                <span>Initial Premium: <b>₹${initPrem}</b></span>
+                                <span>SL (${slPct}%): <b style="color: #991b1b;">₹${slPrem}</b></span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; font-size: 10px; color: var(--text-secondary);">
+                                <span>Target (${tpPct}%): <b style="color: #15803d;">₹${tpPrem}</b></span>
+                                <span>Qty: <b>${s.quantity || 65}</b></span>
+                            </div>
+                        </div>
+                    `;
+
+                    return `
+                    <div class="card" style="margin-bottom: 0; border-top: 3px solid ${isActive ? 'var(--success)' : 'var(--border-color)'}; flex-direction: column; justify-content: space-between;">
+                        <div>
+                            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px;">
+                                <div>
+                                    <h3 style="font-size: 15px; font-weight: 800; color: var(--text-primary); margin-bottom: 4px;">${s.name || 'Straddle Total SL'}</h3>
+                                    <div style="display: flex; gap: 6px; flex-wrap: wrap; align-items: center;">
+                                        <span style="background: var(--pastel-blue-bg); color: var(--pastel-blue-dark); border: 1px solid var(--pastel-blue-border); font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 4px;">${s.index_name}</span>
+                                        <span style="background: #ffffff; color: var(--text-secondary); border: 1px solid var(--border-color); font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: 4px;">${s.product || 'NRML'}</span>
+                                        ${actionBadge}
+                                        ${positionBadge}
+                                    </div>
+                                </div>
+                                <span class="status-pill ${statusClass}">
+                                    <span class="status-dot"></span>
+                                    <span>${statusText}</span>
+                                </span>
+                            </div>
+
+                            ${strikesBoxHtml}
+                            ${totalPremBoxHtml}
+                        </div>
+
+                        <div>
+                            <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--border-color); padding-top: 10px; margin-top: 6px;">
+                                <div style="font-size: 11px; color: var(--text-secondary);">Live P&amp;L:</div>
+                                <div class="${getPnlClass(pnl)}" style="font-family: 'JetBrains Mono', monospace; font-size: 15px; font-weight: 800;">
+                                    ${formatPnl(pnl)}
+                                </div>
+                            </div>
+
+                            <div style="display: flex; gap: 6px; margin-top: 12px; flex-wrap: wrap;">
+                                <button onclick="calculateStraddleStrikesFor('${s.id}')" class="btn-secondary" style="flex: 1; padding: 6px 4px; font-size: 11px;" title="Find ATM Strike &amp; calculate total premium">
+                                    🔍 Calc ATM
+                                </button>
+                                <button onclick="toggleStraddleStrategy('${s.id}')" class="${isActive ? 'btn-danger' : 'btn-primary'}" style="flex: 1; padding: 6px 4px; font-size: 11px;">
+                                    ${isActive ? '⏹️ Stop' : '▶️ Start'}
+                                </button>
+                                ${isOrdersPlaced ? `
+                                <button onclick="squareoffStraddleStrategy('${s.id}')" class="btn-danger" style="flex: 1; padding: 6px 4px; font-size: 11px;" title="Exit both legs now">
+                                    ⚡ Square Off
+                                </button>` : ''}
+                                <button onclick="editStraddleStrategy('${s.id}')" class="btn-secondary" style="padding: 6px 8px; font-size: 11px;" title="Edit Strategy">
+                                    ✏️
+                                </button>
+                                <button onclick="deleteStraddleStrategy('${s.id}')" class="btn-secondary" style="padding: 6px 8px; font-size: 11px; color: var(--danger);" title="Delete Strategy">
+                                    🗑️
+                                </button>
+                            </div>
+                        </div>
+                    </div>`;
+                }).join('');
+
+                return `
+                <div class="card" style="margin-bottom: 20px; border-left: 4px solid #10b981;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 8px;">
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <h3 style="font-size: 16px; font-weight: 800; color: var(--text-primary);">${instrumentName} Straddles</h3>
+                            <span style="background: var(--bg-primary); border: 1px solid var(--border-color); padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; color: var(--text-secondary);">${list.length} Strategies</span>
+                        </div>
+                        <div style="font-family: 'JetBrains Mono', monospace; font-size: 14px; font-weight: 800;">
+                            Combined P&amp;L: <span class="${getPnlClass(instPnl)}">${formatPnl(instPnl)}</span>
+                        </div>
+                    </div>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px;">
+                        ${cardsHtml}
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
+        function openNewStraddleStrategyForm() {
+            document.getElementById('straddleStratId').value = '';
+            document.getElementById('straddleStratName').value = '';
+            document.getElementById('straddleFormTitle').textContent = '➕ Create Straddle Total SL Strategy';
+            document.getElementById('straddleIndexName').value = 'NIFTY';
+            document.getElementById('straddleStrikeInput').value = 'ATM';
+            document.getElementById('straddleEntryAction').value = 'SELL';
+            document.getElementById('straddleProduct').value = 'NRML';
+            document.getElementById('straddleTotalSl').value = '100';
+            document.getElementById('straddleTotalTp').value = '50';
+            document.getElementById('straddleStartTime').value = '15:00:00';
+            document.getElementById('straddleEndTime').value = '15:15:00';
+            onStraddleIndexChange();
+            document.getElementById('straddleEditCard').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function editStraddleStrategy(stratId) {
+            const strat = loadedStraddleStrategies.find(s => s.id === stratId);
+            if (!strat) return;
+            document.getElementById('straddleStratId').value = strat.id;
+            document.getElementById('straddleStratName').value = strat.name || '';
+            document.getElementById('straddleFormTitle').textContent = `✏️ Edit '${strat.name || strat.id}'`;
+            document.getElementById('straddleIndexName').value = strat.index_name || 'NIFTY';
+            document.getElementById('straddleStrikeInput').value = strat.strike || 'ATM';
+            document.getElementById('straddleEntryAction').value = strat.entry_action || 'SELL';
+            document.getElementById('straddleProduct').value = strat.product || 'NRML';
+            document.getElementById('straddleTotalSl').value = strat.total_sl_percent || 100;
+            document.getElementById('straddleTotalTp').value = strat.total_tp_percent || 50;
+            document.getElementById('straddleStartTime').value = strat.entry_time || '15:00:00';
+            document.getElementById('straddleEndTime').value = strat.exit_time || '15:15:00';
+            
+            const lot = (window.lotSizesMap && window.lotSizesMap[strat.index_name]) || DEFAULT_LOT_SIZES[strat.index_name] || 65;
+            document.getElementById('straddleQuantity').value = strat.quantity || lot;
+            populateStraddleExpirySelect(strat.index_name || 'NIFTY', strat.expiry);
+            document.getElementById('straddleEditCard').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function cancelStraddleEditForm() {
+            openNewStraddleStrategyForm();
+        }
+
+        async function saveStraddleStrategyConfig(e) {
+            e.preventDefault();
+            const stratId = document.getElementById('straddleStratId').value;
+            const indexName = document.getElementById('straddleIndexName').value;
+            const payload = {
+                id: stratId || undefined,
+                name: document.getElementById('straddleStratName').value.trim(),
+                index_name: indexName,
+                expiry: document.getElementById('straddleExpirySelect').value,
+                strike: document.getElementById('straddleStrikeInput').value.trim() || 'ATM',
+                entry_action: document.getElementById('straddleEntryAction').value,
+                product: document.getElementById('straddleProduct').value,
+                total_sl_percent: parseFloat(document.getElementById('straddleTotalSl').value),
+                total_tp_percent: parseFloat(document.getElementById('straddleTotalTp').value),
+                quantity: parseInt(document.getElementById('straddleQuantity').value),
+                entry_time: document.getElementById('straddleStartTime').value,
+                exit_time: document.getElementById('straddleEndTime').value
+            };
+
+            try {
+                const res = await api('/api/straddle_total_sl/strategies', 'POST', payload);
+                if (res.status === 'ok') {
+                    toast('✅ Straddle Strategy saved successfully');
+                    fetchStraddleStatus();
+                    openNewStraddleStrategyForm();
+                } else {
+                    toast('❌ Error saving strategy: ' + (res.message || 'Unknown error'), true);
+                }
+            } catch (err) {
+                toast('❌ Network or Server error while saving', true);
+            }
+        }
+
+        async function fetchStraddlePnlSummary() {
+            try {
+                const res = await api('/api/straddle_total_sl/pnl/summary');
+                if (res.status === 'ok') {
+                    straddlePnlSummaryData = res;
+                    renderStraddleHistoryTable(res.history || []);
+                    const badge = document.getElementById('straddleJournalTradesBadge');
+                    if (badge) badge.textContent = `${res.records_count || 0} Trade${res.records_count === 1 ? '' : 's'} in Journal`;
+                }
+            } catch (e) {}
+        }
+
+        async function fetchStraddlePendingOrders() {
+            try {
+                const res = await api('/api/straddle_total_sl/pending_orders');
+                if (res.status === 'ok') {
+                    const badge = document.getElementById('straddlePendingOrdersBadge');
+                    if (badge) {
+                        const count = res.orders_count || 0;
+                        badge.textContent = `💾 ${count} Local Order${count === 1 ? '' : 's'} Tracked`;
+                        badge.style.background = count > 0 ? '#fef3c7' : '#f1f5f9';
+                        badge.style.color = count > 0 ? '#92400e' : '#64748b';
+                        badge.style.borderColor = count > 0 ? '#fde68a' : '#e2e8f0';
+                    }
+                }
+            } catch (e) {}
+        }
+
+        function toggleStraddleHistoryTable() {
+            const container = document.getElementById('straddleHistoryContainer');
+            if (container) {
+                const isHidden = container.style.display === 'none';
+                container.style.display = isHidden ? 'block' : 'none';
+                if (isHidden) fetchStraddlePnlSummary();
+            }
+        }
+
+        function renderStraddleHistoryTable(records) {
+            const tbody = document.getElementById('straddleHistoryBody');
+            if (!tbody) return;
+            if (!records || records.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="14" style="text-align: center; color: var(--text-muted); padding: 16px;">No records found in straddle_total_sl_PnL.csv</td></tr>`;
+                return;
+            }
+            tbody.innerHTML = records.map(r => {
+                const dayPnl = parseFloat(r.Day_PnL || 0);
+                const cumPnl = parseFloat(r.Cumulative_PnL || 0);
+                const isClosed = (r.Status === 'CLOSED');
+                const ceInfo = r.CE_Symbol && r.CE_Symbol !== '--' ? `${r.CE_Symbol} (${r.CE_Entry_Price || '--'} / ${r.CE_Exit_Price || '--'})` : '--';
+                const peInfo = r.PE_Symbol && r.PE_Symbol !== '--' ? `${r.PE_Symbol} (${r.PE_Entry_Price || '--'} / ${r.PE_Exit_Price || '--'})` : '--';
+                const exitDate = r.Exit_Date || '--';
+
+                return `<tr>
+                    <td>#${r.Serial_No || 1}</td>
+                    <td style="font-family: 'JetBrains Mono', monospace; font-size: 11px;">${r.Date || '--'}</td>
+                    <td><b>${r.Strategy_Name || 'Straddle Total SL'}</b></td>
+                    <td><span style="background: var(--pastel-blue-bg); color: var(--pastel-blue-dark); padding: 2px 6px; border-radius: 4px; font-weight: 700; font-size: 10px;">${r.Instrument || 'NIFTY'}</span></td>
+                    <td style="font-family: 'JetBrains Mono', monospace; font-weight: 700; color: #4338ca;">${r.Strike || '--'}</td>
+                    <td style="font-family: 'JetBrains Mono', monospace;">${r.Lot_Size || 65}</td>
+                    <td style="font-family: 'JetBrains Mono', monospace; font-size: 11px;">${ceInfo}</td>
+                    <td style="font-family: 'JetBrains Mono', monospace; font-size: 11px;">${peInfo}</td>
+                    <td style="font-family: 'JetBrains Mono', monospace; font-weight: 700;">₹${parseFloat(r.Initial_Total_Premium || 0).toFixed(2)}</td>
+                    <td style="font-family: 'JetBrains Mono', monospace; font-weight: 700;">₹${parseFloat(r.Exit_Total_Premium || 0).toFixed(2)}</td>
+                    <td style="font-family: 'JetBrains Mono', monospace; font-weight: 800;" class="${getPnlClass(dayPnl)}">${formatPnl(dayPnl)}</td>
+                    <td style="font-family: 'JetBrains Mono', monospace; font-weight: 800;" class="${getPnlClass(cumPnl)}">${formatPnl(cumPnl)}</td>
+                    <td style="font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--text-muted);">${exitDate}</td>
+                    <td><span class="badge-tag ${isClosed ? 'badge-complete' : 'badge-active'}">${r.Status || 'OPEN'}</span></td>
+                </tr>`;
+            }).join('');
+        }
+
+        function downloadStraddlePnlCsv() {
+            toast('📥 Downloading straddle_total_sl_PnL.csv...');
+            window.location.href = '/api/straddle_total_sl/pnl/download';
+        }
+
+        async function toggleStraddleStrategy(stratId) {
+            const strat = loadedStraddleStrategies.find(s => s.id === stratId);
+            if (!strat) return;
+            const newActive = !strat.active;
+            const res = await api(`/api/straddle_total_sl/strategies/${stratId}/toggle`, 'POST', { active: newActive });
+            if (res.status === 'ok') {
+                toast(newActive ? `Started '${strat.name}'` : `Stopped '${strat.name}'`);
+                fetchStraddleStatus();
+            }
+        }
+
+        async function calculateStraddleStrikesFor(stratId) {
+            toast('⏳ Finding ATM Strikes for Straddle Strategy...');
+            const res = await api(`/api/straddle_total_sl/strategies/${stratId}/calculate`, 'POST');
+            if (res.status === 'ok') {
+                toast('✅ ' + (res.message || 'ATM Strikes calculated successfully'));
+                fetchStraddleStatus();
+            } else {
+                toast('❌ ' + (res.message || 'ATM Calculation failed'), true);
+            }
+        }
+
+        async function squareoffStraddleStrategy(stratId) {
+            const strat = loadedStraddleStrategies.find(s => s.id === stratId);
+            if (!confirm(`Are you sure you want to square off '${strat ? strat.name : stratId}'?`)) return;
+            toast('⚡ Squaring off Straddle Strategy...');
+            const res = await api(`/api/straddle_total_sl/strategies/${stratId}/squareoff`, 'POST');
+            if (res.status === 'ok') {
+                toast('✅ ' + (res.message || 'Square off complete'));
+                fetchStraddleStatus();
+            } else {
+                toast('❌ ' + (res.message || 'Square off failed'), true);
+            }
+        }
+
+        async function deleteStraddleStrategy(stratId) {
+            const strat = loadedStraddleStrategies.find(s => s.id === stratId);
+            if (!confirm(`Delete straddle strategy '${strat ? strat.name : stratId}'?`)) return;
+            const res = await api(`/api/straddle_total_sl/strategies/${stratId}`, 'DELETE');
+            if (res.status === 'ok') {
+                toast('Strategy Deleted');
+                fetchStraddleStatus();
+            }
+        }
+
         (async function init() {
             await loadCredentials();
             const res = await api('/api/login/status');
             if (res.logged_in) {
                 showDashboard(res.user_name);
                 onPosIndexChange();
+                onStraddleIndexChange();
                 setInterval(fetchPosStrangleStatus, 5000);
+                setInterval(fetchStraddleStatus, 5000);
             }
         })();
 

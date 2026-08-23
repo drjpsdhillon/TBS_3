@@ -35,16 +35,29 @@ def start_pos_strangle():
     except Exception as e:
         print(f"❌ [Main] Error initializing pos_strngl.py: {e}")
 
+def start_straddle_total_sl():
+    """Starts the Positional Straddle Total SL strategy engine."""
+    print("🎯 [Main] Initializing straddle_total_sl.py engine...")
+    try:
+        import straddle_total_sl
+        # straddle_total_sl starts its internal background daemon thread upon import
+        print("✅ [Main] straddle_total_sl.py engine initialized and monitoring.")
+    except Exception as e:
+        print(f"❌ [Main] Error initializing straddle_total_sl.py: {e}")
+
 def main():
     print("=" * 65)
     print("  KITE CONNECT TRADING SYSTEM — UNIFIED MASTER LAUNCHER")
-    print("  Components: server.py (Intraday/Web) + pos_strngl.py (Positional)")
+    print("  Components: server.py + pos_strngl.py + straddle_total_sl.py")
     print("=" * 65)
 
     # 1. Initialize positional strangle engine
     start_pos_strangle()
 
-    # 2. Run Flask Web Server in main thread
+    # 2. Initialize positional straddle total SL engine
+    start_straddle_total_sl()
+
+    # 3. Run Flask Web Server in main thread
     start_server()
 
 if __name__ == "__main__":

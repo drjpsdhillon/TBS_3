@@ -4,7 +4,17 @@ session_cache.json
 __pycache__
 strategies.json
 pos_strangle.json
+straddle_total_sl.json
+pending_pos_orders.json
+pending_straddle_orders.json
+intraday_PnL.csv
+intraday_PnL.xlsx
+pos_strategy_PnL.csv
+pos_strategy_PnL.xlsx
+straddle_total_sl_PnL.csv
+straddle_total_sl_PnL.xlsx
 requirements.txt
 skeleton
 lot_sizes.json
 mtm_curve_data.json
+*.json

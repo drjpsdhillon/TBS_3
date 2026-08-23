@@ -2322,6 +2322,187 @@ def api_get_pos_pending_orders():
     })
 
 
+# ========================================================================
+# STRADDLE TOTAL SL API ROUTES (straddle_total_sl.py Multi-Strategy Bridge)
+# ========================================================================
+
+@app.route("/api/straddle_total_sl/config", methods=["GET", "POST"])
+@app.route("/api/straddle_total_sl/strategies", methods=["GET", "POST"])
+def api_straddle_total_sl_strategies():
+    global kite_client
+    try:
+        import straddle_total_sl
+        if kite_client:
+            straddle_total_sl.set_kite_client(kite_client)
+
+        if request.method == "POST":
+            data = request.json or {}
+            strat_id = data.get("id")
+            strats = straddle_total_sl.load_straddle_strategies()
+
+            if strat_id:
+                target = next((s for s in strats if s.get("id") == strat_id), None)
+                if target:
+                    for k in ["name", "index_name", "expiry", "entry_action", "product", "strike", "total_sl_percent", "total_tp_percent", "quantity", "entry_time", "morning_sl_time", "exit_time"]:
+                        if k in data:
+                            target[k] = data[k]
+                else:
+                    new_item = dict(straddle_total_sl.DEFAULT_STRADDLE_STRATEGY)
+                    new_item["id"] = f"straddle_{data.get('index_name', 'nifty').lower()}_{int(time.time() * 1000)}"
+                    for k, v in data.items():
+                        new_item[k] = v
+                    strats.append(new_item)
+            else:
+                new_item = dict(straddle_total_sl.DEFAULT_STRADDLE_STRATEGY)
+                new_item["id"] = f"straddle_{data.get('index_name', 'nifty').lower()}_{int(time.time() * 1000)}"
+                for k, v in data.items():
+                    new_item[k] = v
+                strats.append(new_item)
+
+            straddle_total_sl.save_straddle_strategies(strats)
+            straddle_total_sl.straddle_strategies_store = strats
+            return jsonify({"status": "ok", "strategies": strats, "config": strats[0] if strats else {}})
+        else:
+            strats = straddle_total_sl.load_straddle_strategies()
+            return jsonify({"status": "ok", "strategies": strats, "config": strats[0] if strats else {}})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route("/api/straddle_total_sl/strategies/<strat_id>", methods=["DELETE"])
+def api_straddle_total_sl_delete(strat_id):
+    try:
+        import straddle_total_sl
+        strats = straddle_total_sl.load_straddle_strategies()
+        updated = [s for s in strats if s.get("id") != strat_id]
+        straddle_total_sl.save_straddle_strategies(updated)
+        straddle_total_sl.straddle_strategies_store = updated
+        return jsonify({"status": "ok", "strategies": updated})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route("/api/straddle_total_sl/strategies/<strat_id>/toggle", methods=["POST"])
+def api_straddle_total_sl_toggle(strat_id):
+    global kite_client
+    try:
+        import straddle_total_sl
+        if kite_client:
+            straddle_total_sl.set_kite_client(kite_client)
+        data = request.json or {}
+        active_val = data.get("active", False)
+        strats = straddle_total_sl.load_straddle_strategies()
+        target = next((s for s in strats if s.get("id") == strat_id), None)
+        if not target:
+            return jsonify({"status": "error", "message": "Strategy not found"}), 404
+
+        target["active"] = bool(active_val)
+        target["status"] = "Active" if active_val else "Stopped"
+        straddle_total_sl.save_straddle_strategies(strats)
+        straddle_total_sl.straddle_strategies_store = strats
+        straddle_total_sl.log_straddle(f"[{target.get('name')}] {'ACTIVATED' if active_val else 'STOPPED'} by user.")
+        return jsonify({"status": "ok", "active": target["active"], "status_text": target["status"]})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route("/api/straddle_total_sl/status", methods=["GET"])
+def api_straddle_total_sl_status():
+    global kite_client
+    try:
+        import straddle_total_sl
+        if kite_client:
+            straddle_total_sl.set_kite_client(kite_client)
+        strats = straddle_total_sl.load_straddle_strategies()
+        return jsonify({
+            "status": "ok",
+            "strategies": strats,
+            "logs": list(straddle_total_sl.straddle_logs)
+        })
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route("/api/straddle_total_sl/strategies/<strat_id>/calculate", methods=["POST"])
+def api_straddle_total_sl_calculate(strat_id):
+    global kite_client
+    try:
+        import straddle_total_sl
+        if kite_client:
+            straddle_total_sl.set_kite_client(kite_client)
+        strats = straddle_total_sl.load_straddle_strategies()
+        target = next((s for s in strats if s.get("id") == strat_id), None)
+        if not target:
+            return jsonify({"status": "error", "message": "Strategy not found"}), 404
+
+        ok, msg = straddle_total_sl.calculate_straddle_strikes_for(target)
+        if ok:
+            return jsonify({"status": "ok", "message": msg, "strategy": target})
+        else:
+            return jsonify({"status": "error", "message": msg}), 400
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route("/api/straddle_total_sl/strategies/<strat_id>/squareoff", methods=["POST"])
+def api_straddle_total_sl_squareoff(strat_id):
+    global kite_client
+    try:
+        import straddle_total_sl
+        if kite_client:
+            straddle_total_sl.set_kite_client(kite_client)
+        strats = straddle_total_sl.load_straddle_strategies()
+        target = next((s for s in strats if s.get("id") == strat_id), None)
+        if not target:
+            return jsonify({"status": "error", "message": "Strategy not found"}), 404
+
+        ok, msg = straddle_total_sl.squareoff_straddle_strategy_for(target, reason="Manual UI Request")
+        return jsonify({"status": "ok" if ok else "error", "message": msg})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route("/api/straddle_total_sl/pnl/download", methods=["GET"])
+def api_download_straddle_pnl_csv():
+    """Downloads the straddle_total_sl_PnL.csv file directly."""
+    import straddle_total_sl
+    if os.path.exists(straddle_total_sl.STRADDLE_PNL_CSV):
+        return send_from_directory(BASE_DIR, "straddle_total_sl_PnL.csv", as_attachment=True)
+    return jsonify({"status": "error", "message": "straddle_total_sl_PnL.csv has not been created yet."}), 404
+
+
+@app.route("/api/straddle_total_sl/pnl/summary", methods=["GET"])
+def api_get_straddle_pnl_summary():
+    """Returns all Straddle Total SL strategy trade journal records and cumulative P&L."""
+    import straddle_total_sl
+    records = straddle_total_sl.load_straddle_pnl_records()
+    today_str = datetime.now().strftime("%Y-%m-%d")
+    today_recs = [r for r in records if str(r.get("Date", "")).startswith(today_str)]
+    today_recorded_pnl = sum(float(r.get("Day_PnL", 0.0)) for r in today_recs) if today_recs else 0.0
+    cum_recorded_pnl = records[-1]["Cumulative_PnL"] if records else 0.0
+
+    return jsonify({
+        "status": "ok",
+        "today_recorded_pnl": today_recorded_pnl,
+        "cumulative_recorded_pnl": cum_recorded_pnl,
+        "records_count": len(records),
+        "history": records
+    })
+
+
+@app.route("/api/straddle_total_sl/pending_orders", methods=["GET"])
+def api_get_straddle_pending_orders():
+    """Returns all locally tracked pending straddle orders from pending_straddle_orders.json."""
+    import straddle_total_sl
+    orders_dict = straddle_total_sl.load_pending_straddle_orders()
+    orders_list = list(orders_dict.values())
+    return jsonify({
+        "status": "ok",
+        "orders_count": len(orders_list),
+        "orders": orders_list
+    })
+
+
 @app.route("/api/mtm_chart/data", methods=["GET"])
 def api_get_mtm_chart_data():
     """Returns today's stored intraday MTM curve data points."""
