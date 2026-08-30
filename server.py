@@ -176,30 +176,36 @@ def perform_manual_totp_login(api_key, username, password, totp_code):
     login_url = f"https://kite.zerodha.com/connect/login?api_key={api_key}&v=3"
 
     try:
+        logger.info(f"Initiating login session for user {username}...")
         session.get(login_url)
         res = session.post("https://kite.zerodha.com/api/login",
                            data={"user_id": username, "password": password})
         body = res.json()
+        logger.info(f"Credential login response: status={body.get('status')}, message={body.get('message')}")
         if body.get("status") != "success":
-            return None, body.get("message", "Credential login failed")
+            return None, body.get("message", "Credential login failed (Check User ID / Password in Credentials Config)")
         request_id = body["data"]["request_id"]
 
+        logger.info(f"Submitting 2FA TOTP code for request_id: {request_id}...")
         res2 = session.post("https://kite.zerodha.com/api/twofa", data={
             "user_id": username, "request_id": request_id,
             "twofa_value": totp_code, "twofa_type": "totp"
         })
         body2 = res2.json()
+        logger.info(f"2FA response: status={body2.get('status')}, message={body2.get('message')}")
         if body2.get("status") != "success":
-            return None, body2.get("message", "2FA failed")
+            return None, body2.get("message", "2FA failed (Invalid or Expired TOTP code)")
 
         redir = session.get(login_url, allow_redirects=True)
         parsed = urllib.parse.urlparse(redir.url)
         params = urllib.parse.parse_qs(parsed.query)
         token = params.get("request_token", [None])[0]
         if token:
+            logger.info("Successfully extracted request_token from Zerodha Kite redirect.")
             return token, None
-        return None, "request_token not found in redirect URL"
+        return None, f"request_token not found in redirect URL ({redir.url})"
     except Exception as e:
+        logger.error(f"Error during TOTP login: {e}")
         return None, str(e)
 
 

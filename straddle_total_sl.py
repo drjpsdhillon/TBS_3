@@ -409,6 +409,7 @@ DEFAULT_STRADDLE_STRATEGY = {
     "tsl_reference_prem": 0.0,
     "best_total_prem": 0.0,
     "current_sl_trigger_prem": 0.0,
+    "base_spot_entry": 0.0,
     "initial_total_premium": 0.0,
     "current_total_premium": 0.0,
     "sl_trigger_premium": 0.0,
@@ -421,7 +422,7 @@ DEFAULT_STRADDLE_STRATEGY = {
     },
     "adjustments": {
         "enabled": False,
-        "mode": "AUTOMATIC",  # "AUTOMATIC" | "MANUAL"
+        "mode": "AUTOMATIC",  # "AUTOMATIC" | "MANUAL" | "SPOT_DISTANCE"
         "auto_config": {
             "trigger_decay_percent": 20.0,
             "max_adjustments": 3,
@@ -433,9 +434,23 @@ DEFAULT_STRADDLE_STRATEGY = {
             "enable_tsl": True,
             "tsl_type": "POINTS",
             "tsl_value": 10.0,
-            "tsl_step": 10.0,
-            "ce_triggered": False,
-            "pe_triggered": False
+            "tsl_step": 10.0
+        },
+        "spot_distance_config": {
+            "move_step_pts": 500.0,
+            "strike_offset_pts": 2000.0,
+            "round_multiple": 500.0,
+            "action": "SELL",
+            "lots": 1,
+            "max_adjustments": 5,
+            "up_adjustments_done": 0,
+            "down_adjustments_done": 0,
+            "sl_type": "PERCENT",
+            "sl_value": 30.0,
+            "enable_tsl": True,
+            "tsl_type": "POINTS",
+            "tsl_value": 10.0,
+            "tsl_step": 10.0
         },
         "manual_legs": [],
         "active_orders": {}
@@ -951,6 +966,16 @@ def place_straddle_orders_for(strat):
         ce_sym = strat.get("selected_ce")
         pe_sym = strat.get("selected_pe")
 
+    spot_symbol = get_spot_symbol(instrument)
+    entry_spot_ltp = 0.0
+    try:
+        q_spot = kite.ltp([spot_symbol])
+        entry_spot_ltp = float(q_spot.get(spot_symbol, {}).get("last_price", 0.0))
+        strat["base_spot_entry"] = entry_spot_ltp
+        log_straddle(f"[{sname}] 📌 Recorded Base Spot Entry LTP for {instrument} ({spot_symbol}): ₹{entry_spot_ltp:.2f}")
+    except Exception as e:
+        logger.warning(f"Could not fetch spot LTP for {spot_symbol} on entry: {e}")
+
     today_str = datetime.now().strftime("%m%d_%H%M")
     strat_id_suffix = strat.get("id", "")[-4:]
     pos_tag = f"std_{today_str}_{strat_id_suffix}"[:20]
@@ -1065,6 +1090,7 @@ def place_straddle_orders_for(strat):
             "status": strat["status"],
             "entry_date": now_date,
             "last_sl_date": now_date,
+            "base_spot_entry": strat.get("base_spot_entry", 0.0),
             "initial_total_premium": strat["initial_total_premium"],
             "current_total_premium": strat["current_total_premium"],
             "sl_trigger_premium": strat["sl_trigger_premium"],
@@ -1598,13 +1624,17 @@ def monitor_straddle_strategies_cycle():
         # Adjustment symbols (active & manual pending)
         adj = s.get("adjustments", {})
         if adj.get("enabled"):
+            # If Spot Distance mode enabled, track the spot symbol
+            mode = adj.get("mode", "AUTOMATIC")
+            if mode == "SPOT_DISTANCE":
+                symbols_to_quote.add(get_spot_symbol(s.get("index_name")))
+
             # Active adjustment orders
             for adj_id, leg_data in adj.get("active_orders", {}).items():
                 if leg_data.get("status") == "ACTIVE" and leg_data.get("symbol"):
                     symbols_to_quote.add(f"{exch}:{leg_data['symbol']}")
 
             # Pending manual legs needing quotes
-            mode = adj.get("mode", "AUTOMATIC")
             if mode == "MANUAL":
                 for mleg in adj.get("manual_legs", []):
                     if mleg.get("status", "PENDING") == "PENDING" and mleg.get("symbol"):
@@ -1653,12 +1683,20 @@ def monitor_straddle_strategies_cycle():
             adj_pnl = 0.0
             adj = s.setdefault("adjustments", {})
             if adj.get("enabled"):
-                mode = adj.get("mode", "AUTOMATIC")
                 active_orders = adj.setdefault("active_orders", {})
+                
+                # Check which adjustment types are enabled (support both mode string and multi-flags)
+                auto_cfg = adj.setdefault("auto_config", {})
+                dist_cfg = adj.setdefault("spot_distance_config", {})
+                manual_legs = adj.setdefault("manual_legs", [])
 
-                # 1. Automatic Mode: Check if Base Legs Decayed by Trigger % (up to max_adjustments)
-                if mode == "AUTOMATIC":
-                    auto_cfg = adj.setdefault("auto_config", {})
+                mode = adj.get("mode", "AUTOMATIC")
+                enable_auto = bool(auto_cfg.get("enabled", True if mode in ("AUTOMATIC", "ALL") else False))
+                enable_spot_dist = bool(dist_cfg.get("enabled", True if mode in ("SPOT_DISTANCE", "ALL") else False))
+                enable_manual = bool(adj.get("enable_manual", True if (mode in ("MANUAL", "ALL") or len(manual_legs) > 0) else False))
+
+                # 1. Automatic Decay Mode: Check if Base Legs Decayed by Trigger % (up to max_adjustments)
+                if enable_auto:
                     decay_target_pct = float(auto_cfg.get("trigger_decay_percent", 20.0))
                     max_adjs = int(auto_cfg.get("max_adjustments", 3))
                     adj_lots = int(auto_cfg.get("lots", 1))
@@ -1705,9 +1743,104 @@ def monitor_straddle_strategies_cycle():
                                     auto_cfg[count_key] = next_adj_num
                                     auto_cfg[f"{leg.lower()}_triggered"] = True
 
-                # 2. Manual Mode: Check Trigger Prices on Defined Manual Legs
-                elif mode == "MANUAL":
-                    manual_legs = adj.setdefault("manual_legs", [])
+                # 2. Spot Distance Move Mode: Process Multiple Spot Distance Rules independently
+                if enable_spot_dist:
+                    spot_rules = adj.get("spot_distance_rules")
+                    if not spot_rules and adj.get("spot_distance_config"):
+                        spot_rules = [adj.get("spot_distance_config")]
+                    
+                    base_spot = float(s.get("base_spot_entry") or 0.0)
+                    spot_key = get_spot_symbol(s.get("index_name"))
+                    curr_spot = float(quotes.get(spot_key, {}).get("last_price") or 0.0)
+
+                    if base_spot > 0 and curr_spot > 0 and spot_rules:
+                        spot_diff = curr_spot - base_spot  # positive = moved up, negative = moved down
+
+                        for r_idx, r_cfg in enumerate(spot_rules):
+                            r_id = r_cfg.get("id") or f"srule_{r_idx + 1}"
+                            r_cfg["id"] = r_id
+                            move_step = float(r_cfg.get("move_step_pts") or 500.0)
+                            offset_pts = float(r_cfg.get("strike_offset_pts") or 2000.0)
+                            round_mult = float(r_cfg.get("round_multiple") or 500.0)
+                            adj_action = str(r_cfg.get("action") or "SELL").upper()
+                            adj_lots = int(r_cfg.get("lots") or 1)
+                            adj_qty = max(lot_size, adj_lots * lot_size)
+                            max_adjs = int(r_cfg.get("max_adjustments") or 5)
+                            up_done = int(r_cfg.get("up_adjustments_done") or 0)
+                            down_done = int(r_cfg.get("down_adjustments_done") or 0)
+
+                            # A. Check Downward Market Move
+                            if spot_diff <= -((down_done + 1) * move_step) and down_done < max_adjs:
+                                next_down_num = down_done + 1
+                                raw_strike = curr_spot - offset_pts
+                                target_strike = round(raw_strike / round_mult) * round_mult if round_mult > 0 else raw_strike
+                                opt_type = "CE"  # CE leg when market falls
+                                
+                                actions_to_place = ["BUY", "SELL"] if adj_action in ("BOTH", "BUY_AND_SELL", "BUY_SELL") else [adj_action]
+                                resolved_sym = resolve_straddle_option_symbol(s.get("index_name"), s.get("resolved_expiry"), target_strike, opt_type)
+                                if resolved_sym:
+                                    log_straddle(f"[{sname}] 🎯 SPOT DISTANCE RULE #{r_idx+1} ({adj_action}) DOWN #{next_down_num}/{max_adjs} TRIGGERED! Spot fell by {abs(spot_diff):.1f} pts (From ₹{base_spot:.2f} to ₹{curr_spot:.2f} <= Threshold -{next_down_num * move_step} pts). Executing {' & '.join(actions_to_place)} {resolved_sym} ({target_strike} {opt_type} [Spot ₹{curr_spot:.1f} - {offset_pts} pts, rounded to nearest {round_mult}]) with {adj_lots} Lot(s)...")
+                                    any_ok = False
+                                    for act in actions_to_place:
+                                        adj_id = f"spot_dist_r{r_idx+1}_down_{next_down_num}_{act.lower()}"
+                                        ok, msg = place_straddle_adjustment_order(
+                                            strat=s,
+                                            leg_id=adj_id,
+                                            sym=resolved_sym,
+                                            opt_type=opt_type,
+                                            strike=target_strike,
+                                            action=act,
+                                            qty=adj_qty,
+                                            sl_type=r_cfg.get("sl_type", "PERCENT"),
+                                            sl_value=r_cfg.get("sl_value", 30.0),
+                                            enable_tsl=r_cfg.get("enable_tsl", True),
+                                            tsl_type=r_cfg.get("tsl_type", "POINTS"),
+                                            tsl_value=r_cfg.get("tsl_value", 10.0),
+                                            tsl_step=r_cfg.get("tsl_step", 10.0),
+                                            tag_suffix=f"spot_r{r_idx+1}_dn_{next_down_num}_{act.lower()}"
+                                        )
+                                        if ok:
+                                            any_ok = True
+                                    if any_ok:
+                                        r_cfg["down_adjustments_done"] = next_down_num
+
+                            # B. Check Upward Market Move
+                            elif spot_diff >= ((up_done + 1) * move_step) and up_done < max_adjs:
+                                next_up_num = up_done + 1
+                                raw_strike = curr_spot + offset_pts
+                                target_strike = round(raw_strike / round_mult) * round_mult if round_mult > 0 else raw_strike
+                                opt_type = "PE"  # PE leg when market rises
+                                
+                                actions_to_place = ["BUY", "SELL"] if adj_action in ("BOTH", "BUY_AND_SELL", "BUY_SELL") else [adj_action]
+                                resolved_sym = resolve_straddle_option_symbol(s.get("index_name"), s.get("resolved_expiry"), target_strike, opt_type)
+                                if resolved_sym:
+                                    log_straddle(f"[{sname}] 🎯 SPOT DISTANCE RULE #{r_idx+1} ({adj_action}) UP #{next_up_num}/{max_adjs} TRIGGERED! Spot rose by +{spot_diff:.1f} pts (From ₹{base_spot:.2f} to ₹{curr_spot:.2f} >= Threshold +{next_up_num * move_step} pts). Executing {' & '.join(actions_to_place)} {resolved_sym} ({target_strike} {opt_type} [Spot ₹{curr_spot:.1f} + {offset_pts} pts, rounded to nearest {round_mult}]) with {adj_lots} Lot(s)...")
+                                    any_ok = False
+                                    for act in actions_to_place:
+                                        adj_id = f"spot_dist_r{r_idx+1}_up_{next_up_num}_{act.lower()}"
+                                        ok, msg = place_straddle_adjustment_order(
+                                            strat=s,
+                                            leg_id=adj_id,
+                                            sym=resolved_sym,
+                                            opt_type=opt_type,
+                                            strike=target_strike,
+                                            action=act,
+                                            qty=adj_qty,
+                                            sl_type=r_cfg.get("sl_type", "PERCENT"),
+                                            sl_value=r_cfg.get("sl_value", 30.0),
+                                            enable_tsl=r_cfg.get("enable_tsl", True),
+                                            tsl_type=r_cfg.get("tsl_type", "POINTS"),
+                                            tsl_value=r_cfg.get("tsl_value", 10.0),
+                                            tsl_step=r_cfg.get("tsl_step", 10.0),
+                                            tag_suffix=f"spot_r{r_idx+1}_up_{next_up_num}_{act.lower()}"
+                                        )
+                                        if ok:
+                                            any_ok = True
+                                    if any_ok:
+                                        r_cfg["up_adjustments_done"] = next_up_num
+
+                # 3. Manual / Custom Extra Legs Mode: Check Trigger Prices on Defined Legs
+                if enable_manual and manual_legs:
                     for idx, mleg in enumerate(manual_legs):
                         m_status = mleg.get("status", "PENDING")
                         m_id = mleg.get("id") or f"manual_{idx+1}"
@@ -1765,7 +1898,7 @@ def monitor_straddle_strategies_cycle():
                                         mleg["status"] = "TRIGGERED"
                                         mleg["triggered_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-                # 3. Monitor Active Adjustment Orders: SL & Trailing Stop Loss
+                # 4. Monitor Active Adjustment Orders: SL & Trailing Stop Loss
                 for adj_id, leg_data in list(active_orders.items()):
                     if leg_data.get("status") != "ACTIVE":
                         continue

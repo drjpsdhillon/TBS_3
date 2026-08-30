@@ -2242,74 +2242,94 @@
                                 </div>
 
                                 <div id="straddleAdjustmentsContainer" style="display: none; padding-top: 6px;">
-                                    <!-- Mode Toggle -->
-                                    <div style="margin-bottom: 10px;">
-                                        <label style="font-size: 11px; font-weight: 700; color: #0f766e; display: block; margin-bottom: 4px;">Adjustment Mode</label>
-                                        <div class="segment-control" style="background: #ccfbf1; margin-bottom: 0;">
-                                            <button type="button" id="btnStraddleAdjAuto" class="segment-btn active" onclick="setStraddleAdjMode('AUTOMATIC')">⚡ Automatic (Decay-based ATM)</button>
-                                            <button type="button" id="btnStraddleAdjManual" class="segment-btn" onclick="setStraddleAdjMode('MANUAL')">✍️ Manual (Custom Strikes &amp; Triggers)</button>
-                                        </div>
-                                    </div>
-
-                                    <!-- Automatic Mode Settings -->
-                                    <div id="straddleAdjAutoPanel" style="background: #ffffff; border: 1px solid #99f6e4; border-radius: 6px; padding: 10px; margin-bottom: 8px;">
-                                        <div style="font-size: 11px; font-weight: 700; color: #0f766e; margin-bottom: 6px;">⚡ Automatic Decay Trigger Rule (on CE &amp; PE)</div>
-                                        <div class="form-row" style="margin-bottom: 8px;">
-                                            <div class="form-group" style="margin-bottom: 0;">
-                                                <label for="straddleAdjDecayPct" style="font-size: 11px; font-weight: 700; color: #0f766e;">Trigger Decay (%)</label>
-                                                <input type="number" id="straddleAdjDecayPct" value="20" min="1" max="99" step="1" style="font-weight: 700;" placeholder="e.g. 20%">
-                                                <div class="time-hint" style="color: #0f766e;">Sells adjustment when base leg decays by this %</div>
-                                            </div>
-                                            <div class="form-group" style="margin-bottom: 0;">
-                                                <label for="straddleAdjMaxCount" style="font-size: 11px; font-weight: 700; color: #0f766e;">Max Auto Adjustments</label>
-                                                <input type="number" id="straddleAdjMaxCount" value="3" min="1" max="20" step="1" style="font-weight: 700;" placeholder="e.g. 3 times">
-                                                <div class="time-hint" style="color: #0f766e;">Max times to auto adjust each leg</div>
-                                            </div>
-                                            <div class="form-group" style="margin-bottom: 0;">
-                                                <label for="straddleAdjLots" style="font-size: 11px; font-weight: 700; color: #0f766e;">Adjustment Lots</label>
-                                                <input type="number" id="straddleAdjLots" value="1" min="1" step="1" style="font-weight: 700;" placeholder="e.g. 1 or 2 lots">
-                                                <div class="time-hint" style="color: #0f766e;">Lots per adjustment</div>
-                                            </div>
-                                        </div>
-                                        <div class="form-row" style="margin-bottom: 8px;">
-                                            <div class="form-group" style="margin-bottom: 0;">
-                                                <label for="straddleAdjSlType" style="font-size: 11px; font-weight: 700; color: #991b1b;">Stop Loss Mode</label>
-                                                <select id="straddleAdjSlType" style="font-weight: 600;">
-                                                    <option value="PERCENT" selected>Percentage (%)</option>
-                                                    <option value="POINTS">Points (pts)</option>
-                                                </select>
-                                            </div>
-                                            <div class="form-group" style="margin-bottom: 0;">
-                                                <label for="straddleAdjSlValue" style="font-size: 11px; font-weight: 700; color: #991b1b;">SL Value</label>
-                                                <input type="number" id="straddleAdjSlValue" value="30" step="0.5" style="font-weight: 700; color: #991b1b;" placeholder="e.g. 30">
-                                            </div>
-                                        </div>
-                                        <div style="background: #f0fdf4; border: 1px dashed #86efac; border-radius: 6px; padding: 8px; margin-top: 6px;">
-                                            <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 11px; font-weight: 700; color: #166534; margin-bottom: 4px;">
-                                                <input type="checkbox" id="straddleAdjEnableTsl" onchange="toggleStraddleAdjTslInput()" style="width: 15px; height: 15px; accent-color: #16a34a;" checked>
-                                                <span>🎯 Trailing Stop Loss (TSL) for Adjustment</span>
-                                            </label>
-                                            <div id="straddleAdjTslFields" class="form-row" style="margin-bottom: 0; display: flex;">
-                                                <div class="form-group" style="margin-bottom: 0; flex: 1;">
-                                                    <label for="straddleAdjTslStep" style="font-size: 10px; font-weight: 700; color: #166534;">Trail Trigger Step (Pts)</label>
-                                                    <input type="number" id="straddleAdjTslStep" value="10" step="0.5" style="font-size: 12px; font-weight: 700;">
-                                                </div>
-                                                <div class="form-group" style="margin-bottom: 0; flex: 1;">
-                                                    <label for="straddleAdjTslVal" style="font-size: 10px; font-weight: 700; color: #166534;">SL Move Step (Pts)</label>
-                                                    <input type="number" id="straddleAdjTslVal" value="10" step="0.5" style="font-size: 12px; font-weight: 700;">
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <!-- Manual Mode Settings -->
-                                    <div id="straddleAdjManualPanel" style="display: none; background: #ffffff; border: 1px solid #99f6e4; border-radius: 6px; padding: 10px; margin-bottom: 8px;">
+                                    <!-- 1. Automatic Decay Module -->
+                                    <div style="background: #ffffff; border: 1px solid #99f6e4; border-radius: 6px; padding: 10px; margin-bottom: 10px;">
                                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                                            <span style="font-size: 11px; font-weight: 700; color: #0f766e;">✍️ Custom Manual Adjustment Legs</span>
-                                            <button type="button" onclick="addManualAdjLegRow()" class="btn-secondary" style="padding: 3px 8px; font-size: 11px;">+ Add Leg</button>
+                                            <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 11px; font-weight: 800; color: #0f766e; margin-bottom: 0;">
+                                                <input type="checkbox" id="straddleEnableAutoDecay" onchange="toggleStraddleAutoDecaySection()" style="width: 15px; height: 15px; accent-color: #0d9488;" checked>
+                                                <span>⚡ 1. Premium Decay Adjustment (on CE &amp; PE)</span>
+                                            </label>
+                                            <span style="font-size: 10px; color: #0f766e; font-weight: 600;">Sells leg upon X% decay</span>
                                         </div>
-                                        <div id="straddleManualLegsList" style="display: flex; flex-direction: column; gap: 8px;">
-                                            <!-- Dynamic Manual Leg Rows -->
+                                        <div id="straddleAdjAutoFields">
+                                            <div class="form-row" style="margin-bottom: 8px;">
+                                                <div class="form-group" style="margin-bottom: 0;">
+                                                    <label for="straddleAdjDecayPct" style="font-size: 11px; font-weight: 700; color: #0f766e;">Trigger Decay (%)</label>
+                                                    <input type="number" id="straddleAdjDecayPct" value="20" min="1" max="99" step="1" style="font-weight: 700;" placeholder="e.g. 20%">
+                                                    <div class="time-hint" style="color: #0f766e;">Sells adjustment when base leg decays by this %</div>
+                                                </div>
+                                                <div class="form-group" style="margin-bottom: 0;">
+                                                    <label for="straddleAdjMaxCount" style="font-size: 11px; font-weight: 700; color: #0f766e;">Max Auto Adjustments</label>
+                                                    <input type="number" id="straddleAdjMaxCount" value="3" min="1" max="20" step="1" style="font-weight: 700;" placeholder="e.g. 3 times">
+                                                    <div class="time-hint" style="color: #0f766e;">Max times to auto adjust each leg</div>
+                                                </div>
+                                                <div class="form-group" style="margin-bottom: 0;">
+                                                    <label for="straddleAdjLots" style="font-size: 11px; font-weight: 700; color: #0f766e;">Adjustment Lots</label>
+                                                    <input type="number" id="straddleAdjLots" value="1" min="1" step="1" style="font-weight: 700;" placeholder="e.g. 1 or 2 lots">
+                                                    <div class="time-hint" style="color: #0f766e;">Lots per adjustment</div>
+                                                </div>
+                                            </div>
+                                            <div class="form-row" style="margin-bottom: 8px;">
+                                                <div class="form-group" style="margin-bottom: 0;">
+                                                    <label for="straddleAdjSlType" style="font-size: 11px; font-weight: 700; color: #991b1b;">Stop Loss Mode</label>
+                                                    <select id="straddleAdjSlType" style="font-weight: 600;">
+                                                        <option value="PERCENT" selected>Percentage (%)</option>
+                                                        <option value="POINTS">Points (pts)</option>
+                                                    </select>
+                                                </div>
+                                                <div class="form-group" style="margin-bottom: 0;">
+                                                    <label for="straddleAdjSlValue" style="font-size: 11px; font-weight: 700; color: #991b1b;">SL Value</label>
+                                                    <input type="number" id="straddleAdjSlValue" value="30" step="0.5" style="font-weight: 700; color: #991b1b;" placeholder="e.g. 30">
+                                                </div>
+                                            </div>
+                                            <div style="background: #f0fdf4; border: 1px dashed #86efac; border-radius: 6px; padding: 8px; margin-top: 6px;">
+                                                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 11px; font-weight: 700; color: #166534; margin-bottom: 4px;">
+                                                    <input type="checkbox" id="straddleAdjEnableTsl" onchange="toggleStraddleAdjTslInput()" style="width: 15px; height: 15px; accent-color: #16a34a;" checked>
+                                                    <span>🎯 Trailing Stop Loss (TSL) for Decay Adjustment</span>
+                                                </label>
+                                                <div id="straddleAdjTslFields" class="form-row" style="margin-bottom: 0; display: flex;">
+                                                    <div class="form-group" style="margin-bottom: 0; flex: 1;">
+                                                        <label for="straddleAdjTslStep" style="font-size: 10px; font-weight: 700; color: #166534;">Trail Trigger Step (Pts)</label>
+                                                        <input type="number" id="straddleAdjTslStep" value="10" step="0.5" style="font-size: 12px; font-weight: 700;">
+                                                    </div>
+                                                    <div class="form-group" style="margin-bottom: 0; flex: 1;">
+                                                        <label for="straddleAdjTslVal" style="font-size: 10px; font-weight: 700; color: #166534;">SL Move Step (Pts)</label>
+                                                        <input type="number" id="straddleAdjTslVal" value="10" step="0.5" style="font-size: 12px; font-weight: 700;">
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- 2. Spot Movement Rules Module -->
+                                    <div style="background: #ffffff; border: 1px solid #38bdf8; border-radius: 6px; padding: 10px; margin-bottom: 10px;">
+                                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                                            <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 11px; font-weight: 800; color: #0369a1; margin-bottom: 0;">
+                                                <input type="checkbox" id="straddleEnableSpotDist" onchange="toggleStraddleSpotDistSection()" style="width: 15px; height: 15px; accent-color: #0284c7;">
+                                                <span>🧭 2. Market Movement Distance Adjustments (from Entry Spot)</span>
+                                            </label>
+                                            <button type="button" onclick="addSpotDistRuleRow()" class="btn-secondary" style="padding: 3px 8px; font-size: 11px; border-color: #38bdf8; color: #0369a1;">+ Add Movement Rule</button>
+                                        </div>
+                                        <div id="straddleAdjSpotDistFields" style="display: none;">
+                                            <div id="straddleSpotRulesList" style="display: flex; flex-direction: column; gap: 8px;">
+                                                <!-- Dynamic Spot Distance Rule Rows -->
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- 3. Manual / Custom Extra Legs Module -->
+                                    <div style="background: #ffffff; border: 1px solid #c084fc; border-radius: 6px; padding: 10px; margin-bottom: 8px;">
+                                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                                            <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 11px; font-weight: 800; color: #7e22ce; margin-bottom: 0;">
+                                                <input type="checkbox" id="straddleEnableManualLegs" onchange="toggleStraddleManualLegsSection()" style="width: 15px; height: 15px; accent-color: #9333ea;">
+                                                <span>✍️ 3. Custom Extra Legs (Specific Strikes &amp; Trigger Prices)</span>
+                                            </label>
+                                            <button type="button" onclick="addManualAdjLegRow()" class="btn-secondary" style="padding: 3px 8px; font-size: 11px; border-color: #c084fc; color: #7e22ce;">+ Add Extra Leg</button>
+                                        </div>
+                                        <div id="straddleManualLegsFields" style="display: none;">
+                                            <div id="straddleManualLegsList" style="display: flex; flex-direction: column; gap: 8px;">
+                                                <!-- Dynamic Manual Leg Rows -->
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
@@ -4985,11 +5005,25 @@
                             activeLegsHtml = `<div style="font-size: 10px; color: #0f766e; margin-top: 4px; font-style: italic;">No active adjustment legs yet (awaiting triggers).</div>`;
                         }
 
+                        const activeModules = [];
+                        if (adjData.auto_config?.enabled || adjMode === 'AUTOMATIC') activeModules.push(`Decay ${adjData.auto_config?.trigger_decay_percent || 20}%`);
+                        if (adjData.spot_distance_config?.enabled || adjMode === 'SPOT_DISTANCE') {
+                            const dCfg = adjData.spot_distance_config || {};
+                            activeModules.push(`Spot Dist ±${dCfg.move_step_pts || 500}pts`);
+                        }
+                        if (adjData.enable_manual || adjMode === 'MANUAL' || (adjData.manual_legs && adjData.manual_legs.length > 0)) {
+                            activeModules.push(`${adjData.manual_legs?.length || 0} Extra Legs`);
+                        }
+                        const modeTitle = activeModules.length > 0 ? activeModules.join(' + ') : 'Active';
+
                         adjustmentsBoxHtml = `
                         <div style="background: #f0fdfa; border: 1px solid #99f6e4; border-radius: var(--radius-sm); padding: 8px 10px; font-size: 11px; margin-bottom: 12px;">
-                            <div style="display: flex; justify-content: space-between; align-items: center;">
-                                <span style="color: #0f766e; font-weight: 800; font-size: 11px;">⚙️ Adjustments (${adjMode === 'AUTOMATIC' ? `Auto Decay ${adjData.auto_config?.trigger_decay_percent || 20}%` : `${adjData.manual_legs?.length || 0} Manual Legs`}):</span>
-                                <span style="font-size: 10px; background: #ccfbf1; color: #0f766e; font-weight: 700; padding: 1px 6px; border-radius: 4px;">${activeLegKeys.length} Active Leg${activeLegKeys.length === 1 ? '' : 's'}</span>
+                            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 4px;">
+                                <span style="color: #0f766e; font-weight: 800; font-size: 11px;">⚙️ Adjustments (${modeTitle}):</span>
+                                <div style="display: flex; align-items: center; gap: 6px;">
+                                    ${s.base_spot_entry ? `<span style="font-size: 10px; color: #0284c7; font-weight: 700;">Base Spot: ₹${parseFloat(s.base_spot_entry).toFixed(1)}</span>` : ''}
+                                    <span style="font-size: 10px; background: #ccfbf1; color: #0f766e; font-weight: 700; padding: 1px 6px; border-radius: 4px;">${activeLegKeys.length} Active Leg${activeLegKeys.length === 1 ? '' : 's'}</span>
+                                </div>
                             </div>
                             ${activeLegsHtml}
                         </div>`;
@@ -5216,28 +5250,174 @@
             document.getElementById('straddleAdjustmentsContainer').style.display = enabled ? 'block' : 'none';
         }
 
-        function setStraddleAdjMode(mode) {
-            const btnAuto = document.getElementById('btnStraddleAdjAuto');
-            const btnManual = document.getElementById('btnStraddleAdjManual');
-            const panelAuto = document.getElementById('straddleAdjAutoPanel');
-            const panelManual = document.getElementById('straddleAdjManualPanel');
+        function toggleStraddleAutoDecaySection() {
+            const enabled = document.getElementById('straddleEnableAutoDecay').checked;
+            const fields = document.getElementById('straddleAdjAutoFields');
+            if (fields) fields.style.display = enabled ? 'block' : 'none';
+        }
 
-            if (mode === 'MANUAL') {
-                btnManual.classList.add('active');
-                btnAuto.classList.remove('active');
-                panelManual.style.display = 'block';
-                panelAuto.style.display = 'none';
-            } else {
-                btnAuto.classList.add('active');
-                btnManual.classList.remove('active');
-                panelAuto.style.display = 'block';
-                panelManual.style.display = 'none';
+        function toggleStraddleSpotDistSection() {
+            const enabled = document.getElementById('straddleEnableSpotDist').checked;
+            const fields = document.getElementById('straddleAdjSpotDistFields');
+            if (fields) fields.style.display = enabled ? 'block' : 'none';
+        }
+
+        function toggleStraddleManualLegsSection() {
+            const enabled = document.getElementById('straddleEnableManualLegs').checked;
+            const fields = document.getElementById('straddleManualLegsFields');
+            if (fields) fields.style.display = enabled ? 'block' : 'none';
+            if (enabled && document.getElementById('straddleManualLegsList').children.length === 0) {
+                addManualAdjLegRow();
             }
         }
 
-        function toggleStraddleAdjTslInput() {
-            const enabled = document.getElementById('straddleAdjEnableTsl').checked;
-            document.getElementById('straddleAdjTslFields').style.display = enabled ? 'flex' : 'none';
+        function setStraddleAdjMode(mode) {
+            // Backward-compatible setter
+            if (mode === 'SPOT_DISTANCE') {
+                if (document.getElementById('straddleEnableSpotDist')) document.getElementById('straddleEnableSpotDist').checked = true;
+            } else if (mode === 'MANUAL') {
+                if (document.getElementById('straddleEnableManualLegs')) document.getElementById('straddleEnableManualLegs').checked = true;
+            } else if (mode === 'ALL') {
+                if (document.getElementById('straddleEnableAutoDecay')) document.getElementById('straddleEnableAutoDecay').checked = true;
+                if (document.getElementById('straddleEnableSpotDist')) document.getElementById('straddleEnableSpotDist').checked = true;
+                if (document.getElementById('straddleEnableManualLegs')) document.getElementById('straddleEnableManualLegs').checked = true;
+            } else {
+                if (document.getElementById('straddleEnableAutoDecay')) document.getElementById('straddleEnableAutoDecay').checked = true;
+            }
+            toggleStraddleAutoDecaySection();
+            toggleStraddleSpotDistSection();
+            toggleStraddleManualLegsSection();
+        }
+
+        function toggleStraddleSpotDistSection() {
+            const enabled = document.getElementById('straddleEnableSpotDist').checked;
+            const fields = document.getElementById('straddleAdjSpotDistFields');
+            if (fields) fields.style.display = enabled ? 'block' : 'none';
+            if (enabled && document.getElementById('straddleSpotRulesList').children.length === 0) {
+                addSpotDistRuleRow({ action: 'SELL', move_step_pts: 500, strike_offset_pts: 2000, round_multiple: 500 });
+            }
+        }
+
+        function addSpotDistRuleRow(data = {}) {
+            const container = document.getElementById('straddleSpotRulesList');
+            if (!container) return;
+            const rowId = data.id || `srule_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+            const action = data.action || 'SELL';
+            const moveStep = data.move_step_pts !== undefined ? data.move_step_pts : 500;
+            const offsetPts = data.strike_offset_pts !== undefined ? data.strike_offset_pts : 2000;
+            const roundMult = data.round_multiple !== undefined ? data.round_multiple : 500;
+            const lots = data.lots || 1;
+            const maxAdjs = data.max_adjustments || 5;
+            const slType = data.sl_type || 'PERCENT';
+            const slVal = data.sl_value !== undefined ? data.sl_value : 30;
+            const enableTsl = data.enable_tsl !== undefined ? data.enable_tsl : true;
+            const tslStep = data.tsl_step !== undefined ? data.tsl_step : 10;
+            const tslVal = data.tsl_value !== undefined ? data.tsl_value : 10;
+
+            const row = document.createElement('div');
+            row.className = 'spot-dist-rule-row';
+            row.dataset.id = rowId;
+            row.style.cssText = 'background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 6px; padding: 10px; margin-bottom: 6px; font-size: 11px;';
+            row.innerHTML = `
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                    <div style="display: flex; align-items: center; gap: 6px;">
+                        <span style="font-weight: 800; color: #0369a1;">Rule #${container.children.length + 1}:</span>
+                        <span style="background: ${action === 'BUY' ? '#dcfce7' : '#fee2e2'}; color: ${action === 'BUY' ? '#15803d' : '#b91c1c'}; padding: 1px 6px; border-radius: 3px; font-weight: 800; font-size: 10px;">${action}</span>
+                    </div>
+                    <button type="button" onclick="this.closest('.spot-dist-rule-row').remove()" style="background: none; border: none; color: #ef4444; font-weight: 700; cursor: pointer; font-size: 13px;">✕ Remove</button>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 6px; margin-bottom: 6px;">
+                    <div>
+                        <label style="font-size: 10px; font-weight: 700; color: #0369a1;">Action</label>
+                        <select class="srule-action" style="font-size: 11px; font-weight: 700; padding: 4px 6px;">
+                            <option value="SELL" ${action === 'SELL' ? 'selected' : ''}>SELL</option>
+                            <option value="BUY" ${action === 'BUY' ? 'selected' : ''}>BUY</option>
+                            <option value="BOTH" ${action === 'BOTH' ? 'selected' : ''}>BUY &amp; SELL</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label style="font-size: 10px; font-weight: 700; color: #0369a1;">Move Step (Pts)</label>
+                        <input type="number" class="srule-move" value="${moveStep}" step="any" placeholder="e.g. 500" style="font-size: 11px; font-weight: 700; padding: 4px 6px;">
+                    </div>
+                    <div>
+                        <label style="font-size: 10px; font-weight: 700; color: #0369a1;">Strike Offset (Pts)</label>
+                        <input type="number" class="srule-offset" value="${offsetPts}" step="any" placeholder="e.g. 2000" style="font-size: 11px; font-weight: 700; padding: 4px 6px;">
+                    </div>
+                    <div>
+                        <label style="font-size: 10px; font-weight: 700; color: #0369a1;">Round Multiple</label>
+                        <input type="number" class="srule-round" value="${roundMult}" step="any" placeholder="e.g. 500" style="font-size: 11px; font-weight: 700; padding: 4px 6px;">
+                    </div>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 6px; margin-bottom: 6px;">
+                    <div>
+                        <label style="font-size: 10px; font-weight: 700; color: #475569;">Lots / Trigger</label>
+                        <input type="number" class="srule-lots" value="${lots}" min="1" step="1" style="font-size: 11px; font-weight: 700; padding: 4px 6px;">
+                    </div>
+                    <div>
+                        <label style="font-size: 10px; font-weight: 700; color: #475569;">Max Times</label>
+                        <input type="number" class="srule-max-count" value="${maxAdjs}" min="1" step="1" style="font-size: 11px; font-weight: 700; padding: 4px 6px;">
+                    </div>
+                    <div>
+                        <label style="font-size: 10px; font-weight: 700; color: #991b1b;">SL Mode</label>
+                        <select class="srule-sl-type" style="font-size: 11px; font-weight: 600; padding: 4px 6px;">
+                            <option value="PERCENT" ${slType === 'PERCENT' ? 'selected' : ''}>Percent (%)</option>
+                            <option value="POINTS" ${slType === 'POINTS' ? 'selected' : ''}>Points (pts)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label style="font-size: 10px; font-weight: 700; color: #991b1b;">SL Value</label>
+                        <input type="number" class="srule-sl-val" value="${slVal}" step="0.5" style="font-size: 11px; font-weight: 700; padding: 4px 6px; color: #991b1b;">
+                    </div>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px; font-size: 10px; font-weight: 700; color: #166534; background: #ffffff; padding: 4px 8px; border-radius: 4px; border: 1px dashed #86efac;">
+                    <label style="display: flex; align-items: center; gap: 4px; cursor: pointer; margin-bottom: 0;">
+                        <input type="checkbox" class="srule-enable-tsl" ${enableTsl ? 'checked' : ''} style="width: 13px; height: 13px; accent-color: #16a34a;">
+                        <span>🎯 Enable TSL:</span>
+                    </label>
+                    <span>Trail Step:</span>
+                    <input type="number" class="srule-tsl-step" value="${tslStep}" step="0.5" style="width: 50px; font-size: 10px; padding: 2px 4px;">
+                    <span>Move:</span>
+                    <input type="number" class="srule-tsl-val" value="${tslVal}" step="0.5" style="width: 50px; font-size: 10px; padding: 2px 4px;">
+                </div>
+            `;
+            container.appendChild(row);
+        }
+
+        function collectSpotDistRulesFromUI() {
+            const rows = document.querySelectorAll('.spot-dist-rule-row');
+            const rules = [];
+            rows.forEach((row, idx) => {
+                const action = row.querySelector('.srule-action').value;
+                const moveStep = parseFloat(row.querySelector('.srule-move').value) || 500.0;
+                const offsetPts = parseFloat(row.querySelector('.srule-offset').value) || 2000.0;
+                const roundMult = parseFloat(row.querySelector('.srule-round').value) || 500.0;
+                const lots = parseInt(row.querySelector('.srule-lots').value) || 1;
+                const maxAdjs = parseInt(row.querySelector('.srule-max-count').value) || 5;
+                const slType = row.querySelector('.srule-sl-type').value;
+                const slVal = parseFloat(row.querySelector('.srule-sl-val').value) || 30.0;
+                const enableTsl = row.querySelector('.srule-enable-tsl').checked;
+                const tslStep = parseFloat(row.querySelector('.srule-tsl-step').value) || 10.0;
+                const tslVal = parseFloat(row.querySelector('.srule-tsl-val').value) || 10.0;
+
+                rules.push({
+                    id: row.dataset.id || `srule_${idx + 1}`,
+                    action: action,
+                    move_step_pts: moveStep,
+                    strike_offset_pts: offsetPts,
+                    round_multiple: roundMult,
+                    lots: lots,
+                    max_adjustments: maxAdjs,
+                    sl_type: slType,
+                    sl_value: slVal,
+                    enable_tsl: enableTsl,
+                    tsl_type: "POINTS",
+                    tsl_value: tslVal,
+                    tsl_step: tslStep,
+                    up_adjustments_done: 0,
+                    down_adjustments_done: 0
+                });
+            });
+            return rules;
         }
 
         function addManualAdjLegRow(data = {}) {
@@ -5402,16 +5582,20 @@
             // Reset adjustments
             document.getElementById('straddleEnableAdjustments').checked = false;
             toggleStraddleAdjustmentsSection();
-            setStraddleAdjMode('AUTOMATIC');
+            if (document.getElementById('straddleEnableAutoDecay')) document.getElementById('straddleEnableAutoDecay').checked = true;
+            if (document.getElementById('straddleEnableSpotDist')) document.getElementById('straddleEnableSpotDist').checked = false;
+            if (document.getElementById('straddleEnableManualLegs')) document.getElementById('straddleEnableManualLegs').checked = false;
+            toggleStraddleAutoDecaySection();
+            toggleStraddleSpotDistSection();
+            toggleStraddleManualLegsSection();
+
             document.getElementById('straddleAdjDecayPct').value = 20;
             document.getElementById('straddleAdjMaxCount').value = 3;
             document.getElementById('straddleAdjLots').value = 1;
             document.getElementById('straddleAdjSlType').value = 'PERCENT';
             document.getElementById('straddleAdjSlValue').value = 30;
             document.getElementById('straddleAdjEnableTsl').checked = true;
-            document.getElementById('straddleAdjTslStep').value = 10;
-            document.getElementById('straddleAdjTslVal').value = 10;
-            toggleStraddleAdjTslInput();
+            document.getElementById('straddleSpotRulesList').innerHTML = '';
             document.getElementById('straddleManualLegsList').innerHTML = '';
             currentStraddleAdjManualLegs = [];
 
@@ -5470,10 +5654,13 @@
             const adj = strat.adjustments || {};
             document.getElementById('straddleEnableAdjustments').checked = Boolean(adj.enabled);
             toggleStraddleAdjustmentsSection();
-            const adjMode = adj.mode || 'AUTOMATIC';
-            setStraddleAdjMode(adjMode);
 
             const autoCfg = adj.auto_config || {};
+            const enableAuto = autoCfg.enabled !== undefined ? Boolean(autoCfg.enabled) : (adj.mode === 'AUTOMATIC' || adj.mode === 'ALL');
+            if (document.getElementById('straddleEnableAutoDecay')) {
+                document.getElementById('straddleEnableAutoDecay').checked = enableAuto;
+                toggleStraddleAutoDecaySection();
+            }
             document.getElementById('straddleAdjDecayPct').value = autoCfg.trigger_decay_percent || 20;
             document.getElementById('straddleAdjMaxCount').value = autoCfg.max_adjustments || 3;
             document.getElementById('straddleAdjLots').value = autoCfg.lots || 1;
@@ -5484,8 +5671,26 @@
             document.getElementById('straddleAdjTslVal').value = autoCfg.tsl_value || 10;
             toggleStraddleAdjTslInput();
 
+            document.getElementById('straddleSpotRulesList').innerHTML = '';
+            const spotRules = adj.spot_distance_rules || (adj.spot_distance_config ? [adj.spot_distance_config] : []);
+            const enableSpot = adj.enable_spot_dist !== undefined ? Boolean(adj.enable_spot_dist) : (adj.mode === 'SPOT_DISTANCE' || adj.mode === 'ALL' || spotRules.length > 0);
+            if (document.getElementById('straddleEnableSpotDist')) {
+                document.getElementById('straddleEnableSpotDist').checked = enableSpot;
+                toggleStraddleSpotDistSection();
+            }
+            if (spotRules.length > 0) {
+                spotRules.forEach(r => addSpotDistRuleRow(r));
+            } else if (enableSpot) {
+                addSpotDistRuleRow();
+            }
+
             document.getElementById('straddleManualLegsList').innerHTML = '';
             const manualLegs = adj.manual_legs || [];
+            const enableManual = adj.enable_manual !== undefined ? Boolean(adj.enable_manual) : (adj.mode === 'MANUAL' || adj.mode === 'ALL' || manualLegs.length > 0);
+            if (document.getElementById('straddleEnableManualLegs')) {
+                document.getElementById('straddleEnableManualLegs').checked = enableManual;
+                toggleStraddleManualLegsSection();
+            }
             if (manualLegs.length > 0) {
                 manualLegs.forEach(m => addManualAdjLegRow(m));
             }
@@ -5516,7 +5721,10 @@
             const peTargetPrem = parseFloat(document.getElementById('straddlePeTargetPrem').value) || 80;
 
             const enableAdj = document.getElementById('straddleEnableAdjustments').checked;
-            const adjMode = document.getElementById('btnStraddleAdjManual').classList.contains('active') ? 'MANUAL' : 'AUTOMATIC';
+            const enableAutoDecay = document.getElementById('straddleEnableAutoDecay') ? document.getElementById('straddleEnableAutoDecay').checked : true;
+            const enableSpotDist = document.getElementById('straddleEnableSpotDist') ? document.getElementById('straddleEnableSpotDist').checked : false;
+            const enableManualLegs = document.getElementById('straddleEnableManualLegs') ? document.getElementById('straddleEnableManualLegs').checked : false;
+            const spotDistRulesData = collectSpotDistRulesFromUI();
             const manualLegsData = collectManualAdjLegsFromUI();
 
             const slMode = document.getElementById('straddleSlMode').value;
@@ -5567,8 +5775,9 @@
                 exit_time: document.getElementById('straddleEndTime').value,
                 adjustments: {
                     enabled: enableAdj,
-                    mode: adjMode,
+                    mode: "ALL",
                     auto_config: {
+                        enabled: enableAutoDecay,
                         trigger_decay_percent: parseFloat(document.getElementById('straddleAdjDecayPct').value) || 20.0,
                         max_adjustments: parseInt(document.getElementById('straddleAdjMaxCount').value) || 3,
                         lots: parseInt(document.getElementById('straddleAdjLots').value) || 1,
@@ -5579,6 +5788,10 @@
                         tsl_value: parseFloat(document.getElementById('straddleAdjTslVal').value) || 10.0,
                         tsl_step: parseFloat(document.getElementById('straddleAdjTslStep').value) || 10.0
                     },
+                    enable_spot_dist: enableSpotDist,
+                    spot_distance_rules: spotDistRulesData,
+                    spot_distance_config: spotDistRulesData[0] || {},
+                    enable_manual: enableManualLegs,
                     manual_legs: manualLegsData
                 }
             };
