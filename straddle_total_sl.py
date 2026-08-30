@@ -377,16 +377,43 @@ DEFAULT_STRADDLE_STRATEGY = {
     "selected_strike": "--",
     "total_sl_percent": 100.0,
     "total_tp_percent": 50.0,
+    "strategy_type": "STRADDLE",  # "STRADDLE" | "STRANGLE" | "INDIVIDUAL_LEG" | "MULTI_LEG"
+    "group_name": "Main Group",   # Custom user group for categorization
+    "leg_selection": "BOTH",      # "BOTH" | "CE_ONLY" | "PE_ONLY"
+    "entry_trigger_type": "CURRENT_PRICE", # "CURRENT_PRICE" | "PREMIUM_DECAY" | "SPECIFIC_PREMIUM"
+    "trigger_decay_pct": 20.0,
+    "trigger_premium_val": 0.0,
+    "strike_mode": "ATM",         # "ATM" | "ROUND_OFF" | "MANUAL" | "PREMIUM"
+    "strike_multiple": 500.0,
+    "manual_strike": None,
+    "ce_strike": None,
+    "pe_strike": None,
+    "ce_target_premium": 80.0,
+    "pe_target_premium": 80.0,
     "quantity": 65,
     "entry_time": "15:00:00",
     "exit_time": "15:15:00",
     "morning_sl_time": "09:17:00",
     "entry_date": "",
     "last_sl_date": "",
+    "sl_mode": "PERCENT",         # "PERCENT" | "POINTS"
+    "sl_value": 100.0,
+    "tp_mode": "PERCENT",         # "PERCENT" | "POINTS"
+    "tp_value": 50.0,
+    "total_sl_percent": 100.0,
+    "total_tp_percent": 50.0,
+    "enable_tsl": False,
+    "tsl_type": "POINTS",         # "POINTS" | "PERCENT"
+    "tsl_value": 10.0,
+    "tsl_step": 10.0,
+    "tsl_reference_prem": 0.0,
+    "best_total_prem": 0.0,
+    "current_sl_trigger_prem": 0.0,
     "initial_total_premium": 0.0,
     "current_total_premium": 0.0,
     "sl_trigger_premium": 0.0,
     "tp_trigger_premium": 0.0,
+    "custom_legs": [],            # Optional array of arbitrary legs for multi-leg strategies
     "orders": {
         "CE": {"symbol": None, "first_entry_price": 0.0, "entry_price": 0.0, "current_ltp": 0.0, "exit_price": 0.0, "order_id": None, "status": "PENDING"},
         "PE": {"symbol": None, "first_entry_price": 0.0, "entry_price": 0.0, "current_ltp": 0.0, "exit_price": 0.0, "order_id": None, "status": "PENDING"},
@@ -397,6 +424,9 @@ DEFAULT_STRADDLE_STRATEGY = {
         "mode": "AUTOMATIC",  # "AUTOMATIC" | "MANUAL"
         "auto_config": {
             "trigger_decay_percent": 20.0,
+            "max_adjustments": 3,
+            "ce_adjustments_done": 0,
+            "pe_adjustments_done": 0,
             "lots": 1,
             "sl_type": "PERCENT",
             "sl_value": 30.0,
@@ -666,92 +696,178 @@ def calculate_straddle_strikes_for(strat):
     if not candidates:
         return False, f"No options found for {idx_name} on expiry {expiry}"
 
-    # 3. Determine Strike based on strike_mode (ATM / ROUND_OFF to Multiple / MANUAL)
-    available_strikes = sorted(list({float(i.get("strike", 0)) for i in candidates if float(i.get("strike", 0)) > 0}))
-    if not available_strikes:
-        return False, "No strikes found in candidate options"
+    # 3. Determine Strategy Type and Leg Selection
+    strat_type = str(strat.get("strategy_type") or "STRADDLE").upper()
+    leg_sel = str(strat.get("leg_selection") or "BOTH").upper()
+    if strat_type == "INDIVIDUAL_LEG":
+        if leg_sel not in ("CE_ONLY", "PE_ONLY"):
+            leg_sel = "CE_ONLY"
+    else:
+        leg_sel = "BOTH"
 
     strike_mode = str(strat.get("strike_mode") or "ATM").upper()
     strike_multiple = float(strat.get("strike_multiple") or 500.0)
     manual_strike = strat.get("manual_strike")
+    ce_strike_cfg = strat.get("ce_strike")
+    pe_strike_cfg = strat.get("pe_strike")
     raw_strike = str(strat.get("strike") or "").strip().upper()
 
-    if strike_mode == "ROUND_OFF" or raw_strike.startswith("ROUND") or raw_strike.startswith("MULT"):
-        step = strike_multiple if strike_multiple > 0 else 500.0
-        if spot_ltp > 0:
-            target_strike = round(spot_ltp / step) * step
-            atm_strike = min(available_strikes, key=lambda x: abs(x - target_strike))
-            log_straddle(f"[{strat.get('name')}] 🎯 Rounding Spot ₹{spot_ltp:.2f} to nearest multiple of {int(step)} -> Target Strike: {int(target_strike)} (Selected: {atm_strike})")
-        else:
-            mid_val = available_strikes[len(available_strikes)//2]
-            target_strike = round(mid_val / step) * step
-            atm_strike = min(available_strikes, key=lambda x: abs(x - target_strike))
-    elif strike_mode == "MANUAL" or (manual_strike and float(manual_strike) > 0) or (raw_strike and raw_strike != "ATM" and raw_strike.replace(".", "").isdigit() and float(raw_strike) > 500):
-        target_strike = float(manual_strike) if (manual_strike and float(manual_strike) > 0) else float(raw_strike)
-        atm_strike = min(available_strikes, key=lambda x: abs(x - target_strike))
-        log_straddle(f"[{strat.get('name')}] 🎯 Using Manual Strike: {int(target_strike)} (Selected Option Strike: {atm_strike})")
-    else:
-        # Standard ATM Strike (closest to Spot LTP)
-        if spot_ltp > 0:
-            atm_strike = min(available_strikes, key=lambda x: abs(x - spot_ltp))
-        else:
-            atm_strike = available_strikes[len(available_strikes) // 2]
-        log_straddle(f"[{strat.get('name')}] 🎯 Using Standard ATM Strike for Spot ₹{spot_ltp:.2f} -> Selected Strike: {atm_strike}")
+    ce_candidates = [i for i in candidates if i.get("instrument_type") == "CE" and float(i.get("strike", 0)) > 0]
+    pe_candidates = [i for i in candidates if i.get("instrument_type") == "PE" and float(i.get("strike", 0)) > 0]
+    available_ce_strikes = sorted(list({float(i.get("strike", 0)) for i in ce_candidates}))
+    available_pe_strikes = sorted(list({float(i.get("strike", 0)) for i in pe_candidates}))
+    all_strikes = sorted(list(set(available_ce_strikes + available_pe_strikes)))
 
-    strat["selected_strike"] = int(atm_strike) if atm_strike.is_integer() else atm_strike
+    selected_ce_strike = None
+    selected_pe_strike = None
+
+    if strat_type == "STRANGLE":
+        # Strangle: Distinct CE & PE Strikes (either manual strikes, strike multiple offsets, or premium target)
+        if strike_mode == "PREMIUM":
+            # Find strikes closest to target premium
+            ce_target_prem = float(strat.get("ce_target_premium") or 80.0)
+            pe_target_prem = float(strat.get("pe_target_premium") or 80.0)
+            try:
+                ce_symbols = [f"{exchange}:{i['tradingsymbol']}" for i in ce_candidates[:40]]
+                pe_symbols = [f"{exchange}:{i['tradingsymbol']}" for i in pe_candidates[:40]]
+                all_quotes = kite.ltp(ce_symbols + pe_symbols)
+                
+                best_ce = min(ce_candidates, key=lambda c: abs(float(all_quotes.get(f"{exchange}:{c['tradingsymbol']}", {}).get("last_price", 9999)) - ce_target_prem))
+                best_pe = min(pe_candidates, key=lambda p: abs(float(all_quotes.get(f"{exchange}:{p['tradingsymbol']}", {}).get("last_price", 9999)) - pe_target_prem))
+                selected_ce_strike = float(best_ce["strike"])
+                selected_pe_strike = float(best_pe["strike"])
+                log_straddle(f"[{strat.get('name')}] 🎯 Premium Target Strangle: CE Strike {selected_ce_strike} (Target: ₹{ce_target_prem}) | PE Strike {selected_pe_strike} (Target: ₹{pe_target_prem})")
+            except Exception as e:
+                logger.warning(f"Premium search fallback: {e}")
+                selected_ce_strike = min(available_ce_strikes, key=lambda x: abs(x - (spot_ltp + 300)))
+                selected_pe_strike = min(available_pe_strikes, key=lambda x: abs(x - (spot_ltp - 300)))
+        elif ce_strike_cfg and pe_strike_cfg:
+            selected_ce_strike = min(available_ce_strikes, key=lambda x: abs(x - float(ce_strike_cfg)))
+            selected_pe_strike = min(available_pe_strikes, key=lambda x: abs(x - float(pe_strike_cfg)))
+            log_straddle(f"[{strat.get('name')}] 🎯 Custom Strangle Strikes: CE {selected_ce_strike} & PE {selected_pe_strike}")
+        else:
+            # Default Strangle: OTM CE (+1 step) & OTM PE (-1 step)
+            step = strike_multiple if strike_multiple > 0 else (100.0 if "NIFTY" in idx_name else 500.0)
+            target_ce = spot_ltp + step
+            target_pe = spot_ltp - step
+            selected_ce_strike = min(available_ce_strikes, key=lambda x: abs(x - target_ce))
+            selected_pe_strike = min(available_pe_strikes, key=lambda x: abs(x - target_pe))
+            log_straddle(f"[{strat.get('name')}] 🎯 OTM Strangle: CE {selected_ce_strike} (Spot+{step}) | PE {selected_pe_strike} (Spot-{step})")
+
+        atm_strike = f"CE:{int(selected_ce_strike)}/PE:{int(selected_pe_strike)}"
+
+    else:
+        # STRADDLE or INDIVIDUAL_LEG (Single Strike Mode)
+        if strike_mode == "ROUND_OFF" or raw_strike.startswith("ROUND") or raw_strike.startswith("MULT"):
+            step = strike_multiple if strike_multiple > 0 else 500.0
+            target_strike = round(spot_ltp / step) * step if spot_ltp > 0 else all_strikes[len(all_strikes)//2]
+            atm_val = min(all_strikes, key=lambda x: abs(x - target_strike))
+            log_straddle(f"[{strat.get('name')}] 🎯 Rounding Spot ₹{spot_ltp:.2f} to nearest multiple of {int(step)} -> Target Strike: {int(target_strike)} (Selected: {atm_val})")
+        elif strike_mode == "MANUAL" or (manual_strike and float(manual_strike) > 0) or (raw_strike and raw_strike != "ATM" and raw_strike.replace(".", "").isdigit() and float(raw_strike) > 500):
+            target_strike = float(manual_strike) if (manual_strike and float(manual_strike) > 0) else float(raw_strike)
+            atm_val = min(all_strikes, key=lambda x: abs(x - target_strike))
+            log_straddle(f"[{strat.get('name')}] 🎯 Using Manual Strike: {int(target_strike)} (Selected: {atm_val})")
+        else:
+            atm_val = min(all_strikes, key=lambda x: abs(x - spot_ltp)) if spot_ltp > 0 else all_strikes[len(all_strikes) // 2]
+            log_straddle(f"[{strat.get('name')}] 🎯 Using ATM Strike for Spot ₹{spot_ltp:.2f} -> Selected Strike: {atm_val}")
+
+        selected_ce_strike = atm_val
+        selected_pe_strike = atm_val
+        atm_strike = int(atm_val) if atm_val.is_integer() else atm_val
+
+    strat["selected_strike"] = atm_strike
+    strat["strategy_type"] = strat_type
+    strat["leg_selection"] = leg_sel
     strat["strike_mode"] = strike_mode
     strat["strike_multiple"] = strike_multiple
-    if manual_strike:
-        strat["manual_strike"] = manual_strike
 
-    # 4. Find CE and PE at ATM Strike
-    ce_cand = next((i for i in candidates if float(i.get("strike", 0)) == atm_strike and i.get("instrument_type") == "CE"), None)
-    pe_cand = next((i for i in candidates if float(i.get("strike", 0)) == atm_strike and i.get("instrument_type") == "PE"), None)
+    ce_sym = None
+    pe_sym = None
+    ce_ltp = 0.0
+    pe_ltp = 0.0
 
-    if not ce_cand or not pe_cand:
-        return False, f"Could not find matching CE & PE pair at ATM Strike {atm_strike}"
+    # 4. Resolve Symbols based on leg_selection
+    if leg_sel in ("BOTH", "CE_ONLY"):
+        ce_cand = next((i for i in candidates if float(i.get("strike", 0)) == selected_ce_strike and i.get("instrument_type") == "CE"), None)
+        if not ce_cand:
+            return False, f"Could not find CE at Strike {selected_ce_strike}"
+        ce_sym = ce_cand["tradingsymbol"]
+        strat["selected_ce"] = ce_sym
+    else:
+        strat["selected_ce"] = None
 
-    ce_sym = ce_cand["tradingsymbol"]
-    pe_sym = pe_cand["tradingsymbol"]
-
-    strat["selected_ce"] = ce_sym
-    strat["selected_pe"] = pe_sym
+    if leg_sel in ("BOTH", "PE_ONLY"):
+        pe_cand = next((i for i in candidates if float(i.get("strike", 0)) == selected_pe_strike and i.get("instrument_type") == "PE"), None)
+        if not pe_cand:
+            return False, f"Could not find PE at Strike {selected_pe_strike}"
+        pe_sym = pe_cand["tradingsymbol"]
+        strat["selected_pe"] = pe_sym
+    else:
+        strat["selected_pe"] = None
 
     # 5. Fetch live LTPs
+    quote_keys = []
+    if ce_sym: quote_keys.append(f"{exchange}:{ce_sym}")
+    if pe_sym: quote_keys.append(f"{exchange}:{pe_sym}")
+
     try:
-        quote_keys = [f"{exchange}:{ce_sym}", f"{exchange}:{pe_sym}"]
-        q = kite.ltp(quote_keys)
-        ce_ltp = float(q.get(f"{exchange}:{ce_sym}", {}).get("last_price", 0.0))
-        pe_ltp = float(q.get(f"{exchange}:{pe_sym}", {}).get("last_price", 0.0))
+        if quote_keys:
+            q = kite.ltp(quote_keys)
+            if ce_sym: ce_ltp = float(q.get(f"{exchange}:{ce_sym}", {}).get("last_price", 0.0))
+            if pe_sym: pe_ltp = float(q.get(f"{exchange}:{pe_sym}", {}).get("last_price", 0.0))
     except Exception as e:
-        logger.warning(f"Error fetching ATM straddle quotes: {e}")
-        ce_ltp = 100.0
-        pe_ltp = 100.0
+        logger.warning(f"Error fetching quotes: {e}")
+        if ce_sym: ce_ltp = 100.0
+        if pe_sym: pe_ltp = 100.0
 
     strat["selected_ce_ltp"] = ce_ltp
     strat["selected_pe_ltp"] = pe_ltp
 
-    # 6. Calculate Combined Total Premium, SL & Target
+    # 6. Calculate Initial Combined Total Premium & SL/Target thresholds
     init_total_prem = round(ce_ltp + pe_ltp, 2)
     strat["initial_total_premium"] = init_total_prem
     strat["current_total_premium"] = init_total_prem
 
+    sl_mode = str(strat.get("sl_mode") or "PERCENT").upper()
+    sl_val = float(strat.get("sl_value") if strat.get("sl_value") is not None else strat.get("total_sl_percent", 100.0))
+    tp_mode = str(strat.get("tp_mode") or "PERCENT").upper()
+    tp_val = float(strat.get("tp_value") if strat.get("tp_value") is not None else strat.get("total_tp_percent", 50.0))
+
     if entry_action == "SELL":
-        # Short Straddle: SL when premium increases, Target when premium decreases
-        sl_trigger_prem = round(init_total_prem * (1.0 + (total_sl_pct / 100.0)), 2)
-        tp_trigger_prem = round(init_total_prem * (1.0 - (total_tp_pct / 100.0)), 2)
+        # Short Straddle / Short Single Leg
+        if sl_mode == "POINTS":
+            sl_trigger_prem = round(init_total_prem + sl_val, 2)
+        else:
+            sl_trigger_prem = round(init_total_prem * (1.0 + (sl_val / 100.0)), 2)
+
+        if tp_mode == "POINTS":
+            tp_trigger_prem = round(max(0.05, init_total_prem - tp_val), 2)
+        else:
+            tp_trigger_prem = round(max(0.05, init_total_prem * (1.0 - (tp_val / 100.0))), 2)
     else:
-        # Long Straddle: SL when premium decreases, Target when premium increases
-        sl_trigger_prem = round(init_total_prem * (1.0 - (total_sl_pct / 100.0)), 2)
-        tp_trigger_prem = round(init_total_prem * (1.0 + (total_tp_pct / 100.0)), 2)
+        # Long Straddle / Long Single Leg
+        if sl_mode == "POINTS":
+            sl_trigger_prem = round(max(0.05, init_total_prem - sl_val), 2)
+        else:
+            sl_trigger_prem = round(max(0.05, init_total_prem * (1.0 - (sl_val / 100.0))), 2)
+
+        if tp_mode == "POINTS":
+            tp_trigger_prem = round(init_total_prem + tp_val, 2)
+        else:
+            tp_trigger_prem = round(init_total_prem * (1.0 + (tp_val / 100.0)), 2)
 
     strat["sl_trigger_premium"] = sl_trigger_prem
     strat["tp_trigger_premium"] = tp_trigger_prem
+    strat["current_sl_trigger_prem"] = sl_trigger_prem
+    strat["tsl_reference_prem"] = init_total_prem
+    strat["best_total_prem"] = init_total_prem
 
     global straddle_strategies_store
     target_in_store = next((s for s in straddle_strategies_store if s.get("id") == strat.get("id")), None)
     if target_in_store:
         target_in_store.update({
+            "strategy_type": strat_type,
+            "leg_selection": leg_sel,
             "resolved_expiry": expiry,
             "selected_strike": strat["selected_strike"],
             "selected_ce": ce_sym,
@@ -761,25 +877,29 @@ def calculate_straddle_strikes_for(strat):
             "initial_total_premium": init_total_prem,
             "current_total_premium": init_total_prem,
             "sl_trigger_premium": sl_trigger_prem,
-            "tp_trigger_premium": tp_trigger_prem
+            "tp_trigger_premium": tp_trigger_prem,
+            "current_sl_trigger_prem": sl_trigger_prem,
+            "tsl_reference_prem": init_total_prem,
+            "best_total_prem": init_total_prem
         })
 
     save_straddle_strategies(straddle_strategies_store)
-    log_straddle(f"[{strat.get('name')}] 🎯 Straddle ATM Strike {strat['selected_strike']} Calculated (Expiry: {expiry}) | CE: {ce_sym} (₹{ce_ltp:.2f}) + PE: {pe_sym} (₹{pe_ltp:.2f}) = Total: ₹{init_total_prem:.2f} | SL @ ₹{sl_trigger_prem:.2f} ({total_sl_pct}%), Target @ ₹{tp_trigger_prem:.2f} ({total_tp_pct}%)")
-    return True, f"ATM Strike {strat['selected_strike']} paired successfully (Total Prem: ₹{init_total_prem:.2f})"
+    log_straddle(f"[{strat.get('name')}] 🎯 {strat_type} ({leg_sel}) Strikes {strat['selected_strike']} Calculated (Expiry: {expiry}) | CE: {ce_sym or '--'} (₹{ce_ltp:.2f}) + PE: {pe_sym or '--'} (₹{pe_ltp:.2f}) = Total: ₹{init_total_prem:.2f} | SL @ ₹{sl_trigger_prem:.2f} ({sl_val} {sl_mode}), Target @ ₹{tp_trigger_prem:.2f} ({tp_val} {tp_mode})")
+    return True, f"{strat_type} ({leg_sel}) Strike(s) {strat['selected_strike']} setup successfully (Total Prem: ₹{init_total_prem:.2f})"
 
 
 # --------------------------------------------------------------------------
 # Order Placement & Execution
 # --------------------------------------------------------------------------
 def place_straddle_orders_for(strat):
-    """Places fresh multi-day straddle entry orders for CE and PE at the ATM strike."""
+    """Places fresh multi-day straddle/strangle/individual leg entry orders for configured legs."""
     kite = get_kite_client()
     if not kite:
         log_straddle(f"[{strat.get('name')}] Order placement failed: Not logged in.")
         return False, "Not logged in to Kite"
 
     sname = strat.get("name", "Straddle Total SL")
+    leg_sel = str(strat.get("leg_selection") or "BOTH").upper()
     ce_sym = strat.get("selected_ce")
     pe_sym = strat.get("selected_pe")
     instrument = (strat.get("index_name") or "NIFTY").upper()
@@ -787,10 +907,8 @@ def place_straddle_orders_for(strat):
     qty = int(strat.get("quantity") or get_straddle_lot_size(instrument))
     product = strat.get("product", "NRML").upper()
     entry_action = strat.get("entry_action", "SELL").upper()
-    total_sl_pct = float(strat.get("total_sl_percent", 100.0))
-    total_tp_pct = float(strat.get("total_tp_percent", 50.0))
 
-    if not ce_sym or not pe_sym:
+    if (leg_sel in ("BOTH", "CE_ONLY") and not ce_sym) or (leg_sel in ("BOTH", "PE_ONLY") and not pe_sym):
         ok, msg = calculate_straddle_strikes_for(strat)
         if not ok:
             log_straddle(f"[{sname}] Cannot place orders: Strike calculation failed ({msg}).")
@@ -805,92 +923,126 @@ def place_straddle_orders_for(strat):
 
     total_actual_entry = 0.0
 
-    for sym, opt_type in [(ce_sym, "CE"), (pe_sym, "PE")]:
+    legs_to_place = []
+    if leg_sel in ("BOTH", "CE_ONLY") and ce_sym:
+        legs_to_place.append((ce_sym, "CE"))
+    if leg_sel in ("BOTH", "PE_ONLY") and pe_sym:
+        legs_to_place.append((pe_sym, "PE"))
+
+    for sym, opt_type in legs_to_place:
         try:
             last_ltp = float(strat.get(f"selected_{opt_type.lower()}_ltp", 100.0) or 100.0)
-            if entry_action == "BUY":
-                order_price = round((last_ltp * 1.02) * 20) / 20
-                entry_txn = kite.TRANSACTION_TYPE_BUY
-            else:
-                order_price = round((last_ltp * 0.98) * 20) / 20
+            best_bid_price = 0.0
+            best_bid_qty = 0
+            best_ask_price = 0.0
+            best_ask_qty = 0
+
+            # Query live quote / market depth for best bid and ask prices and quantities
+            try:
+                quote_res = kite.quote([f"{exchange}:{sym}"])
+                inst_quote = quote_res.get(f"{exchange}:{sym}", {})
+                if inst_quote.get("last_price"):
+                    last_ltp = float(inst_quote["last_price"])
+                depth_bids = inst_quote.get("depth", {}).get("buy", [])
+                if depth_bids and depth_bids[0].get("price", 0) > 0:
+                    best_bid_price = float(depth_bids[0]["price"])
+                    best_bid_qty = int(depth_bids[0].get("quantity", 0))
+                depth_asks = inst_quote.get("depth", {}).get("sell", [])
+                if depth_asks and depth_asks[0].get("price", 0) > 0:
+                    best_ask_price = float(depth_asks[0]["price"])
+                    best_ask_qty = int(depth_asks[0].get("quantity", 0))
+            except Exception as q_err:
+                logger.warning(f"[{sname}] Quote query for {sym} notice: {q_err}")
+
+            if entry_action == "SELL":
+                # For SELL order: get bid price & quantity, send order with 1% less trigger price and 20% up limit price
+                base_price = best_bid_price if best_bid_price > 0 else float(last_ltp)
                 entry_txn = kite.TRANSACTION_TYPE_SELL
+                entry_trigger = round((base_price * 0.99) * 20) / 20
+                entry_limit = round((entry_trigger * 1.20) * 20) / 20
 
-            log_pos_msg = f"[{sname}] Placing {entry_action} {sym} Qty:{qty} ({product}) on {exchange} Limit ₹{order_price:.2f}..."
-            log_straddle(log_pos_msg)
+                log_pos_msg = f"[{sname}] Placing SELL SL Order for {sym} Qty:{qty} ({product}) on {exchange} (Best Bid: ₹{best_bid_price:.2f} [Depth Qty: {best_bid_qty}], Base: ₹{base_price:.2f} -> Trigger: ₹{entry_trigger:.2f} [-1%], Limit: ₹{entry_limit:.2f} [+20%])..."
+                log_straddle(log_pos_msg)
 
-            order_id = kite.place_order(
-                variety=kite.VARIETY_REGULAR,
-                exchange=exchange,
-                tradingsymbol=sym,
-                transaction_type=entry_txn,
-                quantity=qty,
-                product=product,
-                order_type=kite.ORDER_TYPE_LIMIT,
-                price=float(order_price),
-                tag=pos_tag
-            )
-            log_straddle(f"[{sname}] {entry_action} {sym} Order Placed. ID: {order_id}")
+                order_id = kite.place_order(
+                    variety=kite.VARIETY_REGULAR,
+                    exchange=exchange,
+                    tradingsymbol=sym,
+                    transaction_type=entry_txn,
+                    quantity=qty,
+                    product=product,
+                    order_type=kite.ORDER_TYPE_SL,
+                    price=float(entry_limit),
+                    trigger_price=float(entry_trigger),
+                    tag=pos_tag
+                )
+                actual_price = base_price
+            else:
+                # For BUY order: fetch best offer / ask price and send with 1% higher limit price
+                base_price = best_ask_price if best_ask_price > 0 else float(last_ltp)
+                entry_txn = kite.TRANSACTION_TYPE_BUY
+                entry_limit = round((base_price * 1.01) * 20) / 20
 
-            strat["orders"][opt_type]["symbol"] = sym
-            strat["orders"][opt_type]["first_entry_price"] = last_ltp
-            strat["orders"][opt_type]["entry_price"] = last_ltp
-            strat["orders"][opt_type]["current_ltp"] = last_ltp
-            strat["orders"][opt_type]["order_id"] = order_id
-            strat["orders"][opt_type]["status"] = "ACTIVE"
-            total_actual_entry += last_ltp
+                log_pos_msg = f"[{sname}] Placing BUY Limit Order for {sym} Qty:{qty} ({product}) on {exchange} (Best Ask: ₹{best_ask_price:.2f} [Depth Qty: {best_ask_qty}], Base: ₹{base_price:.2f} -> Limit: ₹{entry_limit:.2f} [+1%])..."
+                log_straddle(log_pos_msg)
 
-            # Record in pending straddle orders
-            upsert_pending_straddle_order(f"{strat.get('id')}_{opt_type}_ENTRY", {
-                "strategy_id": strat.get("id"),
-                "strategy_name": sname,
-                "instrument": instrument,
-                "leg": opt_type,
-                "purpose": "ENTRY",
+                order_id = kite.place_order(
+                    variety=kite.VARIETY_REGULAR,
+                    exchange=exchange,
+                    tradingsymbol=sym,
+                    transaction_type=entry_txn,
+                    quantity=qty,
+                    product=product,
+                    order_type=kite.ORDER_TYPE_LIMIT,
+                    price=float(entry_limit),
+                    tag=pos_tag
+                )
+                actual_price = base_price
+
+            log_straddle(f"[{sname}] ✅ Placed entry order {order_id} for {sym} ({opt_type}) @ ~₹{actual_price:.2f}")
+
+            strat["orders"][opt_type] = {
                 "symbol": sym,
-                "exchange": exchange,
-                "transaction_type": entry_txn,
-                "quantity": qty,
-                "product": product,
-                "price": float(order_price),
-                "broker_order_id": order_id,
-                "status": "PLACED_ON_BROKER",
-                "last_error": None
-            })
+                "first_entry_price": actual_price,
+                "entry_price": actual_price,
+                "current_ltp": actual_price,
+                "exit_price": 0.0,
+                "order_id": order_id,
+                "status": "ENTERED"
+            }
+            total_actual_entry += actual_price
 
         except Exception as e:
-            log_straddle(f"[{sname}] Failed entry order placement for {sym}: {e}")
+            logger.error(f"[{sname}] Failed placing order for {sym}: {e}")
+            strat["orders"][opt_type]["status"] = f"FAILED: {str(e)[:40]}"
 
-    init_tot_prem = round(total_actual_entry, 2)
-    strat["initial_total_premium"] = init_tot_prem
-    strat["current_total_premium"] = init_tot_prem
-
-    if entry_action == "SELL":
-        strat["sl_trigger_premium"] = round(init_tot_prem * (1.0 + (total_sl_pct / 100.0)), 2)
-        strat["tp_trigger_premium"] = round(init_tot_prem * (1.0 - (total_tp_pct / 100.0)), 2)
-    else:
-        strat["sl_trigger_premium"] = round(init_tot_prem * (1.0 - (total_sl_pct / 100.0)), 2)
-        strat["tp_trigger_premium"] = round(init_tot_prem * (1.0 + (total_tp_pct / 100.0)), 2)
-
-    now_date = datetime.now().strftime("%Y-%m-%d")
     strat["orders"]["orders_placed"] = True
-    strat["status"] = "Holding (Straddle ON)"
+    strat["status"] = "Holding (Position ON)"
+    now_date = datetime.now().strftime("%Y-%m-%d")
     strat["entry_date"] = now_date
     strat["last_sl_date"] = now_date
 
     global straddle_strategies_store
     target_in_store = next((s for s in straddle_strategies_store if s.get("id") == strat.get("id")), None)
     if target_in_store:
-        target_in_store["orders"]["orders_placed"] = True
-        target_in_store["status"] = "Holding (Straddle ON)"
-        target_in_store["entry_date"] = now_date
-        target_in_store["initial_total_premium"] = init_tot_prem
-        target_in_store["sl_trigger_premium"] = strat["sl_trigger_premium"]
-        target_in_store["tp_trigger_premium"] = strat["tp_trigger_premium"]
+        target_in_store.update({
+            "orders": strat["orders"],
+            "status": strat["status"],
+            "entry_date": now_date,
+            "last_sl_date": now_date,
+            "initial_total_premium": strat["initial_total_premium"],
+            "current_total_premium": strat["current_total_premium"],
+            "sl_trigger_premium": strat["sl_trigger_premium"],
+            "tp_trigger_premium": strat["tp_trigger_premium"],
+            "current_sl_trigger_prem": strat["current_sl_trigger_prem"],
+            "tsl_reference_prem": strat["tsl_reference_prem"],
+            "best_total_prem": strat["best_total_prem"]
+        })
 
     save_straddle_strategies(straddle_strategies_store)
     record_straddle_trade_entry(strat)
-    log_straddle(f"[{sname}] 🎉 Straddle Entry Complete! Combined Initial Total Premium: ₹{init_tot_prem:.2f} | Total SL @ ₹{strat['sl_trigger_premium']:.2f}, Target @ ₹{strat['tp_trigger_premium']:.2f}")
-    return True, "Straddle entry orders placed successfully"
+    log_straddle(f"[{sname}] 🚀 Fresh multi-day entry placed! Initial Total Prem: ₹{strat['initial_total_premium']:.2f} | SL: ₹{strat['sl_trigger_premium']:.2f}, Target: ₹{strat['tp_trigger_premium']:.2f}")
+    return True, "Orders placed successfully"
 
 
 def squareoff_straddle_adjustment_leg(strat, leg_id, reason="Manual"):
@@ -953,48 +1105,70 @@ def place_straddle_adjustment_order(strat, leg_id, sym, opt_type, strike, action
     entry_txn = kite.TRANSACTION_TYPE_SELL if action_upper == "SELL" else kite.TRANSACTION_TYPE_BUY
     pos_tag = f"{strat.get('run_tag', 'std')}_{tag_suffix}"[:20]
 
-    # Fetch live LTP
+    # Fetch live quote for best bid / LTP
+    best_bid_price = 0.0
+    best_bid_qty = 0
     try:
-        q = kite.ltp([f"{exchange}:{sym}"])
-        last_ltp = float(q.get(f"{exchange}:{sym}", {}).get("last_price", 0.0))
+        quote_res = kite.quote([f"{exchange}:{sym}"])
+        inst_quote = quote_res.get(f"{exchange}:{sym}", {})
+        if inst_quote.get("last_price"):
+            last_ltp = float(inst_quote["last_price"])
+        depth_bids = inst_quote.get("depth", {}).get("buy", [])
+        if depth_bids and depth_bids[0].get("price", 0) > 0:
+            best_bid_price = float(depth_bids[0]["price"])
+            best_bid_qty = int(depth_bids[0].get("quantity", 0))
     except Exception as e:
         logger.warning(f"Error fetching quote for adjustment {sym}: {e}")
-        last_ltp = 100.0
+        try:
+            q = kite.ltp([f"{exchange}:{sym}"])
+            last_ltp = float(q.get(f"{exchange}:{sym}", {}).get("last_price", 0.0))
+        except Exception:
+            last_ltp = 100.0
 
     if last_ltp <= 0:
         last_ltp = 100.0
+
+    base_price = best_bid_price if (action_upper == "SELL" and best_bid_price > 0) else float(last_ltp)
 
     # Calculate initial SL trigger price
     sl_type_upper = str(sl_type or "PERCENT").upper()
     sl_val = float(sl_value or 30.0)
 
     if action_upper == "SELL":
-        order_price = round((last_ltp * 0.98) * 20) / 20
+        entry_trigger = round((base_price * 0.99) * 20) / 20
+        order_price = round((entry_trigger * 1.20) * 20) / 20
+        order_type_val = kite.ORDER_TYPE_SL
         if sl_type_upper == "PERCENT":
             sl_price = round(last_ltp * (1.0 + sl_val / 100.0), 2)
         else:
             sl_price = round(last_ltp + sl_val, 2)
     else:
+        entry_trigger = None
         order_price = round((last_ltp * 1.02) * 20) / 20
+        order_type_val = kite.ORDER_TYPE_LIMIT
         if sl_type_upper == "PERCENT":
             sl_price = round(max(0.05, last_ltp * (1.0 - sl_val / 100.0)), 2)
         else:
             sl_price = round(max(0.05, last_ltp - sl_val), 2)
 
-    log_straddle(f"[{sname}] 🚀 Executing Adjustment Trade '{leg_id}': {action_upper} {sym} (Strike {strike}) Qty:{qty} @ Limit ₹{order_price:.2f} | Initial SL: ₹{sl_price:.2f} ({sl_val} {sl_type_upper}) | TSL: {'ON' if enable_tsl else 'OFF'}")
+    log_straddle(f"[{sname}] 🚀 Executing Adjustment Trade '{leg_id}': {action_upper} {sym} (Strike {strike}) Qty:{qty} @ Limit ₹{order_price:.2f}" + (f", Trigger: ₹{entry_trigger:.2f} (Best Bid: ₹{best_bid_price:.2f} [Qty: {best_bid_qty}])" if entry_trigger else "") + f" | Initial SL: ₹{sl_price:.2f} ({sl_val} {sl_type_upper}) | TSL: {'ON' if enable_tsl else 'OFF'}")
 
     try:
-        order_id = kite.place_order(
-            variety=kite.VARIETY_REGULAR,
-            exchange=exchange,
-            tradingsymbol=sym,
-            transaction_type=entry_txn,
-            quantity=qty,
-            product=product,
-            order_type=kite.ORDER_TYPE_LIMIT,
-            price=float(order_price),
-            tag=pos_tag
-        )
+        place_kwargs = {
+            "variety": kite.VARIETY_REGULAR,
+            "exchange": exchange,
+            "tradingsymbol": sym,
+            "transaction_type": entry_txn,
+            "quantity": qty,
+            "product": product,
+            "order_type": order_type_val,
+            "price": float(order_price),
+            "tag": pos_tag
+        }
+        if entry_trigger:
+            place_kwargs["trigger_price"] = float(entry_trigger)
+
+        order_id = kite.place_order(**place_kwargs)
         log_straddle(f"[{sname}] Adjustment {action_upper} {sym} Placed. Order ID: {order_id}")
 
         adj = strat.setdefault("adjustments", {})
@@ -1069,25 +1243,84 @@ def squareoff_straddle_strategy_for(strat, reason="Manual"):
     for leg in ["CE", "PE"]:
         sym = strat["orders"][leg].get("symbol")
         curr_ltp = strat["orders"][leg].get("current_ltp", 0.0)
+        best_ask_price = 0.0
+        best_ask_qty = 0
+        best_bid_price = 0.0
+        best_bid_qty = 0
+
+        try:
+            quote_res = kite.quote([f"{exchange}:{sym}"])
+            inst_quote = quote_res.get(f"{exchange}:{sym}", {})
+            if inst_quote.get("last_price"):
+                curr_ltp = float(inst_quote["last_price"])
+            depth_asks = inst_quote.get("depth", {}).get("sell", [])
+            if depth_asks and depth_asks[0].get("price", 0) > 0:
+                best_ask_price = float(depth_asks[0]["price"])
+                best_ask_qty = int(depth_asks[0].get("quantity", 0))
+            depth_bids = inst_quote.get("depth", {}).get("buy", [])
+            if depth_bids and depth_bids[0].get("price", 0) > 0:
+                best_bid_price = float(depth_bids[0]["price"])
+                best_bid_qty = int(depth_bids[0].get("quantity", 0))
+        except Exception:
+            pass
+
         strat["orders"][leg]["exit_price"] = curr_ltp
 
         if sym and strat["orders"][leg].get("status") == "ACTIVE":
+            if exit_txn == kite.TRANSACTION_TYPE_BUY:
+                base_exit_p = best_ask_price if best_ask_price > 0 else curr_ltp
+                exit_limit = round((base_exit_p * 1.01) * 20) / 20 if base_exit_p > 0 else 0.0
+                log_straddle(f"[{sname}] Exit BUY Order for base leg {leg} ({sym}): Best Ask/Offer: ₹{best_ask_price:.2f} (Depth Qty: {best_ask_qty}), LTP: ₹{curr_ltp:.2f} -> Limit: ₹{exit_limit:.2f} (+1%)...")
+            else:
+                base_exit_p = best_bid_price if best_bid_price > 0 else curr_ltp
+                exit_limit = round((base_exit_p * 0.99) * 20) / 20 if base_exit_p > 0 else 0.0
+                log_straddle(f"[{sname}] Exit SELL Order for base leg {leg} ({sym}): Best Bid: ₹{best_bid_price:.2f} (Depth Qty: {best_bid_qty}), LTP: ₹{curr_ltp:.2f} -> Limit: ₹{exit_limit:.2f} (-1%)...")
+
             try:
-                oid = kite.place_order(
-                    variety=kite.VARIETY_REGULAR,
-                    exchange=exchange,
-                    tradingsymbol=sym,
-                    transaction_type=exit_txn,
-                    quantity=qty,
-                    product=product,
-                    order_type=kite.ORDER_TYPE_MARKET,
-                    tag=pos_tag
-                )
-                log_straddle(f"[{sname}] Market exit order placed for base leg {leg} ({sym}) on {exchange}. Order ID: {oid}")
+                if exit_limit > 0:
+                    oid = kite.place_order(
+                        variety=kite.VARIETY_REGULAR,
+                        exchange=exchange,
+                        tradingsymbol=sym,
+                        transaction_type=exit_txn,
+                        quantity=qty,
+                        product=product,
+                        order_type=kite.ORDER_TYPE_LIMIT,
+                        price=float(exit_limit),
+                        tag=pos_tag
+                    )
+                else:
+                    oid = kite.place_order(
+                        variety=kite.VARIETY_REGULAR,
+                        exchange=exchange,
+                        tradingsymbol=sym,
+                        transaction_type=exit_txn,
+                        quantity=qty,
+                        product=product,
+                        order_type=kite.ORDER_TYPE_MARKET,
+                        tag=pos_tag
+                    )
+                log_straddle(f"[{sname}] Exit order placed for base leg {leg} ({sym}) on {exchange}. Order ID: {oid}")
                 strat["orders"][leg]["status"] = "SQUARED_OFF"
                 remove_pending_straddle_order(f"{strat.get('id')}_{leg}_ENTRY")
             except Exception as e:
-                log_straddle(f"[{sname}] Error placing exit order for base leg {leg} ({sym}): {e}")
+                log_straddle(f"[{sname}] Limit exit failed for base leg {leg} ({sym}): {e}. Retrying with MARKET order...")
+                try:
+                    oid = kite.place_order(
+                        variety=kite.VARIETY_REGULAR,
+                        exchange=exchange,
+                        tradingsymbol=sym,
+                        transaction_type=exit_txn,
+                        quantity=qty,
+                        product=product,
+                        order_type=kite.ORDER_TYPE_MARKET,
+                        tag=pos_tag
+                    )
+                    log_straddle(f"[{sname}] Market exit order placed for base leg {leg} ({sym}). Order ID: {oid}")
+                    strat["orders"][leg]["status"] = "SQUARED_OFF"
+                    remove_pending_straddle_order(f"{strat.get('id')}_{leg}_ENTRY")
+                except Exception as mkt_e:
+                    log_straddle(f"[{sname}] Market exit order ALSO failed for base leg {leg} ({sym}): {mkt_e}")
 
     # 2. Square off all active Adjustment Legs
     adj = strat.get("adjustments", {})
@@ -1098,24 +1331,80 @@ def squareoff_straddle_strategy_for(strat, reason="Manual"):
             adj_qty = int(leg_data.get("quantity") or qty)
             adj_action = leg_data.get("action", "SELL").upper()
             adj_exit_txn = kite.TRANSACTION_TYPE_BUY if adj_action == "SELL" else kite.TRANSACTION_TYPE_SELL
+            adj_ltp = float(leg_data.get("current_ltp", 0.0))
+            best_adj_ask = 0.0
+            best_adj_bid = 0.0
+
             try:
-                oid = kite.place_order(
-                    variety=kite.VARIETY_REGULAR,
-                    exchange=exchange,
-                    tradingsymbol=adj_sym,
-                    transaction_type=adj_exit_txn,
-                    quantity=adj_qty,
-                    product=product,
-                    order_type=kite.ORDER_TYPE_MARKET,
-                    tag=pos_tag
-                )
-                log_straddle(f"[{sname}] Market exit order placed for adjustment leg '{adj_id}' ({adj_sym}). Order ID: {oid}")
+                q_adj = kite.quote([f"{exchange}:{adj_sym}"])
+                inst_q = q_adj.get(f"{exchange}:{adj_sym}", {})
+                if inst_q.get("last_price"):
+                    adj_ltp = float(inst_q["last_price"])
+                d_asks = inst_q.get("depth", {}).get("sell", [])
+                if d_asks and d_asks[0].get("price", 0) > 0:
+                    best_adj_ask = float(d_asks[0]["price"])
+                d_bids = inst_q.get("depth", {}).get("buy", [])
+                if d_bids and d_bids[0].get("price", 0) > 0:
+                    best_adj_bid = float(d_bids[0]["price"])
+            except Exception:
+                pass
+
+            if adj_exit_txn == kite.TRANSACTION_TYPE_BUY:
+                base_adj_p = best_adj_ask if best_adj_ask > 0 else adj_ltp
+                adj_exit_limit = round((base_adj_p * 1.01) * 20) / 20 if base_adj_p > 0 else 0.0
+            else:
+                base_adj_p = best_adj_bid if best_adj_bid > 0 else adj_ltp
+                adj_exit_limit = round((base_adj_p * 0.99) * 20) / 20 if base_adj_p > 0 else 0.0
+
+            try:
+                if adj_exit_limit > 0:
+                    oid = kite.place_order(
+                        variety=kite.VARIETY_REGULAR,
+                        exchange=exchange,
+                        tradingsymbol=adj_sym,
+                        transaction_type=adj_exit_txn,
+                        quantity=adj_qty,
+                        product=product,
+                        order_type=kite.ORDER_TYPE_LIMIT,
+                        price=float(adj_exit_limit),
+                        tag=pos_tag
+                    )
+                else:
+                    oid = kite.place_order(
+                        variety=kite.VARIETY_REGULAR,
+                        exchange=exchange,
+                        tradingsymbol=adj_sym,
+                        transaction_type=adj_exit_txn,
+                        quantity=adj_qty,
+                        product=product,
+                        order_type=kite.ORDER_TYPE_MARKET,
+                        tag=pos_tag
+                    )
+                log_straddle(f"[{sname}] Exit order placed for adjustment leg '{adj_id}' ({adj_sym}). Order ID: {oid}")
                 leg_data["status"] = "SQUARED_OFF"
-                leg_data["exit_price"] = leg_data.get("current_ltp", 0.0)
+                leg_data["exit_price"] = adj_ltp
                 leg_data["exit_reason"] = f"Strategy Exit ({reason})"
                 remove_pending_straddle_order(f"{strat.get('id')}_{adj_id}_ADJ")
             except Exception as e:
-                log_straddle(f"[{sname}] Error squaring off adjustment leg '{adj_id}': {e}")
+                log_straddle(f"[{sname}] Limit exit failed for adjustment leg '{adj_id}': {e}. Retrying with MARKET order...")
+                try:
+                    oid = kite.place_order(
+                        variety=kite.VARIETY_REGULAR,
+                        exchange=exchange,
+                        tradingsymbol=adj_sym,
+                        transaction_type=adj_exit_txn,
+                        quantity=adj_qty,
+                        product=product,
+                        order_type=kite.ORDER_TYPE_MARKET,
+                        tag=pos_tag
+                    )
+                    log_straddle(f"[{sname}] Market exit order placed for adjustment leg '{adj_id}'. Order ID: {oid}")
+                    leg_data["status"] = "SQUARED_OFF"
+                    leg_data["exit_price"] = adj_ltp
+                    leg_data["exit_reason"] = f"Strategy Exit ({reason})"
+                    remove_pending_straddle_order(f"{strat.get('id')}_{adj_id}_ADJ")
+                except Exception as mkt_e:
+                    log_straddle(f"[{sname}] Market exit order ALSO failed for adjustment leg '{adj_id}': {mkt_e}")
 
     strat["active"] = False
     strat["status"] = f"Squared Off ({reason})"
@@ -1152,26 +1441,98 @@ def monitor_straddle_strategies_cycle():
     today_str = now.strftime("%Y-%m-%d")
     now_time = now.strftime("%H:%M:%S")
 
-    # 1. Timed Entry Check
+    # 1. Timed & Triggered Entry Check
     for s in active_strats:
         sname = s.get("name", "Straddle Total SL")
         orders_data = s.setdefault("orders", {})
         orders_placed = orders_data.get("orders_placed", False)
         entry_t = s.get("entry_time", "15:00:00")
         exit_t = s.get("exit_time", "15:15:00")
+        strat_type = str(s.get("strategy_type") or "STRADDLE").upper()
+        leg_sel = str(s.get("leg_selection") or "BOTH").upper()
+        entry_trigger = str(s.get("entry_trigger_type") or "CURRENT_PRICE").upper()
+        entry_action = str(s.get("entry_action") or "SELL").upper()
 
         if not orders_placed:
-            if now_time >= entry_t and now_time <= exit_t:
-                log_straddle(f"[{sname}] ⏰ Scheduled Entry Time ({entry_t}) reached! Executing ATM Straddle Entry...")
-                if not s.get("selected_ce") or not s.get("selected_pe"):
-                    ok, msg = calculate_straddle_strikes_for(s)
-                    if not ok:
-                        log_straddle(f"[{sname}] ⚠️ ATM Strike calculation failed: {msg}. Retrying next cycle.")
-                        continue
-                place_straddle_orders_for(s)
-            else:
-                s["status"] = f"Awaiting Entry ({entry_t})"
+            if now_time < entry_t:
+                s["status"] = f"Awaiting Entry Time ({entry_t})"
                 continue
+            if now_time > exit_t:
+                s["status"] = f"Past Exit Time ({exit_t})"
+                continue
+
+            # Check if strike calculation is needed
+            ce_sym = s.get("selected_ce")
+            pe_sym = s.get("selected_pe")
+            if (leg_sel in ("BOTH", "CE_ONLY") and not ce_sym) or (leg_sel in ("BOTH", "PE_ONLY") and not pe_sym):
+                ok, msg = calculate_straddle_strikes_for(s)
+                if not ok:
+                    log_straddle(f"[{sname}] ⚠️ Strike calculation failed: {msg}. Retrying next cycle.")
+                    continue
+                ce_sym = s.get("selected_ce")
+                pe_sym = s.get("selected_pe")
+
+            # Check Entry Trigger Condition for Single Leg
+            if strat_type == "INDIVIDUAL_LEG" and entry_trigger in ("PREMIUM_DECAY", "SPECIFIC_PREMIUM"):
+                target_sym = ce_sym if leg_sel == "CE_ONLY" else pe_sym
+                exch = get_straddle_exchange(s.get("index_name"))
+                if not target_sym:
+                    continue
+
+                curr_ltp = 0.0
+                try:
+                    q_res = kite.ltp([f"{exch}:{target_sym}"])
+                    curr_ltp = float(q_res.get(f"{exch}:{target_sym}", {}).get("last_price", 0.0))
+                except Exception as e:
+                    logger.warning(f"Error fetching trigger check quote for {target_sym}: {e}")
+
+                if curr_ltp <= 0:
+                    continue
+
+                initial_ref_prem = float(s.get("initial_total_premium") or s.get(f"selected_{leg_sel[:2].lower()}_ltp") or curr_ltp)
+                trigger_met = False
+                trigger_desc = ""
+
+                if entry_trigger == "PREMIUM_DECAY":
+                    decay_req_pct = float(s.get("trigger_decay_pct") or 20.0)
+                    if initial_ref_prem > 0:
+                        decay_pct = ((initial_ref_prem - curr_ltp) / initial_ref_prem) * 100.0
+                        if decay_pct >= decay_req_pct:
+                            trigger_met = True
+                            trigger_desc = f"Premium decayed by {decay_pct:.1f}% >= {decay_req_pct:.1f}% (From ₹{initial_ref_prem:.2f} to ₹{curr_ltp:.2f})"
+                        else:
+                            s["status"] = f"Awaiting Decay {decay_pct:.1f}%/{decay_req_pct:.1f}% (LTP: ₹{curr_ltp:.2f})"
+                            continue
+
+                elif entry_trigger == "SPECIFIC_PREMIUM":
+                    target_prem = float(s.get("trigger_premium_val") or 0.0)
+                    if target_prem > 0:
+                        if entry_action == "SELL":
+                            # For SELL, trigger when price drops to or below target premium
+                            if curr_ltp <= target_prem:
+                                trigger_met = True
+                                trigger_desc = f"LTP ₹{curr_ltp:.2f} reached target <= ₹{target_prem:.2f}"
+                            else:
+                                s["status"] = f"Awaiting Prem <= ₹{target_prem:.2f} (LTP: ₹{curr_ltp:.2f})"
+                                continue
+                        else:
+                            # For BUY, trigger when price rises to or above target premium
+                            if curr_ltp >= target_prem:
+                                trigger_met = True
+                                trigger_desc = f"LTP ₹{curr_ltp:.2f} reached target >= ₹{target_prem:.2f}"
+                            else:
+                                s["status"] = f"Awaiting Prem >= ₹{target_prem:.2f} (LTP: ₹{curr_ltp:.2f})"
+                                continue
+
+                if trigger_met:
+                    log_straddle(f"[{sname}] 🎯 Single Leg Entry Trigger Met ({trigger_desc})! Executing Entry...")
+                    place_straddle_orders_for(s)
+                else:
+                    continue
+            else:
+                # Immediate / Current Price entry
+                log_straddle(f"[{sname}] ⏰ Scheduled Entry Time ({entry_t}) reached! Executing Entry Orders...")
+                place_straddle_orders_for(s)
 
     # 2. Quote Collection for Active Straddles & Adjustment Legs
     symbols_to_quote = set()
@@ -1245,27 +1606,35 @@ def monitor_straddle_strategies_cycle():
                 mode = adj.get("mode", "AUTOMATIC")
                 active_orders = adj.setdefault("active_orders", {})
 
-                # 1. Automatic Mode: Check if Base Legs Decayed by Trigger %
+                # 1. Automatic Mode: Check if Base Legs Decayed by Trigger % (up to max_adjustments)
                 if mode == "AUTOMATIC":
                     auto_cfg = adj.setdefault("auto_config", {})
                     decay_target_pct = float(auto_cfg.get("trigger_decay_percent", 20.0))
+                    max_adjs = int(auto_cfg.get("max_adjustments", 3))
                     adj_lots = int(auto_cfg.get("lots", 1))
                     adj_qty = max(lot_size, adj_lots * lot_size)
 
                     for leg in ["CE", "PE"]:
-                        flag_key = f"{leg.lower()}_triggered"
-                        already_triggered = auto_cfg.get(flag_key, False)
+                        count_key = f"{leg.lower()}_adjustments_done"
+                        adjs_done = int(auto_cfg.get(count_key, 0))
                         base_entry = float(s["orders"][leg].get("first_entry_price") or s["orders"][leg].get("entry_price", 0.0))
                         curr_ltp = float(s["orders"][leg].get("current_ltp", 0.0))
                         base_sym = s["orders"][leg].get("symbol")
                         base_strike = s.get("selected_strike")
 
-                        if not already_triggered and base_entry > 0 and curr_ltp > 0 and base_sym:
+                        # Check if any previous auto adjustment for this leg is currently active
+                        current_leg_adj_active = any(
+                            k.startswith(f"auto_{leg.lower()}_") and v.get("status") == "ACTIVE"
+                            for k, v in active_orders.items()
+                        )
+
+                        if adjs_done < max_adjs and not current_leg_adj_active and base_entry > 0 and curr_ltp > 0 and base_sym:
                             # Premium decay percentage = ((Entry - Current) / Entry) * 100
                             decay_pct = ((base_entry - curr_ltp) / base_entry) * 100.0
                             if decay_pct >= decay_target_pct:
-                                log_straddle(f"[{sname}] 🎯 AUTOMATIC ADJUSTMENT TRIGGERED for {leg} ({base_sym})! Premium decayed by {decay_pct:.1f}% (Threshold: {decay_target_pct:.1f}%) from ₹{base_entry:.2f} to ₹{curr_ltp:.2f}. Executing {adj_lots} Lot(s) ({adj_qty} qty) Adjustment...")
-                                leg_id = f"auto_{leg.lower()}_decay"
+                                next_adj_num = adjs_done + 1
+                                log_straddle(f"[{sname}] 🎯 AUTOMATIC ADJUSTMENT #{next_adj_num}/{max_adjs} TRIGGERED for {leg} ({base_sym})! Premium decayed by {decay_pct:.1f}% (Threshold: {decay_target_pct:.1f}%) from ₹{base_entry:.2f} to ₹{curr_ltp:.2f}. Executing {adj_lots} Lot(s) ({adj_qty} qty) with SL & TSL...")
+                                leg_id = f"auto_{leg.lower()}_adj_{next_adj_num}"
                                 ok, msg = place_straddle_adjustment_order(
                                     strat=s,
                                     leg_id=leg_id,
@@ -1280,10 +1649,11 @@ def monitor_straddle_strategies_cycle():
                                     tsl_type=auto_cfg.get("tsl_type", "POINTS"),
                                     tsl_value=auto_cfg.get("tsl_value", 10.0),
                                     tsl_step=auto_cfg.get("tsl_step", 10.0),
-                                    tag_suffix=f"adj_{leg.lower()}"
+                                    tag_suffix=f"adj_{leg.lower()}_{next_adj_num}"
                                 )
                                 if ok:
-                                    auto_cfg[flag_key] = True
+                                    auto_cfg[count_key] = next_adj_num
+                                    auto_cfg[f"{leg.lower()}_triggered"] = True
 
                 # 2. Manual Mode: Check Trigger Prices on Defined Manual Legs
                 elif mode == "MANUAL":
@@ -1417,6 +1787,51 @@ def monitor_straddle_strategies_cycle():
                             log_straddle(f"[{sname}] 🛑 STOP LOSS HIT on Adjustment Leg '{adj_id}' ({adj_sym})! LTP: ₹{curr_ltp:.2f}, SL: ₹{leg_data.get('current_sl_trigger', 0.0):.2f}. Squaring off adjustment leg...")
                             squareoff_straddle_adjustment_leg(s, adj_id, reason=f"SL Hit @ ₹{curr_ltp:.2f}")
 
+            # --- C. Trailing Stop Loss for Base Strategy / Single Leg Setup ---
+            if s.get("enable_tsl") and init_tot_prem > 0 and current_total_prem > 0:
+                tsl_val = float(s.get("tsl_value") or 10.0)
+                tsl_step = float(s.get("tsl_step") or 10.0)
+                tsl_type = str(s.get("tsl_type") or "POINTS").upper()
+                ref_prem = float(s.get("tsl_reference_prem") or init_tot_prem)
+                best_prem = float(s.get("best_total_prem") or init_tot_prem)
+                curr_sl_trigger = float(s.get("current_sl_trigger_prem") or sl_trigger_prem)
+
+                if entry_action == "SELL":
+                    # Favorable move for SELL: Total premium decreases
+                    if current_total_prem < best_prem:
+                        s["best_total_prem"] = current_total_prem
+
+                    step_pts = (init_tot_prem * (tsl_step / 100.0)) if tsl_type == "PERCENT" else tsl_step
+                    trail_pts = (init_tot_prem * (tsl_val / 100.0)) if tsl_type == "PERCENT" else tsl_val
+
+                    if (ref_prem - current_total_prem) >= step_pts and step_pts > 0:
+                        steps_count = int((ref_prem - current_total_prem) // step_pts)
+                        pts_to_trail = steps_count * trail_pts
+                        new_sl = round(curr_sl_trigger - pts_to_trail, 2)
+                        s["current_sl_trigger_prem"] = new_sl
+                        s["sl_trigger_premium"] = new_sl
+                        s["tsl_reference_prem"] = round(ref_prem - (steps_count * step_pts), 2)
+                        log_straddle(f"[{sname}] 🎯 TSL TRAIL for Base Setup: Premium dropped to ₹{current_total_prem:.2f}. Trailed SL lower from ₹{curr_sl_trigger:.2f} ➔ ₹{new_sl:.2f} (Ref: ₹{s['tsl_reference_prem']:.2f})")
+                        sl_trigger_prem = new_sl
+
+                else:
+                    # Favorable move for BUY: Total premium increases
+                    if current_total_prem > best_prem:
+                        s["best_total_prem"] = current_total_prem
+
+                    step_pts = (init_tot_prem * (tsl_step / 100.0)) if tsl_type == "PERCENT" else tsl_step
+                    trail_pts = (init_tot_prem * (tsl_val / 100.0)) if tsl_type == "PERCENT" else tsl_val
+
+                    if (current_total_prem - ref_prem) >= step_pts and step_pts > 0:
+                        steps_count = int((current_total_prem - ref_prem) // step_pts)
+                        pts_to_trail = steps_count * trail_pts
+                        new_sl = round(curr_sl_trigger + pts_to_trail, 2)
+                        s["current_sl_trigger_prem"] = new_sl
+                        s["sl_trigger_premium"] = new_sl
+                        s["tsl_reference_prem"] = round(ref_prem + (steps_count * step_pts), 2)
+                        log_straddle(f"[{sname}] 🎯 TSL TRAIL for Base Setup: Premium rose to ₹{current_total_prem:.2f}. Trailed SL higher from ₹{curr_sl_trigger:.2f} ➔ ₹{new_sl:.2f} (Ref: ₹{s['tsl_reference_prem']:.2f})")
+                        sl_trigger_prem = new_sl
+
             # Total combined PnL
             total_strat_pnl = round(base_pnl + adj_pnl, 2)
             s["pnl"] = total_strat_pnl
@@ -1426,30 +1841,31 @@ def monitor_straddle_strategies_cycle():
             s["last_checked"] = datetime.now().strftime("%H:%M:%S")
             record_straddle_running_pnl(s, total_strat_pnl)
 
-            # Check Total Premium Stop Loss & Target Profit (for Base Straddle Setup)
+            # Check Stop Loss & Target Profit (for Base Strategy / Single Leg Setup)
+            effective_sl_prem = float(s.get("current_sl_trigger_prem") or sl_trigger_prem)
             if init_tot_prem > 0 and current_total_prem > 0:
                 if entry_action == "SELL":
-                    # SHORT STRADDLE
-                    # Stop Loss: Combined premium increased to or above sl_trigger_prem
-                    if current_total_prem >= sl_trigger_prem and sl_trigger_prem > 0:
-                        log_straddle(f"[{sname}] 🛑 TOTAL PREMIUM STOP LOSS TRIGGERED! Combined Premium expanded from ₹{init_tot_prem:.2f} to ₹{current_total_prem:.2f} (SL Threshold: ₹{sl_trigger_prem:.2f}). Squaring off both legs...")
-                        squareoff_straddle_strategy_for(s, reason=f"Total Premium SL Hit @ ₹{current_total_prem:.2f}")
+                    # SHORT STRADDLE / SHORT SINGLE LEG
+                    # Stop Loss: Combined premium increased to or above effective_sl_prem
+                    if current_total_prem >= effective_sl_prem and effective_sl_prem > 0:
+                        log_straddle(f"[{sname}] 🛑 STOP LOSS / TSL TRIGGERED! Premium expanded from ₹{init_tot_prem:.2f} to ₹{current_total_prem:.2f} (SL Threshold: ₹{effective_sl_prem:.2f}). Squaring off position...")
+                        squareoff_straddle_strategy_for(s, reason=f"SL / TSL Hit @ ₹{current_total_prem:.2f}")
 
                     # Target Profit: Combined premium decayed to or below tp_trigger_prem
                     elif current_total_prem <= tp_trigger_prem and tp_trigger_prem > 0:
-                        log_straddle(f"[{sname}] 🎯 TOTAL PREMIUM TARGET PROFIT HIT! Combined Premium decayed from ₹{init_tot_prem:.2f} to ₹{current_total_prem:.2f} (Target Threshold: ₹{tp_trigger_prem:.2f}). Squaring off both legs...")
-                        squareoff_straddle_strategy_for(s, reason=f"Total Premium Target Hit @ ₹{current_total_prem:.2f}")
+                        log_straddle(f"[{sname}] 🎯 TARGET PROFIT HIT! Premium decayed from ₹{init_tot_prem:.2f} to ₹{current_total_prem:.2f} (Target Threshold: ₹{tp_trigger_prem:.2f}). Squaring off position...")
+                        squareoff_straddle_strategy_for(s, reason=f"Target Hit @ ₹{current_total_prem:.2f}")
                 else:
-                    # LONG STRADDLE
-                    # Stop Loss: Combined premium decayed to or below sl_trigger_prem
-                    if current_total_prem <= sl_trigger_prem and sl_trigger_prem > 0:
-                        log_straddle(f"[{sname}] 🛑 TOTAL PREMIUM STOP LOSS TRIGGERED! Combined Premium dropped from ₹{init_tot_prem:.2f} to ₹{current_total_prem:.2f} (SL Threshold: ₹{sl_trigger_prem:.2f}). Squaring off both legs...")
-                        squareoff_straddle_strategy_for(s, reason=f"Total Premium SL Hit @ ₹{current_total_prem:.2f}")
+                    # LONG STRADDLE / LONG SINGLE LEG
+                    # Stop Loss: Combined premium decayed to or below effective_sl_prem
+                    if current_total_prem <= effective_sl_prem and effective_sl_prem > 0:
+                        log_straddle(f"[{sname}] 🛑 STOP LOSS / TSL TRIGGERED! Premium dropped from ₹{init_tot_prem:.2f} to ₹{current_total_prem:.2f} (SL Threshold: ₹{effective_sl_prem:.2f}). Squaring off position...")
+                        squareoff_straddle_strategy_for(s, reason=f"SL / TSL Hit @ ₹{current_total_prem:.2f}")
 
                     # Target Profit: Combined premium expanded to or above tp_trigger_prem
                     elif current_total_prem >= tp_trigger_prem and tp_trigger_prem > 0:
-                        log_straddle(f"[{sname}] 🎯 TOTAL PREMIUM TARGET PROFIT HIT! Combined Premium expanded from ₹{init_tot_prem:.2f} to ₹{current_total_prem:.2f} (Target Threshold: ₹{tp_trigger_prem:.2f}). Squaring off both legs...")
-                        squareoff_straddle_strategy_for(s, reason=f"Total Premium Target Hit @ ₹{current_total_prem:.2f}")
+                        log_straddle(f"[{sname}] 🎯 TARGET PROFIT HIT! Premium expanded from ₹{init_tot_prem:.2f} to ₹{current_total_prem:.2f} (Target Threshold: ₹{tp_trigger_prem:.2f}). Squaring off position...")
+                        squareoff_straddle_strategy_for(s, reason=f"Target Hit @ ₹{current_total_prem:.2f}")
 
         save_straddle_strategies(straddle_strategies_store)
     except Exception as e:

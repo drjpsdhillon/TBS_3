@@ -802,10 +802,10 @@ def place_or_retry_pos_order(strat, leg_type, purpose, target_trigger, target_pr
             if curr_ltp >= sl_trigger:
                 # Market already breached trigger: place adjusted trigger above LTP to guarantee acceptance
                 sl_trigger = round((curr_ltp + 0.5) * 20) / 20
-                sl_price = round((sl_trigger * 1.02) * 20) / 20
-                log_pos(f"[{sname}] ⚠️ {leg_type} LTP (₹{curr_ltp:.2f}) >= SL Trigger (₹{target_trigger:.2f}). Adjusting Trigger to ₹{sl_trigger:.2f} (Limit: ₹{sl_price:.2f})")
+                sl_price = round((sl_trigger * 1.30) * 20) / 20
+                log_pos(f"[{sname}] ⚠️ {leg_type} LTP (₹{curr_ltp:.2f}) >= SL Trigger (₹{target_trigger:.2f}). Adjusting Trigger to ₹{sl_trigger:.2f} (Limit: ₹{sl_price:.2f} [30% Gap])")
             else:
-                sl_price = round((sl_trigger * 1.02) * 20) / 20
+                sl_price = round((sl_trigger * 1.30) * 20) / 20
 
             order_type = kite.ORDER_TYPE_SL
         else:
@@ -816,10 +816,10 @@ def place_or_retry_pos_order(strat, leg_type, purpose, target_trigger, target_pr
             # Zerodha rule: SELL SL trigger MUST be <= LTP
             if curr_ltp <= sl_trigger:
                 sl_trigger = round(max(0.05, curr_ltp - 0.5) * 20) / 20
-                sl_price = round((sl_trigger * 0.98) * 20) / 20
-                log_pos(f"[{sname}] ⚠️ {leg_type} LTP (₹{curr_ltp:.2f}) <= SL Trigger (₹{target_trigger:.2f}). Adjusting Trigger to ₹{sl_trigger:.2f} (Limit: ₹{sl_price:.2f})")
+                sl_price = round(max(0.05, sl_trigger * 0.70) * 20) / 20
+                log_pos(f"[{sname}] ⚠️ {leg_type} LTP (₹{curr_ltp:.2f}) <= SL Trigger (₹{target_trigger:.2f}). Adjusting Trigger to ₹{sl_trigger:.2f} (Limit: ₹{sl_price:.2f} [30% Gap])")
             else:
-                sl_price = round((sl_trigger * 0.98) * 20) / 20
+                sl_price = round(max(0.05, sl_trigger * 0.70) * 20) / 20
 
             order_type = kite.ORDER_TYPE_SL
 
@@ -987,25 +987,66 @@ def place_positional_orders_for(strat):
     for sym, opt_type, leg_sl_pct in [(ce_sym, "CE", ce_sl_pct), (pe_sym, "PE", pe_sl_pct)]:
         try:
             last_ltp = float(strat.get(f"selected_{opt_type.lower()}_ltp", 80.0) or 80.0)
-            if entry_action == "BUY":
-                order_price = round((last_ltp * 1.02) * 20) / 20
-                entry_txn = kite.TRANSACTION_TYPE_BUY
-            else:
-                order_price = round((last_ltp * 0.98) * 20) / 20
-                entry_txn = kite.TRANSACTION_TYPE_SELL
+            best_bid_price = 0.0
+            best_bid_qty = 0
+            best_ask_price = 0.0
+            best_ask_qty = 0
 
-            log_pos(f"[{sname}] Placing {entry_action} {sym} Qty:{qty} ({product}) on {exchange} Limit ₹{order_price:.2f}...")
-            order_id = kite.place_order(
-                variety=kite.VARIETY_REGULAR,
-                exchange=exchange,
-                tradingsymbol=sym,
-                transaction_type=entry_txn,
-                quantity=qty,
-                product=product,
-                order_type=kite.ORDER_TYPE_LIMIT,
-                price=float(order_price),
-                tag=pos_tag
-            )
+            # Query live quote / market depth for best bid and ask prices and quantities
+            try:
+                quote_res = kite.quote([f"{exchange}:{sym}"])
+                inst_quote = quote_res.get(f"{exchange}:{sym}", {})
+                if inst_quote.get("last_price"):
+                    last_ltp = float(inst_quote["last_price"])
+                depth_bids = inst_quote.get("depth", {}).get("buy", [])
+                if depth_bids and depth_bids[0].get("price", 0) > 0:
+                    best_bid_price = float(depth_bids[0]["price"])
+                    best_bid_qty = int(depth_bids[0].get("quantity", 0))
+                depth_asks = inst_quote.get("depth", {}).get("sell", [])
+                if depth_asks and depth_asks[0].get("price", 0) > 0:
+                    best_ask_price = float(depth_asks[0]["price"])
+                    best_ask_qty = int(depth_asks[0].get("quantity", 0))
+            except Exception as q_err:
+                logger.warning(f"[{sname}] Quote query for {sym} notice: {q_err}")
+
+            if entry_action == "SELL":
+                # For SELL order: get bid price & quantity, send order with 1% less trigger price and 20% up limit price
+                base_price = best_bid_price if best_bid_price > 0 else float(last_ltp)
+                entry_txn = kite.TRANSACTION_TYPE_SELL
+                entry_trigger = round((base_price * 0.99) * 20) / 20
+                entry_limit = round((entry_trigger * 1.20) * 20) / 20
+
+                log_pos(f"[{sname}] Placing SELL SL Order for {sym} Qty:{qty} ({product}) on {exchange} (Best Bid: ₹{best_bid_price:.2f} [Depth Qty: {best_bid_qty}], Base: ₹{base_price:.2f} -> Trigger: ₹{entry_trigger:.2f} [-1%], Limit: ₹{entry_limit:.2f} [+20%])...")
+                order_id = kite.place_order(
+                    variety=kite.VARIETY_REGULAR,
+                    exchange=exchange,
+                    tradingsymbol=sym,
+                    transaction_type=entry_txn,
+                    quantity=qty,
+                    product=product,
+                    order_type=kite.ORDER_TYPE_SL,
+                    price=float(entry_limit),
+                    trigger_price=float(entry_trigger),
+                    tag=pos_tag
+                )
+            else:
+                # BUY order: fetch best offer/ask price and send order with 1% higher than offer price
+                base_price = best_ask_price if best_ask_price > 0 else float(last_ltp)
+                entry_txn = kite.TRANSACTION_TYPE_BUY
+                order_price = round((base_price * 1.01) * 20) / 20
+                log_pos(f"[{sname}] Placing BUY {sym} Qty:{qty} ({product}) on {exchange} (Best Ask/Offer: ₹{best_ask_price:.2f} [Depth Qty: {best_ask_qty}], Base: ₹{base_price:.2f} -> Limit Order: ₹{order_price:.2f} [+1%])...")
+                order_id = kite.place_order(
+                    variety=kite.VARIETY_REGULAR,
+                    exchange=exchange,
+                    tradingsymbol=sym,
+                    transaction_type=entry_txn,
+                    quantity=qty,
+                    product=product,
+                    order_type=kite.ORDER_TYPE_LIMIT,
+                    price=float(order_price),
+                    tag=pos_tag
+                )
+
             log_pos(f"[{sname}] {entry_action} {sym} Order Placed. ID: {order_id}")
 
             strat["orders"][opt_type]["symbol"] = sym
@@ -1069,7 +1110,7 @@ def modify_pos_sl_to_breakeven(strat, leg_type):
 
     try:
         sl_trigger = round(entry_p * 20) / 20
-        sl_price = round((sl_trigger * 1.02) * 20) / 20 if entry_action == "SELL" else round((sl_trigger * 0.98) * 20) / 20
+        sl_price = round((sl_trigger * 1.30) * 20) / 20 if entry_action == "SELL" else round(max(0.05, sl_trigger * 0.70) * 20) / 20
 
         kite.modify_order(
             variety=kite.VARIETY_REGULAR,
@@ -1147,7 +1188,7 @@ def trail_pos_sl_for_leg(strat, leg_type, curr_ltp):
                 min_trigger = round((curr_ltp + 0.5) * 20) / 20
                 if new_trigger < min_trigger:
                     new_trigger = min_trigger
-                new_price = round((new_trigger * 1.02) * 20) / 20
+                new_price = round((new_trigger * 1.30) * 20) / 20
 
                 if new_trigger < curr_trigger:
                     try:
@@ -1162,7 +1203,7 @@ def trail_pos_sl_for_leg(strat, leg_type, curr_ltp):
                         leg_data["current_sl_trigger"] = new_trigger
                         leg_data["tsl_base_ltp"] = round(base_ltp - (steps * tsl_pts), 2)
                         leg_data["tsl_active"] = True
-                        log_pos(f"[{sname}] 🎯 TSL Moved LOWER for {leg_type} ({sym}) by {trail_amount:.1f} pts! New SL Trigger: ₹{new_trigger:.2f} (LTP: ₹{curr_ltp:.2f})")
+                        log_pos(f"[{sname}] 🎯 TSL Moved LOWER for {leg_type} ({sym}) by {trail_amount:.1f} pts! New SL Trigger: ₹{new_trigger:.2f} (Limit: ₹{new_price:.2f} [30% Gap], LTP: ₹{curr_ltp:.2f})")
                     except Exception as e:
                         logger.warning(f"[{sname}] Could not trail SL for {leg_type}: {e}")
     else:
@@ -1174,7 +1215,7 @@ def trail_pos_sl_for_leg(strat, leg_type, curr_ltp):
                 max_trigger = round((curr_ltp - 0.5) * 20) / 20
                 if new_trigger > max_trigger:
                     new_trigger = max_trigger
-                new_price = round((new_trigger * 0.98) * 20) / 20
+                new_price = round(max(0.05, new_trigger * 0.70) * 20) / 20
 
                 if new_trigger > curr_trigger:
                     try:
@@ -1189,7 +1230,7 @@ def trail_pos_sl_for_leg(strat, leg_type, curr_ltp):
                         leg_data["current_sl_trigger"] = new_trigger
                         leg_data["tsl_base_ltp"] = round(base_ltp + (steps * tsl_pts), 2)
                         leg_data["tsl_active"] = True
-                        log_pos(f"[{sname}] 🎯 TSL Moved HIGHER for {leg_type} ({sym}) by {trail_amount:.1f} pts! New SL Trigger: ₹{new_trigger:.2f} (LTP: ₹{curr_ltp:.2f})")
+                        log_pos(f"[{sname}] 🎯 TSL Moved HIGHER for {leg_type} ({sym}) by {trail_amount:.1f} pts! New SL Trigger: ₹{new_trigger:.2f} (Limit: ₹{new_price:.2f} [30% Gap], LTP: ₹{curr_ltp:.2f})")
                     except Exception as e:
                         logger.warning(f"[{sname}] Could not trail SL for {leg_type}: {e}")
 
@@ -1262,29 +1303,88 @@ def squareoff_positional_strangle_for(strat):
         remove_pending_pos_order(f"{strat.get('id')}_{leg}_BREAKEVEN_SL")
         remove_pending_pos_order(f"{strat.get('id')}_{leg}_REENTRY")
 
-    # 2. Place Market square-off orders for ACTIVE legs
+    # 2. Place Square-off orders for ACTIVE legs
     for leg in ["CE", "PE"]:
         sym = strat["orders"][leg].get("symbol")
         curr_ltp = strat["orders"][leg].get("current_ltp", 0.0)
+        best_ask_price = 0.0
+        best_ask_qty = 0
+        best_bid_price = 0.0
+        best_bid_qty = 0
+
+        try:
+            quote_res = kite.quote([f"{exchange}:{sym}"])
+            inst_quote = quote_res.get(f"{exchange}:{sym}", {})
+            if inst_quote.get("last_price"):
+                curr_ltp = float(inst_quote["last_price"])
+            depth_asks = inst_quote.get("depth", {}).get("sell", [])
+            if depth_asks and depth_asks[0].get("price", 0) > 0:
+                best_ask_price = float(depth_asks[0]["price"])
+                best_ask_qty = int(depth_asks[0].get("quantity", 0))
+            depth_bids = inst_quote.get("depth", {}).get("buy", [])
+            if depth_bids and depth_bids[0].get("price", 0) > 0:
+                best_bid_price = float(depth_bids[0]["price"])
+                best_bid_qty = int(depth_bids[0].get("quantity", 0))
+        except Exception:
+            pass
+
         if not strat["orders"][leg].get("exit_price") or float(strat["orders"][leg].get("exit_price", 0.0)) == 0.0:
             strat["orders"][leg]["exit_price"] = curr_ltp
 
         if sym and strat["orders"][leg].get("status") == "ACTIVE":
+            if exit_txn == kite.TRANSACTION_TYPE_BUY:
+                # Exiting short position (buying back): use best ask/offer + 1%
+                base_exit_p = best_ask_price if best_ask_price > 0 else curr_ltp
+                exit_limit = round((base_exit_p * 1.01) * 20) / 20 if base_exit_p > 0 else 0.0
+                log_pos(f"[{sname}] Exit BUY Order for {leg} ({sym}): Best Ask/Offer: ₹{best_ask_price:.2f} (Depth Qty: {best_ask_qty}), LTP: ₹{curr_ltp:.2f} -> Limit: ₹{exit_limit:.2f} (+1%)...")
+            else:
+                base_exit_p = best_bid_price if best_bid_price > 0 else curr_ltp
+                exit_limit = round((base_exit_p * 0.99) * 20) / 20 if base_exit_p > 0 else 0.0
+                log_pos(f"[{sname}] Exit SELL Order for {leg} ({sym}): Best Bid: ₹{best_bid_price:.2f} (Depth Qty: {best_bid_qty}), LTP: ₹{curr_ltp:.2f} -> Limit: ₹{exit_limit:.2f} (-1%)...")
+
             try:
-                oid = kite.place_order(
-                    variety=kite.VARIETY_REGULAR,
-                    exchange=exchange,
-                    tradingsymbol=sym,
-                    transaction_type=exit_txn,
-                    quantity=qty,
-                    product=product,
-                    order_type=kite.ORDER_TYPE_MARKET,
-                    tag=pos_tag
-                )
-                log_pos(f"[{sname}] Market exit order placed for {leg} ({sym}) on {exchange}. Order ID: {oid}")
+                if exit_limit > 0:
+                    oid = kite.place_order(
+                        variety=kite.VARIETY_REGULAR,
+                        exchange=exchange,
+                        tradingsymbol=sym,
+                        transaction_type=exit_txn,
+                        quantity=qty,
+                        product=product,
+                        order_type=kite.ORDER_TYPE_LIMIT,
+                        price=float(exit_limit),
+                        tag=pos_tag
+                    )
+                else:
+                    oid = kite.place_order(
+                        variety=kite.VARIETY_REGULAR,
+                        exchange=exchange,
+                        tradingsymbol=sym,
+                        transaction_type=exit_txn,
+                        quantity=qty,
+                        product=product,
+                        order_type=kite.ORDER_TYPE_MARKET,
+                        tag=pos_tag
+                    )
+                log_pos(f"[{sname}] Exit order placed for {leg} ({sym}) on {exchange}. Order ID: {oid}")
                 strat["orders"][leg]["status"] = "SQUARED_OFF"
             except Exception as e:
-                log_pos(f"[{sname}] Error placing exit order for {leg} ({sym}): {e}")
+                log_pos(f"[{sname}] Limit exit failed for {leg} ({sym}): {e}. Retrying with MARKET order...")
+                try:
+                    oid = kite.place_order(
+                        variety=kite.VARIETY_REGULAR,
+                        exchange=exchange,
+                        tradingsymbol=sym,
+                        transaction_type=exit_txn,
+                        quantity=qty,
+                        product=product,
+                        order_type=kite.ORDER_TYPE_MARKET,
+                        tag=pos_tag
+                    )
+                    log_pos(f"[{sname}] Market exit order placed for {leg} ({sym}). Order ID: {oid}")
+                    strat["orders"][leg]["status"] = "SQUARED_OFF"
+                except Exception as mkt_e:
+                    log_pos(f"[{sname}] Market exit order ALSO failed for {leg} ({sym}): {mkt_e}")
 
     strat["active"] = False
     strat["status"] = "Squared Off"
