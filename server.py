@@ -1876,13 +1876,26 @@ def api_toggle_strategy(strat_id):
     for s in strategies_store:
         if s.get("id") == strat_id:
             s["active"] = not s.get("active", False) if active_val is None else bool(active_val)
-            if not s["active"] and s.get("orders", {}).get("orders_placed"):
-                run_exit_cycle_for(s)
+            if not s["active"]:
+                # If stopped, trigger exit cycle if orders were placed or strategy had active trade
+                if s.get("orders", {}).get("orders_placed") or s.get("run_tag") or s.get("orders_tag"):
+                    run_exit_cycle_for(s)
             log_execution(f"Strategy '{s.get('name')}' active state set to {s['active']}")
             break
             
     save_strategies(strategies_store)
     return jsonify({"status": "ok", "strategies": strategies_store})
+
+
+@app.route("/api/strategies/<strat_id>/squareoff", methods=["POST"])
+def api_squareoff_strategy(strat_id):
+    global strategies_store
+    for s in strategies_store:
+        if s.get("id") == strat_id:
+            run_exit_cycle_for(s)
+            return jsonify({"status": "ok", "message": f"Exit cycle completed for '{s.get('name')}'", "strategies": strategies_store})
+            
+    return jsonify({"status": "error", "message": "Strategy not found"}), 404
 
 
 @app.route("/api/strategies/run-all", methods=["POST"])
@@ -1904,7 +1917,7 @@ def api_run_all_strategies():
 def api_stop_all_strategies():
     global strategies_store
     for s in strategies_store:
-        if s.get("orders", {}).get("orders_placed"):
+        if s.get("orders", {}).get("orders_placed") or s.get("run_tag") or s.get("orders_tag"):
             run_exit_cycle_for(s)
         s["active"] = False
         s["status"] = "Stopped"
@@ -2181,7 +2194,10 @@ def api_pos_strangle_toggle_strategy(strat_id):
 
         target["active"] = bool(active_val)
         target["status"] = "Active" if active_val else "Stopped"
-        pos_strngl.save_pos_strategies(strats)
+        if not target["active"] and target.get("orders", {}).get("orders_placed"):
+            pos_strngl.squareoff_positional_strangle_for(target)
+        else:
+            pos_strngl.save_pos_strategies(strats)
         pos_strngl.pos_strategies_store = strats
         pos_strngl.log_pos(f"[{target.get('name')}] {'ACTIVATED' if active_val else 'STOPPED'} by user.")
         return jsonify({"status": "ok", "active": target["active"], "status_text": target["status"]})
@@ -2416,7 +2432,10 @@ def api_straddle_total_sl_toggle(strat_id):
 
         target["active"] = bool(active_val)
         target["status"] = "Active" if active_val else "Stopped"
-        straddle_total_sl.save_straddle_strategies(strats)
+        if not target["active"] and target.get("orders", {}).get("orders_placed"):
+            straddle_total_sl.squareoff_straddle_strategy_for(target, reason="Manual UI Stop")
+        else:
+            straddle_total_sl.save_straddle_strategies(strats)
         straddle_total_sl.straddle_strategies_store = strats
         straddle_total_sl.log_straddle(f"[{target.get('name')}] {'ACTIVATED' if active_val else 'STOPPED'} by user.")
         return jsonify({"status": "ok", "active": target["active"], "status_text": target["status"]})

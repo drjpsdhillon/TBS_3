@@ -3519,13 +3519,16 @@
                         </div>
 
                         <div style="display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap;">
-                            <button onclick="toggleSingleStrategy('${s.id}', ${!isActive})" class="btn-primary" style="flex: 1; min-width: 100px; padding: 6px 12px; font-size: 12px; background: ${isActive ? 'linear-gradient(135deg, var(--error), #b8433e)' : 'linear-gradient(135deg, #7ea0c1, #698ea9)'}; border-color: ${isActive ? '#b8433e' : '#6385a0'};">
+                            <button onclick="toggleSingleStrategy('${s.id}', ${!isActive})" class="btn-primary" style="flex: 1; min-width: 90px; padding: 6px 12px; font-size: 12px; background: ${isActive ? 'linear-gradient(135deg, var(--error), #b8433e)' : 'linear-gradient(135deg, #7ea0c1, #698ea9)'}; border-color: ${isActive ? '#b8433e' : '#6385a0'};">
                                 ${isActive ? '🛑 Stop' : '▶️ Run'}
                             </button>
-                            <button onclick="calculateStrikes('${s.id}')" class="btn-secondary" style="padding: 6px 12px; font-size: 12px;" title="Fetch current option LTPs and find best matching strikes">
+                            <button onclick="calculateStrikes('${s.id}')" class="btn-secondary" style="padding: 6px 10px; font-size: 12px;" title="Fetch current option LTPs and find best matching strikes">
                                 🔍 Calc
                             </button>
-                            <button onclick="editStrategy('${s.id}')" class="btn-secondary" style="padding: 6px 12px; font-size: 12px;">✏️ Edit</button>
+                            <button onclick="squareoffSingleStrategy('${s.id}')" class="btn-secondary" style="padding: 6px 10px; font-size: 12px; color: var(--error); border-color: rgba(203, 83, 78, 0.4);" title="Trigger complete exit cycle (cancel pending orders & square off positions)">
+                                ⚡ Exit
+                            </button>
+                            <button onclick="editStrategy('${s.id}')" class="btn-secondary" style="padding: 6px 10px; font-size: 12px;">✏️ Edit</button>
                             <button onclick="deleteStrategy('${s.id}')" class="btn-secondary" style="padding: 6px 10px; font-size: 12px; color: var(--error); border-color: rgba(203, 83, 78, 0.4); background: #ffffff;">🗑️</button>
                         </div>
                     </div>`;
@@ -3562,6 +3565,19 @@
                 toast(newActive ? 'Strategy Activated' : 'Strategy Stopped');
                 fetchAndRenderStrategies();
                 refreshOrdersAndPositions();
+            }
+        }
+
+        async function squareoffSingleStrategy(id) {
+            if (!confirm('Are you sure you want to manually trigger the complete Exit Cycle for this intraday strategy?\n\nThis will cancel all open/pending SL & Re-entry orders, fetch net positions, and execute market square-off orders.')) return;
+            toast('⚡ Starting Exit Cycle...');
+            const res = await api(`/api/strategies/${id}/squareoff`, 'POST');
+            if (res.status === 'ok') {
+                toast('✅ ' + (res.message || 'Exit cycle executed successfully'));
+                fetchAndRenderStrategies();
+                refreshOrdersAndPositions();
+            } else {
+                toast('❌ ' + (res.message || 'Exit cycle failed'), true);
             }
         }
 
