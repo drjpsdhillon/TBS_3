@@ -1681,14 +1681,14 @@ def monitor_positional_strategies_cycle():
         logger.error(f"Error in positional monitoring loop: {e}")
 
 def positional_strangle_background_loop():
-    """Dedicated background thread loop running continuously."""
+    """Dedicated background thread loop running continuously every 3 seconds."""
     log_pos("Positional Strangle background thread online.")
     while True:
         try:
             monitor_positional_strategies_cycle()
         except Exception as e:
             logger.error(f"Error in pos_strangle thread: {e}")
-        time.sleep(5)
+        time.sleep(3)
 
 # Auto-start daemon thread on module import
 _worker_thread = threading.Thread(target=positional_strangle_background_loop, daemon=True)

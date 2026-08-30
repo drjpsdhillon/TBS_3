@@ -1624,9 +1624,12 @@ def monitor_straddle_strategies_cycle():
         # Adjustment symbols (active & manual pending)
         adj = s.get("adjustments", {})
         if adj.get("enabled"):
-            # If Spot Distance mode enabled, track the spot symbol
-            mode = adj.get("mode", "AUTOMATIC")
-            if mode == "SPOT_DISTANCE":
+            mode = adj.get("mode", "ALL")
+            enable_spot_dist = bool(adj.get("enable_spot_dist", True if mode in ("SPOT_DISTANCE", "ALL") or adj.get("spot_distance_rules") else False))
+            enable_manual = bool(adj.get("enable_manual", True if (mode in ("MANUAL", "ALL") or len(adj.get("manual_legs", [])) > 0) else False))
+
+            # Track spot symbol for spot movement rules
+            if enable_spot_dist:
                 symbols_to_quote.add(get_spot_symbol(s.get("index_name")))
 
             # Active adjustment orders
@@ -1635,10 +1638,17 @@ def monitor_straddle_strategies_cycle():
                     symbols_to_quote.add(f"{exch}:{leg_data['symbol']}")
 
             # Pending manual legs needing quotes
-            if mode == "MANUAL":
+            if enable_manual:
                 for mleg in adj.get("manual_legs", []):
-                    if mleg.get("status", "PENDING") == "PENDING" and mleg.get("symbol"):
-                        symbols_to_quote.add(f"{exch}:{mleg['symbol']}")
+                    if mleg.get("status", "PENDING") == "PENDING":
+                        m_sym = mleg.get("symbol")
+                        if not m_sym and mleg.get("strike") and s.get("resolved_expiry"):
+                            resolved = resolve_straddle_option_symbol(s.get("index_name"), s.get("resolved_expiry"), mleg.get("strike"), mleg.get("option_type", "CE"))
+                            if resolved:
+                                mleg["symbol"] = resolved
+                                m_sym = resolved
+                        if m_sym:
+                            symbols_to_quote.add(f"{exch}:{m_sym}")
 
     if not symbols_to_quote:
         return
@@ -1675,29 +1685,32 @@ def monitor_straddle_strategies_cycle():
                         leg_pnl = (entry_p - curr_ltp) * qty
                     else:
                         leg_pnl = (curr_ltp - entry_p) * qty
+                    s["orders"][leg]["pnl"] = round(leg_pnl, 2)
                     base_pnl += leg_pnl
 
             s["current_total_premium"] = round(current_total_prem, 2)
-            
-            # --- B. Process Adjustment Trades Layer ---
-            adj_pnl = 0.0
-            adj = s.setdefault("adjustments", {})
-            if adj.get("enabled"):
-                active_orders = adj.setdefault("active_orders", {})
-                
-                # Check which adjustment types are enabled (support both mode string and multi-flags)
-                auto_cfg = adj.setdefault("auto_config", {})
-                dist_cfg = adj.setdefault("spot_distance_config", {})
-                manual_legs = adj.setdefault("manual_legs", [])
+            s["base_pnl"] = round(base_pnl, 2)
 
-                mode = adj.get("mode", "AUTOMATIC")
+            # --- B. Process Multi-Adjustment Engines (Decay, Spot Distance, Custom Extra Legs) ---
+            adj_pnl = 0.0
+            adj = s.get("adjustments", {})
+            if adj.get("enabled"):
+                mode = adj.get("mode", "ALL")
+                auto_cfg = adj.get("auto_config", {})
+                dist_cfg = adj.get("spot_distance_config", {})
+                manual_legs = adj.get("manual_legs", [])
+                active_orders = adj.get("active_orders", {})
+                adj["active_orders"] = active_orders
+
                 enable_auto = bool(auto_cfg.get("enabled", True if mode in ("AUTOMATIC", "ALL") else False))
-                enable_spot_dist = bool(dist_cfg.get("enabled", True if mode in ("SPOT_DISTANCE", "ALL") else False))
+                enable_spot_dist = bool(adj.get("enable_spot_dist", True if mode in ("SPOT_DISTANCE", "ALL") or adj.get("spot_distance_rules") else False))
                 enable_manual = bool(adj.get("enable_manual", True if (mode in ("MANUAL", "ALL") or len(manual_legs) > 0) else False))
 
-                # 1. Automatic Decay Mode: Check if Base Legs Decayed by Trigger % (up to max_adjustments)
+                # 1. Automatic Decay Adjustment: Sells leg when premium decays near target % (e.g. 15% target - 2% buffer = 13%)
                 if enable_auto:
-                    decay_target_pct = float(auto_cfg.get("trigger_decay_percent", 20.0))
+                    decay_target_pct = float(auto_cfg.get("trigger_decay_percent", 15.0))
+                    decay_buffer_pct = float(auto_cfg.get("near_buffer_percent", 0.0))
+                    effective_decay_trigger = max(0.0, decay_target_pct - decay_buffer_pct)
                     max_adjs = int(auto_cfg.get("max_adjustments", 3))
                     adj_lots = int(auto_cfg.get("lots", 1))
                     adj_qty = max(lot_size, adj_lots * lot_size)
@@ -1719,9 +1732,9 @@ def monitor_straddle_strategies_cycle():
                         if adjs_done < max_adjs and not current_leg_adj_active and base_entry > 0 and curr_ltp > 0 and base_sym:
                             # Premium decay percentage = ((Entry - Current) / Entry) * 100
                             decay_pct = ((base_entry - curr_ltp) / base_entry) * 100.0
-                            if decay_pct >= decay_target_pct:
+                            if decay_pct >= effective_decay_trigger:
                                 next_adj_num = adjs_done + 1
-                                log_straddle(f"[{sname}] 🎯 AUTOMATIC ADJUSTMENT #{next_adj_num}/{max_adjs} TRIGGERED for {leg} ({base_sym})! Premium decayed by {decay_pct:.1f}% (Threshold: {decay_target_pct:.1f}%) from ₹{base_entry:.2f} to ₹{curr_ltp:.2f}. Executing {adj_lots} Lot(s) ({adj_qty} qty) with SL & TSL...")
+                                log_straddle(f"[{sname}] 🎯 AUTOMATIC ADJUSTMENT #{next_adj_num}/{max_adjs} TRIGGERED for {leg} ({base_sym})! Premium decayed by {decay_pct:.1f}% (Target: {decay_target_pct:.1f}%, Buffer: {decay_buffer_pct:.1f}%, Triggered at >= {effective_decay_trigger:.1f}%) from ₹{base_entry:.2f} to ₹{curr_ltp:.2f}. Executing {adj_lots} Lot(s) ({adj_qty} qty) with SL & TSL...")
                                 leg_id = f"auto_{leg.lower()}_adj_{next_adj_num}"
                                 ok, msg = place_straddle_adjustment_order(
                                     strat=s,
@@ -1743,7 +1756,7 @@ def monitor_straddle_strategies_cycle():
                                     auto_cfg[count_key] = next_adj_num
                                     auto_cfg[f"{leg.lower()}_triggered"] = True
 
-                # 2. Spot Distance Move Mode: Process Multiple Spot Distance Rules independently
+                # 2. Spot Distance Move Mode: Process Multiple Spot Distance Rules with Near Buffer
                 if enable_spot_dist:
                     spot_rules = adj.get("spot_distance_rules")
                     if not spot_rules and adj.get("spot_distance_config"):
@@ -1760,6 +1773,9 @@ def monitor_straddle_strategies_cycle():
                             r_id = r_cfg.get("id") or f"srule_{r_idx + 1}"
                             r_cfg["id"] = r_id
                             move_step = float(r_cfg.get("move_step_pts") or 500.0)
+                            buffer_pct = float(r_cfg.get("near_buffer_pct", 10.0))  # e.g. 10% near distance
+                            effective_move_step = max(0.0, move_step * (1.0 - (buffer_pct / 100.0)))
+                            
                             offset_pts = float(r_cfg.get("strike_offset_pts") or 2000.0)
                             round_mult = float(r_cfg.get("round_multiple") or 500.0)
                             adj_action = str(r_cfg.get("action") or "SELL").upper()
@@ -1769,8 +1785,9 @@ def monitor_straddle_strategies_cycle():
                             up_done = int(r_cfg.get("up_adjustments_done") or 0)
                             down_done = int(r_cfg.get("down_adjustments_done") or 0)
 
-                            # A. Check Downward Market Move
-                            if spot_diff <= -((down_done + 1) * move_step) and down_done < max_adjs:
+                            # A. Check Downward Market Move (Spot dropped near or past step)
+                            down_thresh = (down_done * move_step) + effective_move_step
+                            if spot_diff <= -down_thresh and down_done < max_adjs:
                                 next_down_num = down_done + 1
                                 raw_strike = curr_spot - offset_pts
                                 target_strike = round(raw_strike / round_mult) * round_mult if round_mult > 0 else raw_strike
@@ -1779,7 +1796,7 @@ def monitor_straddle_strategies_cycle():
                                 actions_to_place = ["BUY", "SELL"] if adj_action in ("BOTH", "BUY_AND_SELL", "BUY_SELL") else [adj_action]
                                 resolved_sym = resolve_straddle_option_symbol(s.get("index_name"), s.get("resolved_expiry"), target_strike, opt_type)
                                 if resolved_sym:
-                                    log_straddle(f"[{sname}] 🎯 SPOT DISTANCE RULE #{r_idx+1} ({adj_action}) DOWN #{next_down_num}/{max_adjs} TRIGGERED! Spot fell by {abs(spot_diff):.1f} pts (From ₹{base_spot:.2f} to ₹{curr_spot:.2f} <= Threshold -{next_down_num * move_step} pts). Executing {' & '.join(actions_to_place)} {resolved_sym} ({target_strike} {opt_type} [Spot ₹{curr_spot:.1f} - {offset_pts} pts, rounded to nearest {round_mult}]) with {adj_lots} Lot(s)...")
+                                    log_straddle(f"[{sname}] 🎯 SPOT DISTANCE RULE #{r_idx+1} ({adj_action}) DOWN #{next_down_num}/{max_adjs} TRIGGERED! Spot fell by {abs(spot_diff):.1f} pts (From ₹{base_spot:.2f} to ₹{curr_spot:.2f} <= Near-Threshold -{down_thresh:.1f} pts [{buffer_pct}% near {move_step} pts]). Executing {' & '.join(actions_to_place)} {resolved_sym} ({target_strike} {opt_type} [Spot ₹{curr_spot:.1f} - {offset_pts} pts, rounded to nearest {round_mult}]) with {adj_lots} Lot(s)...")
                                     any_ok = False
                                     for act in actions_to_place:
                                         adj_id = f"spot_dist_r{r_idx+1}_down_{next_down_num}_{act.lower()}"
@@ -1804,8 +1821,9 @@ def monitor_straddle_strategies_cycle():
                                     if any_ok:
                                         r_cfg["down_adjustments_done"] = next_down_num
 
-                            # B. Check Upward Market Move
-                            elif spot_diff >= ((up_done + 1) * move_step) and up_done < max_adjs:
+                            # B. Check Upward Market Move (Spot rose near or past step)
+                            up_thresh = (up_done * move_step) + effective_move_step
+                            if spot_diff >= up_thresh and up_done < max_adjs:
                                 next_up_num = up_done + 1
                                 raw_strike = curr_spot + offset_pts
                                 target_strike = round(raw_strike / round_mult) * round_mult if round_mult > 0 else raw_strike
@@ -1814,7 +1832,7 @@ def monitor_straddle_strategies_cycle():
                                 actions_to_place = ["BUY", "SELL"] if adj_action in ("BOTH", "BUY_AND_SELL", "BUY_SELL") else [adj_action]
                                 resolved_sym = resolve_straddle_option_symbol(s.get("index_name"), s.get("resolved_expiry"), target_strike, opt_type)
                                 if resolved_sym:
-                                    log_straddle(f"[{sname}] 🎯 SPOT DISTANCE RULE #{r_idx+1} ({adj_action}) UP #{next_up_num}/{max_adjs} TRIGGERED! Spot rose by +{spot_diff:.1f} pts (From ₹{base_spot:.2f} to ₹{curr_spot:.2f} >= Threshold +{next_up_num * move_step} pts). Executing {' & '.join(actions_to_place)} {resolved_sym} ({target_strike} {opt_type} [Spot ₹{curr_spot:.1f} + {offset_pts} pts, rounded to nearest {round_mult}]) with {adj_lots} Lot(s)...")
+                                    log_straddle(f"[{sname}] 🎯 SPOT DISTANCE RULE #{r_idx+1} ({adj_action}) UP #{next_up_num}/{max_adjs} TRIGGERED! Spot rose by +{spot_diff:.1f} pts (From ₹{base_spot:.2f} to ₹{curr_spot:.2f} >= Near-Threshold +{up_thresh:.1f} pts [{buffer_pct}% near {move_step} pts]). Executing {' & '.join(actions_to_place)} {resolved_sym} ({target_strike} {opt_type} [Spot ₹{curr_spot:.1f} + {offset_pts} pts, rounded to nearest {round_mult}]) with {adj_lots} Lot(s)...")
                                     any_ok = False
                                     for act in actions_to_place:
                                         adj_id = f"spot_dist_r{r_idx+1}_up_{next_up_num}_{act.lower()}"
@@ -1839,7 +1857,7 @@ def monitor_straddle_strategies_cycle():
                                     if any_ok:
                                         r_cfg["up_adjustments_done"] = next_up_num
 
-                # 3. Manual / Custom Extra Legs Mode: Check Trigger Prices on Defined Legs
+                # 3. Manual / Custom Extra Legs Mode: Check Trigger Prices with Near Buffer
                 if enable_manual and manual_legs:
                     for idx, mleg in enumerate(manual_legs):
                         m_status = mleg.get("status", "PENDING")
@@ -1848,17 +1866,11 @@ def monitor_straddle_strategies_cycle():
                         m_sym = mleg.get("symbol")
                         m_action = str(mleg.get("action", "SELL")).upper()
                         m_trigger = float(mleg.get("trigger_price", 0.0))
+                        m_buffer_pct = float(mleg.get("near_buffer_pct", 10.0))  # e.g. 10% near
                         m_strike = mleg.get("strike")
                         m_opt_type = str(mleg.get("option_type", "CE")).upper()
                         m_lots = int(mleg.get("lots", 1))
                         m_qty = int(mleg.get("quantity") or (m_lots * lot_size))
-
-                        # If symbol not yet resolved, try resolving from strike + option_type + expiry
-                        if not m_sym and m_strike and s.get("resolved_expiry"):
-                            resolved_sym = resolve_straddle_option_symbol(s.get("index_name"), s.get("resolved_expiry"), m_strike, m_opt_type)
-                            if resolved_sym:
-                                mleg["symbol"] = resolved_sym
-                                m_sym = resolved_sym
 
                         if m_status == "PENDING" and m_sym and m_trigger > 0:
                             q_key = f"{exch}:{m_sym}"
@@ -1867,15 +1879,19 @@ def monitor_straddle_strategies_cycle():
                                 mleg["current_ltp"] = curr_ltp
                                 trigger_hit = False
 
-                                # For BUY: Trigger when LTP >= Trigger Price
-                                if m_action == "BUY" and curr_ltp >= m_trigger:
-                                    trigger_hit = True
-                                    log_straddle(f"[{sname}] 🎯 MANUAL ADJUSTMENT TRIGGERED for {m_action} {m_sym}! LTP ₹{curr_ltp:.2f} >= Trigger ₹{m_trigger:.2f}. Executing order...")
+                                # Effective near-trigger calculation
+                                # BUY: triggers when LTP rises near target
+                                effective_buy_trigger = m_trigger * (1.0 - (m_buffer_pct / 100.0)) if m_buffer_pct > 0 else m_trigger
+                                # SELL: triggers when LTP drops near target
+                                effective_sell_trigger = m_trigger * (1.0 + (m_buffer_pct / 100.0)) if m_buffer_pct > 0 else m_trigger
 
-                                # For SELL: Trigger when LTP <= Trigger Price
-                                elif m_action == "SELL" and curr_ltp <= m_trigger:
+                                if m_action == "BUY" and curr_ltp >= effective_buy_trigger:
                                     trigger_hit = True
-                                    log_straddle(f"[{sname}] 🎯 MANUAL ADJUSTMENT TRIGGERED for {m_action} {m_sym}! LTP ₹{curr_ltp:.2f} <= Trigger ₹{m_trigger:.2f}. Executing order...")
+                                    log_straddle(f"[{sname}] 🎯 MANUAL ADJUSTMENT TRIGGERED for {m_action} {m_sym}! LTP ₹{curr_ltp:.2f} >= Near-Trigger ₹{effective_buy_trigger:.2f}")
+
+                                elif m_action == "SELL" and curr_ltp <= effective_sell_trigger:
+                                    trigger_hit = True
+                                    log_straddle(f"[{sname}] 🎯 MANUAL ADJUSTMENT TRIGGERED for {m_action} {m_sym}! LTP ₹{curr_ltp:.2f} <= Near-Trigger ₹{effective_sell_trigger:.2f}")
 
                                 if trigger_hit:
                                     ok, msg = place_straddle_adjustment_order(
@@ -1930,63 +1946,50 @@ def monitor_straddle_strategies_cycle():
                             best_ltp = float(leg_data.get("best_ltp", entry_p))
 
                             if adj_action == "SELL":
-                                # For SELL leg: Favorable move = LTP goes lower
                                 if curr_ltp < best_ltp:
                                     leg_data["best_ltp"] = curr_ltp
-
-                                # If premium dropped by at least tsl_step from reference
                                 if (ref_ltp - curr_ltp) >= tsl_step and tsl_step > 0:
                                     steps_count = int((ref_ltp - curr_ltp) // tsl_step)
                                     pts_to_trail = steps_count * tsl_val
                                     new_sl = round(sl_trigger - pts_to_trail, 2)
                                     leg_data["current_sl_trigger"] = new_sl
                                     leg_data["tsl_reference_ltp"] = round(ref_ltp - (steps_count * tsl_step), 2)
-                                    log_straddle(f"[{sname}] 🎯 TSL TRAIL for Adjustment '{adj_id}' ({adj_sym}): LTP dropped to ₹{curr_ltp:.2f}. Trailed SL lower from ₹{sl_trigger:.2f} ➔ ₹{new_sl:.2f}")
+                                    log_straddle(f"[{sname}] 🎯 TSL TRAIL for Adjustment '{adj_id}': Trailed SL ➔ ₹{new_sl:.2f}")
 
                             else:
-                                # For BUY leg: Favorable move = LTP goes higher
                                 if curr_ltp > best_ltp:
                                     leg_data["best_ltp"] = curr_ltp
-
-                                # If premium rose by at least tsl_step from reference
                                 if (curr_ltp - ref_ltp) >= tsl_step and tsl_step > 0:
                                     steps_count = int((curr_ltp - ref_ltp) // tsl_step)
                                     pts_to_trail = steps_count * tsl_val
                                     new_sl = round(sl_trigger + pts_to_trail, 2)
                                     leg_data["current_sl_trigger"] = new_sl
                                     leg_data["tsl_reference_ltp"] = round(ref_ltp + (steps_count * tsl_step), 2)
-                                    log_straddle(f"[{sname}] 🎯 TSL TRAIL for Adjustment '{adj_id}' ({adj_sym}): LTP rose to ₹{curr_ltp:.2f}. Trailed SL higher from ₹{sl_trigger:.2f} ➔ ₹{new_sl:.2f}")
+                                    log_straddle(f"[{sname}] 🎯 TSL TRAIL for Adjustment '{adj_id}': Trailed SL ➔ ₹{new_sl:.2f}")
 
-                        # Check Stop Loss Breach for Adjustment Leg
-                        sl_breached = False
-                        if adj_action == "SELL":
-                            if curr_ltp >= leg_data.get("current_sl_trigger", 0.0) and leg_data.get("current_sl_trigger", 0.0) > 0:
-                                sl_breached = True
-                        else:
-                            if curr_ltp <= leg_data.get("current_sl_trigger", 0.0) and leg_data.get("current_sl_trigger", 0.0) > 0:
-                                sl_breached = True
+                        # Check Stop Loss Trigger for Adjustment Leg
+                        if sl_trigger > 0:
+                            if adj_action == "SELL" and curr_ltp >= sl_trigger:
+                                log_straddle(f"[{sname}] 💥 STOP LOSS HIT on Adjustment Leg '{adj_id}' ({adj_sym})! LTP: ₹{curr_ltp:.2f} >= SL Trigger: ₹{sl_trigger:.2f}. Squaring off...")
+                                squareoff_straddle_adjustment_leg(s, adj_id, reason=f"SL Hit @ ₹{curr_ltp:.2f}")
+                            elif adj_action == "BUY" and curr_ltp <= sl_trigger:
+                                log_straddle(f"[{sname}] 💥 STOP LOSS HIT on Adjustment Leg '{adj_id}' ({adj_sym})! LTP: ₹{curr_ltp:.2f} <= SL Trigger: ₹{sl_trigger:.2f}. Squaring off...")
+                                squareoff_straddle_adjustment_leg(s, adj_id, reason=f"SL Hit @ ₹{curr_ltp:.2f}")
 
-                        if sl_breached:
-                            log_straddle(f"[{sname}] 🛑 STOP LOSS HIT on Adjustment Leg '{adj_id}' ({adj_sym})! LTP: ₹{curr_ltp:.2f}, SL: ₹{leg_data.get('current_sl_trigger', 0.0):.2f}. Squaring off adjustment leg...")
-                            squareoff_straddle_adjustment_leg(s, adj_id, reason=f"SL Hit @ ₹{curr_ltp:.2f}")
-
-            # --- C. Trailing Stop Loss for Base Strategy / Single Leg Setup ---
+            # --- C. Trailing Stop Loss on Base Setup (Total Premium or Individual Leg) ---
             if s.get("enable_tsl") and init_tot_prem > 0 and current_total_prem > 0:
-                tsl_val = float(s.get("tsl_value") or 10.0)
-                tsl_step = float(s.get("tsl_step") or 10.0)
-                tsl_type = str(s.get("tsl_type") or "POINTS").upper()
-                ref_prem = float(s.get("tsl_reference_prem") or init_tot_prem)
-                best_prem = float(s.get("best_total_prem") or init_tot_prem)
+                trail_pts = float(s.get("tsl_value", 10.0))
+                step_pts = float(s.get("tsl_step", 10.0))
                 curr_sl_trigger = float(s.get("current_sl_trigger_prem") or sl_trigger_prem)
+                ref_prem = float(s.get("tsl_reference_prem") or init_tot_prem)
+                best_prem = float(s.get("best_total_premium") or init_tot_prem)
 
                 if entry_action == "SELL":
-                    # Favorable move for SELL: Total premium decreases
+                    # Favorable move: Total premium decays / decreases
                     if current_total_prem < best_prem:
-                        s["best_total_prem"] = current_total_prem
+                        s["best_total_premium"] = current_total_prem
 
-                    step_pts = (init_tot_prem * (tsl_step / 100.0)) if tsl_type == "PERCENT" else tsl_step
-                    trail_pts = (init_tot_prem * (tsl_val / 100.0)) if tsl_type == "PERCENT" else tsl_val
-
+                    # If premium dropped by at least step_pts from reference
                     if (ref_prem - current_total_prem) >= step_pts and step_pts > 0:
                         steps_count = int((ref_prem - current_total_prem) // step_pts)
                         pts_to_trail = steps_count * trail_pts
@@ -1998,13 +2001,11 @@ def monitor_straddle_strategies_cycle():
                         sl_trigger_prem = new_sl
 
                 else:
-                    # Favorable move for BUY: Total premium increases
+                    # Favorable move: Total premium increases
                     if current_total_prem > best_prem:
-                        s["best_total_prem"] = current_total_prem
+                        s["best_total_premium"] = current_total_prem
 
-                    step_pts = (init_tot_prem * (tsl_step / 100.0)) if tsl_type == "PERCENT" else tsl_step
-                    trail_pts = (init_tot_prem * (tsl_val / 100.0)) if tsl_type == "PERCENT" else tsl_val
-
+                    # If premium rose by at least step_pts from reference
                     if (current_total_prem - ref_prem) >= step_pts and step_pts > 0:
                         steps_count = int((current_total_prem - ref_prem) // step_pts)
                         pts_to_trail = steps_count * trail_pts
@@ -2019,8 +2020,6 @@ def monitor_straddle_strategies_cycle():
             total_strat_pnl = round(base_pnl + adj_pnl, 2)
             s["pnl"] = total_strat_pnl
             s["unrealized_pnl"] = total_strat_pnl
-            s["base_pnl"] = round(base_pnl, 2)
-            s["adjustment_pnl"] = round(adj_pnl, 2)
             s["last_checked"] = datetime.now().strftime("%H:%M:%S")
             record_straddle_running_pnl(s, total_strat_pnl)
 
@@ -2029,25 +2028,19 @@ def monitor_straddle_strategies_cycle():
             if init_tot_prem > 0 and current_total_prem > 0:
                 if entry_action == "SELL":
                     # SHORT STRADDLE / SHORT SINGLE LEG
-                    # Stop Loss: Combined premium increased to or above effective_sl_prem
                     if current_total_prem >= effective_sl_prem and effective_sl_prem > 0:
-                        log_straddle(f"[{sname}] 🛑 STOP LOSS / TSL TRIGGERED! Premium expanded from ₹{init_tot_prem:.2f} to ₹{current_total_prem:.2f} (SL Threshold: ₹{effective_sl_prem:.2f}). Squaring off position...")
+                        log_straddle(f"[{sname}] 🛑 STOP LOSS / TSL TRIGGERED! Premium expanded to ₹{current_total_prem:.2f}. Squaring off position...")
                         squareoff_straddle_strategy_for(s, reason=f"SL / TSL Hit @ ₹{current_total_prem:.2f}")
-
-                    # Target Profit: Combined premium decayed to or below tp_trigger_prem
                     elif current_total_prem <= tp_trigger_prem and tp_trigger_prem > 0:
-                        log_straddle(f"[{sname}] 🎯 TARGET PROFIT HIT! Premium decayed from ₹{init_tot_prem:.2f} to ₹{current_total_prem:.2f} (Target Threshold: ₹{tp_trigger_prem:.2f}). Squaring off position...")
+                        log_straddle(f"[{sname}] 🎯 TARGET PROFIT HIT! Premium decayed to ₹{current_total_prem:.2f}. Squaring off position...")
                         squareoff_straddle_strategy_for(s, reason=f"Target Hit @ ₹{current_total_prem:.2f}")
                 else:
                     # LONG STRADDLE / LONG SINGLE LEG
-                    # Stop Loss: Combined premium decayed to or below effective_sl_prem
                     if current_total_prem <= effective_sl_prem and effective_sl_prem > 0:
-                        log_straddle(f"[{sname}] 🛑 STOP LOSS / TSL TRIGGERED! Premium dropped from ₹{init_tot_prem:.2f} to ₹{current_total_prem:.2f} (SL Threshold: ₹{effective_sl_prem:.2f}). Squaring off position...")
+                        log_straddle(f"[{sname}] 🛑 STOP LOSS / TSL TRIGGERED! Premium dropped to ₹{current_total_prem:.2f}. Squaring off position...")
                         squareoff_straddle_strategy_for(s, reason=f"SL / TSL Hit @ ₹{current_total_prem:.2f}")
-
-                    # Target Profit: Combined premium expanded to or above tp_trigger_prem
                     elif current_total_prem >= tp_trigger_prem and tp_trigger_prem > 0:
-                        log_straddle(f"[{sname}] 🎯 TARGET PROFIT HIT! Premium expanded from ₹{init_tot_prem:.2f} to ₹{current_total_prem:.2f} (Target Threshold: ₹{tp_trigger_prem:.2f}). Squaring off position...")
+                        log_straddle(f"[{sname}] 🎯 TARGET PROFIT HIT! Premium expanded to ₹{current_total_prem:.2f}. Squaring off position...")
                         squareoff_straddle_strategy_for(s, reason=f"Target Hit @ ₹{current_total_prem:.2f}")
 
         save_straddle_strategies(straddle_strategies_store)
@@ -2056,7 +2049,7 @@ def monitor_straddle_strategies_cycle():
 
 
 def straddle_total_sl_background_loop():
-    """Dedicated background thread loop for Positional Straddle Total SL engine."""
+    """Dedicated background thread loop for Positional Straddle Total SL engine (every 3 seconds)."""
     log_straddle("Straddle Total SL background thread online.")
     while True:
         try:

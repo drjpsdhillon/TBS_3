@@ -2254,9 +2254,14 @@
                                         <div id="straddleAdjAutoFields">
                                             <div class="form-row" style="margin-bottom: 8px;">
                                                 <div class="form-group" style="margin-bottom: 0;">
-                                                    <label for="straddleAdjDecayPct" style="font-size: 11px; font-weight: 700; color: #0f766e;">Trigger Decay (%)</label>
-                                                    <input type="number" id="straddleAdjDecayPct" value="20" min="1" max="99" step="1" style="font-weight: 700;" placeholder="e.g. 20%">
-                                                    <div class="time-hint" style="color: #0f766e;">Sells adjustment when base leg decays by this %</div>
+                                                    <label for="straddleAdjDecayPct" style="font-size: 11px; font-weight: 700; color: #0f766e;">Target Decay (%)</label>
+                                                    <input type="number" id="straddleAdjDecayPct" value="15" min="1" max="99" step="1" style="font-weight: 700;" placeholder="e.g. 15%">
+                                                    <div class="time-hint" style="color: #0f766e;">Target premium decay %</div>
+                                                </div>
+                                                <div class="form-group" style="margin-bottom: 0;">
+                                                    <label for="straddleAdjDecayBufferPct" style="font-size: 11px; font-weight: 700; color: #0f766e;">Near Trigger Buffer (%)</label>
+                                                    <input type="number" id="straddleAdjDecayBufferPct" value="2" min="0" max="50" step="0.5" style="font-weight: 700;" placeholder="e.g. 2%">
+                                                    <div class="time-hint" style="color: #0f766e;">Sends order when decay reaches (Target - Buffer, e.g. 15% - 2% = 13%)</div>
                                                 </div>
                                                 <div class="form-group" style="margin-bottom: 0;">
                                                     <label for="straddleAdjMaxCount" style="font-size: 11px; font-weight: 700; color: #0f766e;">Max Auto Adjustments</label>
@@ -2565,7 +2570,7 @@
                 document.getElementById('exchangeClock').textContent = now.toLocaleTimeString('en-IN', { hour12: false });
             }, 1000);
 
-            // 1-second fast strategy logs & prices monitor
+            // 3-second fast strategy logs & prices monitor
             setInterval(async () => {
                 if (document.getElementById('consoleView').style.display !== 'block') return;
                 try {
@@ -2600,19 +2605,19 @@
                 } catch (e) {
                     // handle poll error
                 }
-            }, 1000);
+            }, 3000);
 
-            // 5-second MTM, Positions, and Order Book Polling
+            // 3-second MTM, Positions, and Order Book Polling
             refreshOrdersAndPositions();
             setInterval(() => {
                 if (document.getElementById('consoleView').style.display === 'block') {
                     refreshOrdersAndPositions();
                 }
-            }, 5000);
+            }, 3000);
         }
 
         // ═══════════════════════════════════════════════════════════════
-        // MTM & ORDER BOOK DATA FETCHING (5-SEC POLLING)
+        // MTM & ORDER BOOK DATA FETCHING (3-SEC POLLING)
         // ═══════════════════════════════════════════════════════════════
 
         async function refreshOrdersAndPositions(showToast = false) {
@@ -5304,6 +5309,7 @@
             const rowId = data.id || `srule_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
             const action = data.action || 'SELL';
             const moveStep = data.move_step_pts !== undefined ? data.move_step_pts : 500;
+            const bufferPct = data.near_buffer_pct !== undefined ? data.near_buffer_pct : 10;
             const offsetPts = data.strike_offset_pts !== undefined ? data.strike_offset_pts : 2000;
             const roundMult = data.round_multiple !== undefined ? data.round_multiple : 500;
             const lots = data.lots || 1;
@@ -5326,7 +5332,7 @@
                     </div>
                     <button type="button" onclick="this.closest('.spot-dist-rule-row').remove()" style="background: none; border: none; color: #ef4444; font-weight: 700; cursor: pointer; font-size: 13px;">✕ Remove</button>
                 </div>
-                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 6px; margin-bottom: 6px;">
+                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr 1fr; gap: 6px; margin-bottom: 6px;">
                     <div>
                         <label style="font-size: 10px; font-weight: 700; color: #0369a1;">Action</label>
                         <select class="srule-action" style="font-size: 11px; font-weight: 700; padding: 4px 6px;">
@@ -5338,6 +5344,10 @@
                     <div>
                         <label style="font-size: 10px; font-weight: 700; color: #0369a1;">Move Step (Pts)</label>
                         <input type="number" class="srule-move" value="${moveStep}" step="any" placeholder="e.g. 500" style="font-size: 11px; font-weight: 700; padding: 4px 6px;">
+                    </div>
+                    <div>
+                        <label style="font-size: 10px; font-weight: 700; color: #0369a1;">Near Buffer (%)</label>
+                        <input type="number" class="srule-buffer" value="${bufferPct}" step="0.5" placeholder="e.g. 10%" style="font-size: 11px; font-weight: 700; padding: 4px 6px;" title="Triggers order when spot price is within this % of the move step">
                     </div>
                     <div>
                         <label style="font-size: 10px; font-weight: 700; color: #0369a1;">Strike Offset (Pts)</label>
@@ -5389,6 +5399,7 @@
             rows.forEach((row, idx) => {
                 const action = row.querySelector('.srule-action').value;
                 const moveStep = parseFloat(row.querySelector('.srule-move').value) || 500.0;
+                const bufferPct = parseFloat(row.querySelector('.srule-buffer').value) || 10.0;
                 const offsetPts = parseFloat(row.querySelector('.srule-offset').value) || 2000.0;
                 const roundMult = parseFloat(row.querySelector('.srule-round').value) || 500.0;
                 const lots = parseInt(row.querySelector('.srule-lots').value) || 1;
@@ -5403,6 +5414,7 @@
                     id: row.dataset.id || `srule_${idx + 1}`,
                     action: action,
                     move_step_pts: moveStep,
+                    near_buffer_pct: bufferPct,
                     strike_offset_pts: offsetPts,
                     round_multiple: roundMult,
                     lots: lots,
@@ -5428,6 +5440,7 @@
             const optType = data.option_type || 'CE';
             const action = data.action || 'SELL';
             const triggerPrice = data.trigger_price || '';
+            const bufferPct = data.near_buffer_pct !== undefined ? data.near_buffer_pct : 10;
             const lots = data.lots || 1;
             const slVal = data.sl_value || 30;
             const enableTsl = data.enable_tsl !== undefined ? data.enable_tsl : true;
@@ -5463,10 +5476,14 @@
                         </select>
                     </div>
                 </div>
-                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; margin-bottom: 6px;">
+                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 6px; margin-bottom: 6px;">
                     <div>
-                        <label style="font-size: 10px; font-weight: 700; color: #0284c7;">Trigger ₹</label>
+                        <label style="font-size: 10px; font-weight: 700; color: #0284c7;">Target Trigger ₹</label>
                         <input type="number" class="mleg-trigger" value="${triggerPrice}" step="0.5" placeholder="e.g. 80" style="font-size: 11px; font-weight: 700; padding: 4px 6px; border-color: #7dd3fc;">
+                    </div>
+                    <div>
+                        <label style="font-size: 10px; font-weight: 700; color: #0284c7;">Near Buffer (%)</label>
+                        <input type="number" class="mleg-buffer" value="${bufferPct}" step="0.5" placeholder="e.g. 10%" style="font-size: 11px; font-weight: 700; padding: 4px 6px;" title="Sends order when LTP is within this % of the trigger price">
                     </div>
                     <div>
                         <label style="font-size: 10px; font-weight: 700; color: #475569;">Lots</label>
@@ -5499,6 +5516,7 @@
                 const optType = row.querySelector('.mleg-type').value;
                 const action = row.querySelector('.mleg-action').value;
                 const triggerPrice = parseFloat(row.querySelector('.mleg-trigger').value);
+                const bufferPct = parseFloat(row.querySelector('.mleg-buffer').value) || 10.0;
                 const lots = parseInt(row.querySelector('.mleg-lots').value) || 1;
                 const slVal = parseFloat(row.querySelector('.mleg-sl').value) || 30.0;
                 const enableTsl = row.querySelector('.mleg-enable-tsl').checked;
@@ -5512,6 +5530,7 @@
                         option_type: optType,
                         action: action,
                         trigger_price: !isNaN(triggerPrice) ? triggerPrice : 0.0,
+                        near_buffer_pct: bufferPct,
                         lots: lots,
                         sl_type: "PERCENT",
                         sl_value: slVal,
@@ -5661,7 +5680,8 @@
                 document.getElementById('straddleEnableAutoDecay').checked = enableAuto;
                 toggleStraddleAutoDecaySection();
             }
-            document.getElementById('straddleAdjDecayPct').value = autoCfg.trigger_decay_percent || 20;
+            document.getElementById('straddleAdjDecayPct').value = autoCfg.trigger_decay_percent || 15;
+            document.getElementById('straddleAdjDecayBufferPct').value = autoCfg.near_buffer_percent !== undefined ? autoCfg.near_buffer_percent : 2;
             document.getElementById('straddleAdjMaxCount').value = autoCfg.max_adjustments || 3;
             document.getElementById('straddleAdjLots').value = autoCfg.lots || 1;
             document.getElementById('straddleAdjSlType').value = autoCfg.sl_type || 'PERCENT';
@@ -5778,7 +5798,8 @@
                     mode: "ALL",
                     auto_config: {
                         enabled: enableAutoDecay,
-                        trigger_decay_percent: parseFloat(document.getElementById('straddleAdjDecayPct').value) || 20.0,
+                        trigger_decay_percent: parseFloat(document.getElementById('straddleAdjDecayPct').value) || 15.0,
+                        near_buffer_percent: parseFloat(document.getElementById('straddleAdjDecayBufferPct').value) || 0.0,
                         max_adjustments: parseInt(document.getElementById('straddleAdjMaxCount').value) || 3,
                         lots: parseInt(document.getElementById('straddleAdjLots').value) || 1,
                         sl_type: document.getElementById('straddleAdjSlType').value,
@@ -5962,8 +5983,8 @@
                 showDashboard(res.user_name);
                 onPosIndexChange();
                 onStraddleIndexChange();
-                setInterval(fetchPosStrangleStatus, 5000);
-                setInterval(fetchStraddleStatus, 5000);
+                setInterval(fetchPosStrangleStatus, 3000);
+                setInterval(fetchStraddleStatus, 3000);
             }
         })();
 
