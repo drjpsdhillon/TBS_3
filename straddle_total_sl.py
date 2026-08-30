@@ -706,10 +706,35 @@ def calculate_straddle_strikes_for(strat):
         leg_sel = "BOTH"
 
     strike_mode = str(strat.get("strike_mode") or "ATM").upper()
-    strike_multiple = float(strat.get("strike_multiple") or 500.0)
-    manual_strike = strat.get("manual_strike")
-    ce_strike_cfg = strat.get("ce_strike")
-    pe_strike_cfg = strat.get("pe_strike")
+    try:
+        strike_multiple = float(strat.get("strike_multiple") or 500.0)
+    except Exception:
+        strike_multiple = 500.0
+
+    manual_strike_val = None
+    try:
+        m_val = strat.get("manual_strike")
+        if m_val is not None and str(m_val).strip() != "" and str(m_val).strip().upper() != "ATM":
+            manual_strike_val = float(m_val)
+    except Exception:
+        manual_strike_val = None
+
+    ce_strike_val = None
+    try:
+        c_val = strat.get("ce_strike")
+        if c_val is not None and str(c_val).strip() != "" and str(c_val).strip().upper() != "ATM":
+            ce_strike_val = float(c_val)
+    except Exception:
+        ce_strike_val = None
+
+    pe_strike_val = None
+    try:
+        p_val = strat.get("pe_strike")
+        if p_val is not None and str(p_val).strip() != "" and str(p_val).strip().upper() != "ATM":
+            pe_strike_val = float(p_val)
+    except Exception:
+        pe_strike_val = None
+
     raw_strike = str(strat.get("strike") or "").strip().upper()
 
     ce_candidates = [i for i in candidates if i.get("instrument_type") == "CE" and float(i.get("strike", 0)) > 0]
@@ -741,9 +766,9 @@ def calculate_straddle_strikes_for(strat):
                 logger.warning(f"Premium search fallback: {e}")
                 selected_ce_strike = min(available_ce_strikes, key=lambda x: abs(x - (spot_ltp + 300)))
                 selected_pe_strike = min(available_pe_strikes, key=lambda x: abs(x - (spot_ltp - 300)))
-        elif ce_strike_cfg and pe_strike_cfg:
-            selected_ce_strike = min(available_ce_strikes, key=lambda x: abs(x - float(ce_strike_cfg)))
-            selected_pe_strike = min(available_pe_strikes, key=lambda x: abs(x - float(pe_strike_cfg)))
+        elif ce_strike_val is not None and pe_strike_val is not None:
+            selected_ce_strike = min(available_ce_strikes, key=lambda x: abs(x - ce_strike_val))
+            selected_pe_strike = min(available_pe_strikes, key=lambda x: abs(x - pe_strike_val))
             log_straddle(f"[{strat.get('name')}] 🎯 Custom Strangle Strikes: CE {selected_ce_strike} & PE {selected_pe_strike}")
         else:
             # Default Strangle: OTM CE (+1 step) & OTM PE (-1 step)
@@ -758,13 +783,20 @@ def calculate_straddle_strikes_for(strat):
 
     else:
         # STRADDLE or INDIVIDUAL_LEG (Single Strike Mode)
+        raw_numeric_strike = None
+        try:
+            if raw_strike and raw_strike != "ATM" and not raw_strike.startswith("ROUND") and not raw_strike.startswith("MULT"):
+                raw_numeric_strike = float(raw_strike)
+        except Exception:
+            raw_numeric_strike = None
+
         if strike_mode == "ROUND_OFF" or raw_strike.startswith("ROUND") or raw_strike.startswith("MULT"):
             step = strike_multiple if strike_multiple > 0 else 500.0
             target_strike = round(spot_ltp / step) * step if spot_ltp > 0 else all_strikes[len(all_strikes)//2]
             atm_val = min(all_strikes, key=lambda x: abs(x - target_strike))
             log_straddle(f"[{strat.get('name')}] 🎯 Rounding Spot ₹{spot_ltp:.2f} to nearest multiple of {int(step)} -> Target Strike: {int(target_strike)} (Selected: {atm_val})")
-        elif strike_mode == "MANUAL" or (manual_strike and float(manual_strike) > 0) or (raw_strike and raw_strike != "ATM" and raw_strike.replace(".", "").isdigit() and float(raw_strike) > 500):
-            target_strike = float(manual_strike) if (manual_strike and float(manual_strike) > 0) else float(raw_strike)
+        elif strike_mode == "MANUAL" or (manual_strike_val and manual_strike_val > 0) or (raw_numeric_strike and raw_numeric_strike > 500):
+            target_strike = manual_strike_val if (manual_strike_val and manual_strike_val > 0) else raw_numeric_strike
             atm_val = min(all_strikes, key=lambda x: abs(x - target_strike))
             log_straddle(f"[{strat.get('name')}] 🎯 Using Manual Strike: {int(target_strike)} (Selected: {atm_val})")
         else:
@@ -820,11 +852,14 @@ def calculate_straddle_strikes_for(strat):
         if ce_sym: ce_ltp = 100.0
         if pe_sym: pe_ltp = 100.0
 
-    strat["selected_ce_ltp"] = ce_ltp
-    strat["selected_pe_ltp"] = pe_ltp
+    # 6. Calculate Initial Total Premium & SL/Target thresholds
+    if leg_sel == "CE_ONLY":
+        init_total_prem = round(ce_ltp, 2)
+    elif leg_sel == "PE_ONLY":
+        init_total_prem = round(pe_ltp, 2)
+    else:
+        init_total_prem = round(ce_ltp + pe_ltp, 2)
 
-    # 6. Calculate Initial Combined Total Premium & SL/Target thresholds
-    init_total_prem = round(ce_ltp + pe_ltp, 2)
     strat["initial_total_premium"] = init_total_prem
     strat["current_total_premium"] = init_total_prem
 
@@ -1489,12 +1524,27 @@ def monitor_straddle_strategies_cycle():
                 if curr_ltp <= 0:
                     continue
 
-                initial_ref_prem = float(s.get("initial_total_premium") or s.get(f"selected_{leg_sel[:2].lower()}_ltp") or curr_ltp)
+                initial_ref_prem = 0.0
+                try:
+                    ref_val = s.get("initial_total_premium") or s.get(f"selected_{leg_sel[:2].lower()}_ltp")
+                    if ref_val is not None and str(ref_val).strip() != "" and str(ref_val).strip().upper() != "ATM":
+                        initial_ref_prem = float(ref_val)
+                except Exception:
+                    initial_ref_prem = curr_ltp
+
+                if initial_ref_prem <= 0:
+                    initial_ref_prem = curr_ltp
+                    s["initial_total_premium"] = curr_ltp
+
                 trigger_met = False
                 trigger_desc = ""
 
                 if entry_trigger == "PREMIUM_DECAY":
-                    decay_req_pct = float(s.get("trigger_decay_pct") or 20.0)
+                    try:
+                        decay_req_pct = float(s.get("trigger_decay_pct") or 20.0)
+                    except Exception:
+                        decay_req_pct = 20.0
+
                     if initial_ref_prem > 0:
                         decay_pct = ((initial_ref_prem - curr_ltp) / initial_ref_prem) * 100.0
                         if decay_pct >= decay_req_pct:

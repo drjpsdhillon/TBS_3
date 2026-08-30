@@ -5028,8 +5028,8 @@
                             </div>
 
                             <div style="display: flex; gap: 6px; margin-top: 12px; flex-wrap: wrap;">
-                                <button onclick="calculateStraddleStrikesFor('${s.id}')" class="btn-secondary" style="flex: 1; padding: 6px 4px; font-size: 11px;" title="Find ATM Strike &amp; calculate total premium">
-                                    🔍 Calc ATM
+                                <button onclick="calculateStraddleStrikesFor('${s.id}')" class="btn-secondary" style="flex: 1; padding: 6px 4px; font-size: 11px;" title="Calculate strikes &amp; fetch live LTPs">
+                                    🔍 Calc Strikes
                                 </button>
                                 <button onclick="toggleStraddleStrategy('${s.id}')" class="${isActive ? 'btn-danger' : 'btn-primary'}" style="flex: 1; padding: 6px 4px; font-size: 11px;">
                                     ${isActive ? '⏹️ Stop' : '▶️ Start'}
@@ -5709,13 +5709,13 @@
         }
 
         async function calculateStraddleStrikesFor(stratId) {
-            toast('⏳ Finding ATM Strikes for Straddle Strategy...');
+            toast('⏳ Calculating Strategy Strikes & LTPs...');
             const res = await api(`/api/straddle_total_sl/strategies/${stratId}/calculate`, 'POST');
             if (res.status === 'ok') {
-                toast('✅ ' + (res.message || 'ATM Strikes calculated successfully'));
+                toast('✅ ' + (res.message || 'Strikes calculated successfully'));
                 fetchStraddleStatus();
             } else {
-                toast('❌ ' + (res.message || 'ATM Calculation failed'), true);
+                toast('❌ ' + (res.message || 'Calculation failed'), true);
             }
         }
 
