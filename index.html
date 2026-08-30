@@ -5011,14 +5011,26 @@
                         }
 
                         const activeModules = [];
-                        if (adjData.auto_config?.enabled || adjMode === 'AUTOMATIC') activeModules.push(`Decay ${adjData.auto_config?.trigger_decay_percent || 20}%`);
-                        if (adjData.spot_distance_config?.enabled || adjMode === 'SPOT_DISTANCE') {
-                            const dCfg = adjData.spot_distance_config || {};
-                            activeModules.push(`Spot Dist ±${dCfg.move_step_pts || 500}pts`);
+                        const hasAuto = adjData.auto_config?.enabled || adjMode === 'AUTOMATIC';
+                        if (hasAuto) activeModules.push(`Decay ${adjData.auto_config?.trigger_decay_percent || 15}%`);
+                        
+                        const spotRules = adjData.spot_distance_rules || (adjData.spot_distance_config ? [adjData.spot_distance_config] : []);
+                        const hasSpot = adjData.enable_spot_dist || adjMode === 'SPOT_DISTANCE' || (spotRules && spotRules.length > 0);
+                        if (hasSpot && spotRules.length > 0) {
+                            const stepsSummary = spotRules.map(r => `${r.action} ±${r.move_step_pts || 500}pt`).join(', ');
+                            activeModules.push(`Spot (${stepsSummary})`);
+                        } else if (hasSpot) {
+                            activeModules.push(`Spot Dist`);
                         }
-                        if (adjData.enable_manual || adjMode === 'MANUAL' || (adjData.manual_legs && adjData.manual_legs.length > 0)) {
-                            activeModules.push(`${adjData.manual_legs?.length || 0} Extra Legs`);
+
+                        const manualLegs = adjData.manual_legs || [];
+                        const hasManual = adjData.enable_manual || adjMode === 'MANUAL' || manualLegs.length > 0;
+                        if (hasManual && manualLegs.length > 0) {
+                            activeModules.push(`${manualLegs.length} Extra Leg${manualLegs.length === 1 ? '' : 's'}`);
+                        } else if (hasManual) {
+                            activeModules.push(`Custom Legs`);
                         }
+
                         const modeTitle = activeModules.length > 0 ? activeModules.join(' + ') : 'Active';
 
                         adjustmentsBoxHtml = `
