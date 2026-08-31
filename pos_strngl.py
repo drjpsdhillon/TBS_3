@@ -802,10 +802,10 @@ def place_or_retry_pos_order(strat, leg_type, purpose, target_trigger, target_pr
             if curr_ltp >= sl_trigger:
                 # Market already breached trigger: place adjusted trigger above LTP to guarantee acceptance
                 sl_trigger = round((curr_ltp + 0.5) * 20) / 20
-                sl_price = round((sl_trigger * 1.30) * 20) / 20
-                log_pos(f"[{sname}] ⚠️ {leg_type} LTP (₹{curr_ltp:.2f}) >= SL Trigger (₹{target_trigger:.2f}). Adjusting Trigger to ₹{sl_trigger:.2f} (Limit: ₹{sl_price:.2f} [30% Gap])")
+                sl_price = round((sl_trigger * 1.05) * 20) / 20
+                log_pos(f"[{sname}] ⚠️ {leg_type} LTP (₹{curr_ltp:.2f}) >= SL Trigger (₹{target_trigger:.2f}). Adjusting Trigger to ₹{sl_trigger:.2f} (Limit: ₹{sl_price:.2f} [5% Gap])")
             else:
-                sl_price = round((sl_trigger * 1.30) * 20) / 20
+                sl_price = round((sl_trigger * 1.05) * 20) / 20
 
             order_type = kite.ORDER_TYPE_SL
         else:
@@ -816,10 +816,10 @@ def place_or_retry_pos_order(strat, leg_type, purpose, target_trigger, target_pr
             # Zerodha rule: SELL SL trigger MUST be <= LTP
             if curr_ltp <= sl_trigger:
                 sl_trigger = round(max(0.05, curr_ltp - 0.5) * 20) / 20
-                sl_price = round(max(0.05, sl_trigger * 0.70) * 20) / 20
-                log_pos(f"[{sname}] ⚠️ {leg_type} LTP (₹{curr_ltp:.2f}) <= SL Trigger (₹{target_trigger:.2f}). Adjusting Trigger to ₹{sl_trigger:.2f} (Limit: ₹{sl_price:.2f} [30% Gap])")
+                sl_price = round(max(0.05, sl_trigger * 0.95) * 20) / 20
+                log_pos(f"[{sname}] ⚠️ {leg_type} LTP (₹{curr_ltp:.2f}) <= SL Trigger (₹{target_trigger:.2f}). Adjusting Trigger to ₹{sl_trigger:.2f} (Limit: ₹{sl_price:.2f} [5% Gap])")
             else:
-                sl_price = round(max(0.05, sl_trigger * 0.70) * 20) / 20
+                sl_price = round(max(0.05, sl_trigger * 0.95) * 20) / 20
 
             order_type = kite.ORDER_TYPE_SL
 
@@ -977,12 +977,13 @@ def place_positional_orders_for(strat):
     strat_id_suffix = strat.get("id", "")[-4:]
     pos_tag = f"ps_{today_str}_{strat_id_suffix}"[:20]
     strat["run_tag"] = pos_tag
-
     # Store combined initial total premium
     ce_init_ltp = float(strat.get("selected_ce_ltp", 80.0))
     pe_init_ltp = float(strat.get("selected_pe_ltp", 80.0))
     strat["initial_total_premium"] = round(ce_init_ltp + pe_init_ltp, 2)
     log_pos(f"[{sname}] Combined Total Premium recorded: ₹{strat['initial_total_premium']:.2f} (CE: ₹{ce_init_ltp:.2f} + PE: ₹{pe_init_ltp:.2f})")
+    reset_pos_orders(strat, preserve_tag=True)
+    placed_all = True
 
     for sym, opt_type, leg_sl_pct in [(ce_sym, "CE", ce_sl_pct), (pe_sym, "PE", pe_sl_pct)]:
         try:
@@ -1068,7 +1069,15 @@ def place_positional_orders_for(strat):
             place_or_retry_pos_order(strat, opt_type, "SL", calc_sl)
 
         except Exception as e:
-            log_pos(f"[{sname}] Failed order placement for {sym}: {e}")
+            placed_all = False
+            log_pos(f"[{sname}] ❌ Failed order placement for {sym}: {e}")
+            strat["orders"][opt_type]["status"] = f"FAILED: {e}"
+
+    if not placed_all:
+        strat["orders"]["orders_placed"] = False
+        strat["status"] = "Error (Order Failed)"
+        save_pos_strategies(pos_strategies_store)
+        return False, "One or more leg orders failed to place on Kite"
 
     now_date = datetime.now().strftime("%Y-%m-%d")
     strat["orders"]["orders_placed"] = True
@@ -1186,7 +1195,7 @@ def trail_pos_sl_for_leg(strat, leg_type, curr_ltp):
                 min_trigger = round((curr_ltp + 0.5) * 20) / 20
                 if new_trigger < min_trigger:
                     new_trigger = min_trigger
-                new_price = round((new_trigger * 1.30) * 20) / 20
+                new_price = round((new_trigger * 1.05) * 20) / 20
 
                 if new_trigger < curr_trigger:
                     try:
@@ -1201,7 +1210,7 @@ def trail_pos_sl_for_leg(strat, leg_type, curr_ltp):
                         leg_data["current_sl_trigger"] = new_trigger
                         leg_data["tsl_base_ltp"] = round(base_ltp - (steps * tsl_pts), 2)
                         leg_data["tsl_active"] = True
-                        log_pos(f"[{sname}] 🎯 TSL Moved LOWER for {leg_type} ({sym}) by {trail_amount:.1f} pts! New SL Trigger: ₹{new_trigger:.2f} (Limit: ₹{new_price:.2f} [30% Gap], LTP: ₹{curr_ltp:.2f})")
+                        log_pos(f"[{sname}] 🎯 TSL Moved LOWER for {leg_type} ({sym}) by {trail_amount:.1f} pts! New SL Trigger: ₹{new_trigger:.2f} (Limit: ₹{new_price:.2f} [5% Gap], LTP: ₹{curr_ltp:.2f})")
                     except Exception as e:
                         logger.warning(f"[{sname}] Could not trail SL for {leg_type}: {e}")
     else:
@@ -1213,7 +1222,7 @@ def trail_pos_sl_for_leg(strat, leg_type, curr_ltp):
                 max_trigger = round((curr_ltp - 0.5) * 20) / 20
                 if new_trigger > max_trigger:
                     new_trigger = max_trigger
-                new_price = round(max(0.05, new_trigger * 0.70) * 20) / 20
+                new_price = round(max(0.05, new_trigger * 0.95) * 20) / 20
 
                 if new_trigger > curr_trigger:
                     try:
@@ -1228,7 +1237,7 @@ def trail_pos_sl_for_leg(strat, leg_type, curr_ltp):
                         leg_data["current_sl_trigger"] = new_trigger
                         leg_data["tsl_base_ltp"] = round(base_ltp + (steps * tsl_pts), 2)
                         leg_data["tsl_active"] = True
-                        log_pos(f"[{sname}] 🎯 TSL Moved HIGHER for {leg_type} ({sym}) by {trail_amount:.1f} pts! New SL Trigger: ₹{new_trigger:.2f} (Limit: ₹{new_price:.2f} [30% Gap], LTP: ₹{curr_ltp:.2f})")
+                        log_pos(f"[{sname}] 🎯 TSL Moved HIGHER for {leg_type} ({sym}) by {trail_amount:.1f} pts! New SL Trigger: ₹{new_trigger:.2f} (Limit: ₹{new_price:.2f} [5% Gap], LTP: ₹{curr_ltp:.2f})")
                     except Exception as e:
                         logger.warning(f"[{sname}] Could not trail SL for {leg_type}: {e}")
 

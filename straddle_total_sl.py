@@ -1136,6 +1136,7 @@ def place_straddle_orders_for(strat):
     if leg_sel in ("BOTH", "PE_ONLY") and pe_sym:
         legs_to_place.append((pe_sym, "PE"))
 
+    placed_all = True
     for sym, opt_type in legs_to_place:
         try:
             last_ltp = float(strat.get(f"selected_{opt_type.lower()}_ltp", 100.0) or 100.0)
@@ -1188,7 +1189,7 @@ def place_straddle_orders_for(strat):
                 entry_txn = kite.TRANSACTION_TYPE_BUY
                 entry_limit = round((base_price * 1.01) * 20) / 20
 
-                log_pos_msg = f"[{sname}] Placing BUY Limit Order for {sym} Qty:{qty} ({product}) on {exchange} (Best Ask: ₹{best_ask_price:.2f} [Depth Qty: {best_ask_qty}], Base: ₹{base_price:.2f} -> Limit: ₹{entry_limit:.2f} [+1%])..."
+                log_pos_msg = f"[{sname}] Placing BUY Order for {sym} Qty:{qty} ({product}) on {exchange} (Best Ask/Offer: ₹{best_ask_price:.2f} [Depth Qty: {best_ask_qty}], Base: ₹{base_price:.2f} -> Limit: ₹{entry_limit:.2f} [+1%])..."
                 log_straddle(log_pos_msg)
 
                 order_id = kite.place_order(
@@ -1218,8 +1219,16 @@ def place_straddle_orders_for(strat):
             total_actual_entry += actual_price
 
         except Exception as e:
+            placed_all = False
             logger.error(f"[{sname}] Failed placing order for {sym}: {e}")
-            strat["orders"][opt_type]["status"] = f"FAILED: {str(e)[:40]}"
+            log_straddle(f"[{sname}] ❌ Failed placing order for {sym}: {e}")
+            strat["orders"][opt_type] = {"status": f"FAILED: {str(e)[:40]}"}
+
+    if not placed_all:
+        strat["orders"]["orders_placed"] = False
+        strat["status"] = "Error (Order Failed)"
+        save_straddle_strategies(straddle_strategies_store)
+        return False, "One or more leg orders failed to place on Kite"
 
     strat["orders"]["orders_placed"] = True
     strat["status"] = "Holding (Position ON)"
