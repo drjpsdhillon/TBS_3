@@ -378,6 +378,56 @@
         }
 
         /* ===== PASTEL BUTTONS WITH HIGH-CONTRAST LABELS ===== */
+        button, .btn, .btn-primary, .btn-secondary, .btn-danger, .tab-btn {
+            position: relative;
+            overflow: hidden;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: manipulation;
+        }
+
+        button:active, .btn:active, .btn-primary:active, .btn-secondary:active, .btn-danger:active, .tab-btn:active {
+            transform: scale(0.96) translateY(1px) !important;
+            filter: brightness(0.92);
+            transition: transform 0.08s ease, filter 0.08s ease !important;
+        }
+
+        .btn-clicked-effect {
+            animation: buttonPopEffect 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        @keyframes buttonPopEffect {
+            0% {
+                transform: scale(1);
+            }
+            30% {
+                transform: scale(0.94);
+            }
+            60% {
+                transform: scale(1.04);
+            }
+            100% {
+                transform: scale(1);
+            }
+        }
+
+        .click-ripple {
+            position: absolute;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.45);
+            transform: scale(0);
+            animation: rippleAnim 0.5s cubic-bezier(0.25, 1, 0.5, 1);
+            pointer-events: none;
+            z-index: 100;
+        }
+
+        @keyframes rippleAnim {
+            to {
+                transform: scale(3.5);
+                opacity: 0;
+            }
+        }
+
         .btn-primary {
             width: 100%;
             padding: 12px;
@@ -2074,14 +2124,14 @@
                                 </div>
                             </div>
 
-                            <!-- 2. Underlying Instrument & Expiry (Pastel Warm Yellow) -->
+                            <!-- 2. Underlying Instrument, Calculation Basis & Expiry (Pastel Warm Yellow) -->
                             <div style="background: #fefce8; border: 1px solid #fef08a; border-left: 4px solid #eab308; border-radius: var(--radius-sm); padding: 12px 14px; margin-bottom: 12px;">
                                 <div style="font-size: 11px; font-weight: 800; color: #854d0e; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
-                                    <span>📊 Underlying Spot &amp; Expiry</span>
+                                    <span>📊 Underlying Instrument &amp; Expiry</span>
                                 </div>
-                                <div class="form-row" style="margin-bottom: 0;">
+                                <div class="form-row" style="margin-bottom: 8px;">
                                     <div class="form-group" style="margin-bottom: 0;">
-                                        <label for="straddleIndexName" style="color: #854d0e; font-weight: 700;">Underlying Instrument / Spot</label>
+                                        <label for="straddleIndexName" style="color: #854d0e; font-weight: 700;">Underlying Index</label>
                                         <select id="straddleIndexName" onchange="onStraddleIndexChange()" style="background: #ffffff; border-color: #fde68a; font-weight: 600;">
                                             <option value="NIFTY" selected>NIFTY</option>
                                             <option value="BANKNIFTY">BANKNIFTY</option>
@@ -2092,11 +2142,21 @@
                                         </select>
                                     </div>
                                     <div class="form-group" style="margin-bottom: 0;">
-                                        <label for="straddleExpirySelect" style="color: #854d0e; font-weight: 700;">Monthly / Weekly Expiry</label>
-                                        <select id="straddleExpirySelect" required style="background: #ffffff; border-color: #fde68a; font-weight: 600;">
-                                            <option value="">Loading expiries...</option>
+                                        <label for="straddleUnderlyingType" style="color: #854d0e; font-weight: 700;">ATM Calculation Basis (Cash / Futures)</label>
+                                        <select id="straddleUnderlyingType" onchange="autoSuggestStraddleName()" style="background: #ffffff; border-color: #fde68a; font-weight: 600;">
+                                            <option value="CASH" selected>💵 Cash Spot (Index LTP)</option>
+                                            <option value="CURRENT_FUT">📈 Current Month Future</option>
+                                            <option value="NEXT_FUT">📅 Next Month Future</option>
+                                            <option value="FAR_FUT">🗓️ Far / Next-Next Month Future</option>
                                         </select>
+                                        <div class="time-hint" id="straddleUnderlyingHint" style="color: #854d0e;">Calculates ATM strike based on Cash Spot index LTP</div>
                                     </div>
+                                </div>
+                                <div class="form-group" style="margin-bottom: 0;">
+                                    <label for="straddleExpirySelect" style="color: #854d0e; font-weight: 700;">Option Expiry Date</label>
+                                    <select id="straddleExpirySelect" required style="background: #ffffff; border-color: #fde68a; font-weight: 600;">
+                                        <option value="">Loading expiries...</option>
+                                    </select>
                                 </div>
                             </div>
 
@@ -2404,6 +2464,109 @@
 
         const API = '';
         let loadedStrategies = [];
+
+        // ═══════════════════════════════════════════════════════════════
+        // AUDIO FEEDBACK & INTERACTION SYSTEM (Web Audio API)
+        // ═══════════════════════════════════════════════════════════════
+        let audioCtx = null;
+        function getAudioContext() {
+            if (!audioCtx) {
+                const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+                if (AudioContextClass) {
+                    audioCtx = new AudioContextClass();
+                }
+            }
+            if (audioCtx && audioCtx.state === 'suspended') {
+                audioCtx.resume().catch(() => {});
+            }
+            return audioCtx;
+        }
+
+        function playClickSound(tone = 'standard') {
+            try {
+                const ctx = getAudioContext();
+                if (!ctx) return;
+
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+
+                const now = ctx.currentTime;
+                if (tone === 'danger') {
+                    // Lower pitched crisp click for danger / delete / stop
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(320, now);
+                    osc.frequency.exponentialRampToValueAtTime(140, now + 0.06);
+                    gain.gain.setValueAtTime(0.2, now);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
+                    osc.start(now);
+                    osc.stop(now + 0.06);
+                } else if (tone === 'action') {
+                    // Bright ascending click for run / save / calc
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(600, now);
+                    osc.frequency.exponentialRampToValueAtTime(900, now + 0.05);
+                    gain.gain.setValueAtTime(0.18, now);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+                    osc.start(now);
+                    osc.stop(now + 0.05);
+                } else {
+                    // Standard snappy haptic mechanical UI click
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(800, now);
+                    osc.frequency.exponentialRampToValueAtTime(280, now + 0.045);
+                    gain.gain.setValueAtTime(0.22, now);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.045);
+                    osc.start(now);
+                    osc.stop(now + 0.045);
+                }
+            } catch (e) {}
+        }
+
+        // Global Event Delegation for Dynamic Button Clicks & Visual Feedback
+        document.addEventListener('pointerdown', (e) => {
+            const btn = e.target.closest('button, .btn, .btn-primary, .btn-secondary, .btn-danger, .tab-btn, .nav-tab, .btn-logout, a.btn');
+            if (!btn) return;
+
+            // Determine tone
+            const isDanger = btn.classList.contains('btn-danger') || btn.style.color?.includes('error') || btn.style.color?.includes('danger') || btn.textContent.includes('Delete') || btn.textContent.includes('Stop') || btn.textContent.includes('Exit');
+            const isAction = btn.classList.contains('btn-primary') || btn.type === 'submit' || btn.textContent.includes('Save') || btn.textContent.includes('Run') || btn.textContent.includes('Start') || btn.textContent.includes('Calc');
+            const tone = isDanger ? 'danger' : (isAction ? 'action' : 'standard');
+
+            playClickSound(tone);
+
+            // Trigger Pop Animation
+            btn.classList.remove('btn-clicked-effect');
+            void btn.offsetWidth; // Force reflow
+            btn.classList.add('btn-clicked-effect');
+
+            // Trigger Dynamic Ripple Effect at Click Coordinates
+            const rect = btn.getBoundingClientRect();
+            const ripple = document.createElement('span');
+            ripple.className = 'click-ripple';
+            const diameter = Math.max(rect.width, rect.height);
+            const radius = diameter / 2;
+
+            ripple.style.width = ripple.style.height = `${diameter}px`;
+            ripple.style.left = `${(e.clientX || (rect.left + rect.width / 2)) - rect.left - radius}px`;
+            ripple.style.top = `${(e.clientY || (rect.top + rect.height / 2)) - rect.top - radius}px`;
+
+            // If danger button, soft red tint on ripple, else white
+            if (isDanger) {
+                ripple.style.background = 'rgba(239, 68, 68, 0.4)';
+            } else if (isAction) {
+                ripple.style.background = 'rgba(255, 255, 255, 0.6)';
+            }
+
+            const existingRipple = btn.querySelector('.click-ripple');
+            if (existingRipple) existingRipple.remove();
+
+            btn.appendChild(ripple);
+            setTimeout(() => {
+                ripple.remove();
+            }, 600);
+        }, true);
 
         function toast(msg) {
             const c = document.getElementById('toastContainer');
@@ -4678,49 +4841,76 @@
             autoSuggestStraddleName();
         }
 
-        async function loadStraddleExpiries(preferredExpiry) {
+        let currentStraddleFutures = [];
+
+        async function loadStraddleExpiries(preferredExpiry, preferredUnderlying) {
             const idx = document.getElementById('straddleIndexName').value || 'NIFTY';
             const data = await api(`/api/expiries?index=${idx}`);
             const select = document.getElementById('straddleExpirySelect');
-            if (!select) return;
+            const uSelect = document.getElementById('straddleUnderlyingType');
+            
             const dates = Array.isArray(data) ? data : (data?.dates || []);
             const monthlyDates = (!Array.isArray(data) && data?.monthly_expiries) ? data.monthly_expiries : [];
             const curMonthExp = (!Array.isArray(data) && data?.current_month_expiry) ? data.current_month_expiry : (monthlyDates[0] || dates[0] || '');
             const nextMonthExp = (!Array.isArray(data) && data?.next_month_expiry) ? data.next_month_expiry : (monthlyDates[1] || curMonthExp);
+            currentStraddleFutures = (!Array.isArray(data) && data?.futures) ? data.futures : [];
 
-            if (dates && dates.length > 0) {
-                let optionsHtml = '';
-                optionsHtml += `<option value="CURRENT_MONTH">⚡ Current Month Expiry (${curMonthExp})</option>`;
-                if (nextMonthExp && nextMonthExp !== curMonthExp) {
-                    optionsHtml += `<option value="NEXT_MONTH">📅 Next Month Expiry (${nextMonthExp})</option>`;
+            // 1. Populate Underlying Calculation Basis (Cash vs Futures)
+            if (uSelect) {
+                let uHtml = `<option value="CASH">💵 Cash Spot (Index LTP)</option>`;
+                if (currentStraddleFutures && currentStraddleFutures.length > 0) {
+                    currentStraddleFutures.forEach((f, idx) => {
+                        const futKey = f.key || `FUT_${idx + 1}`;
+                        const label = idx === 0 ? `📈 Current Month Future (${f.expiry})` : (idx === 1 ? `📅 Next Month Future (${f.expiry})` : `🗓️ Far Month Future (${f.expiry})`);
+                        uHtml += `<option value="${futKey}">${label} - ${f.symbol}</option>`;
+                    });
+                } else {
+                    uHtml += `<option value="CURRENT_FUT">📈 Current Month Future</option>`;
+                    uHtml += `<option value="NEXT_FUT">📅 Next Month Future</option>`;
+                    uHtml += `<option value="FAR_FUT">🗓️ Far Month Future</option>`;
                 }
-                optionsHtml += `<option value="CURRENT">⚡ Nearest Weekly Expiry (${dates[0]})</option>`;
-                if (dates.length > 1) {
-                    optionsHtml += `<option value="NEXT">📅 Next Weekly Expiry (${dates[1]})</option>`;
+                uSelect.innerHTML = uHtml;
+                if (preferredUnderlying) {
+                    uSelect.value = preferredUnderlying;
                 }
-                
-                if (monthlyDates.length > 0) {
-                    optionsHtml += `<optgroup label="Monthly Expiries (Last Expiry of Month)">`;
-                    monthlyDates.forEach(d => {
-                        optionsHtml += `<option value="${d}">${d} (Monthly)</option>`;
+            }
+
+            // 2. Populate Option Expiries
+            if (select) {
+                if (dates && dates.length > 0) {
+                    let optionsHtml = '';
+                    optionsHtml += `<option value="CURRENT_MONTH">⚡ Current Month Expiry (${curMonthExp})</option>`;
+                    if (nextMonthExp && nextMonthExp !== curMonthExp) {
+                        optionsHtml += `<option value="NEXT_MONTH">📅 Next Month Expiry (${nextMonthExp})</option>`;
+                    }
+                    optionsHtml += `<option value="CURRENT">⚡ Nearest Weekly Expiry (${dates[0]})</option>`;
+                    if (dates.length > 1) {
+                        optionsHtml += `<option value="NEXT">📅 Next Weekly Expiry (${dates[1]})</option>`;
+                    }
+                    
+                    if (monthlyDates.length > 0) {
+                        optionsHtml += `<optgroup label="Monthly Expiries (Last Expiry of Month)">`;
+                        monthlyDates.forEach(d => {
+                            optionsHtml += `<option value="${d}">${d} (Monthly)</option>`;
+                        });
+                        optionsHtml += `</optgroup>`;
+                    }
+
+                    optionsHtml += `<optgroup label="All Upcoming Expiry Dates">`;
+                    dates.forEach(d => {
+                        optionsHtml += `<option value="${d}">${d}</option>`;
                     });
                     optionsHtml += `</optgroup>`;
-                }
 
-                optionsHtml += `<optgroup label="All Upcoming Expiry Dates">`;
-                dates.forEach(d => {
-                    optionsHtml += `<option value="${d}">${d}</option>`;
-                });
-                optionsHtml += `</optgroup>`;
-
-                select.innerHTML = optionsHtml;
-                if (preferredExpiry && (preferredExpiry === 'CURRENT' || preferredExpiry === 'NEXT' || preferredExpiry === 'CURRENT_MONTH' || preferredExpiry === 'NEXT_MONTH' || dates.includes(preferredExpiry))) {
-                    select.value = preferredExpiry;
+                    select.innerHTML = optionsHtml;
+                    if (preferredExpiry && (preferredExpiry === 'CURRENT' || preferredExpiry === 'NEXT' || preferredExpiry === 'CURRENT_MONTH' || preferredExpiry === 'NEXT_MONTH' || dates.includes(preferredExpiry))) {
+                        select.value = preferredExpiry;
+                    } else {
+                        select.value = 'CURRENT_MONTH';
+                    }
                 } else {
-                    select.value = 'CURRENT_MONTH';
+                    select.innerHTML = `<option value="CURRENT_MONTH">Current Month Expiry</option><option value="CURRENT">Current Expiry</option><option value="NEXT">Next Expiry</option>`;
                 }
-            } else {
-                select.innerHTML = `<option value="CURRENT_MONTH">Current Month Expiry</option><option value="CURRENT">Current Expiry</option><option value="NEXT">Next Expiry</option>`;
             }
         }
 
@@ -5046,6 +5236,68 @@
                         </div>`;
                     }
 
+                    // Strategy Range & Underlying Movement Bar (Zerodha-style Day's Range UI)
+                    let rangeBoxHtml = '';
+                    const baseEntryLtp = parseFloat(s.entry_underlying_ltp || s.base_spot_entry || s.underlying_calc_ltp || 0);
+                    const currUnderlyingLtp = parseFloat(s.underlying_ltp || baseEntryLtp || 0);
+                    let minLtp = parseFloat(s.underlying_min_ltp || Math.min(baseEntryLtp, currUnderlyingLtp) || 0);
+                    let maxLtp = parseFloat(s.underlying_max_ltp || Math.max(baseEntryLtp, currUnderlyingLtp) || 0);
+
+                    // Ensure minimum visual range
+                    if (minLtp > 0 && maxLtp > 0 && minLtp === maxLtp) {
+                        minLtp = Math.floor(minLtp * 0.995);
+                        maxLtp = Math.ceil(maxLtp * 1.005);
+                    }
+
+                    if (currUnderlyingLtp > 0 && minLtp > 0 && maxLtp > minLtp) {
+                        const totalSpan = maxLtp - minLtp;
+                        const currPosPct = Math.min(100, Math.max(0, ((currUnderlyingLtp - minLtp) / totalSpan) * 100));
+                        const entryPosPct = baseEntryLtp > 0 ? Math.min(100, Math.max(0, ((baseEntryLtp - minLtp) / totalSpan) * 100)) : currPosPct;
+                        
+                        const diffPts = baseEntryLtp > 0 ? (currUnderlyingLtp - baseEntryLtp) : 0;
+                        const diffPct = baseEntryLtp > 0 ? (diffPts / baseEntryLtp * 100) : 0;
+                        const diffClass = diffPts >= 0 ? 'text-success' : 'text-danger';
+                        const diffSign = diffPts > 0 ? '+' : '';
+
+                        rangeBoxHtml = `
+                        <div style="background: #ffffff; border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 10px 12px; margin-bottom: 12px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                                <div style="font-size: 11px; font-weight: 800; color: var(--text-primary); display: flex; align-items: center; gap: 5px;">
+                                    <span>📊 Strategy Range</span>
+                                    <span style="font-size: 10px; font-weight: 600; color: var(--text-muted);">(${s.underlying_name || 'Underlying'})</span>
+                                </div>
+                                <div style="font-size: 11px; font-weight: 800; font-family: monospace;" class="${diffClass}">
+                                    ${diffSign}${diffPts.toFixed(1)} pts (${diffSign}${diffPct.toFixed(2)}%)
+                                </div>
+                            </div>
+
+                            <div style="display: flex; justify-content: space-between; font-size: 10px; color: var(--text-muted); font-family: monospace; margin-bottom: 2px;">
+                                <span>Low <b style="color: var(--text-primary);">₹${minLtp.toLocaleString('en-IN', {maximumFractionDigits: 1})}</b></span>
+                                <span>High <b style="color: var(--text-primary);">₹${maxLtp.toLocaleString('en-IN', {maximumFractionDigits: 1})}</b></span>
+                            </div>
+
+                            <!-- Interactive Track Slider Bar -->
+                            <div style="position: relative; height: 6px; background: #e2e8f0; border-radius: 3px; margin: 10px 0 16px 0;">
+                                <!-- Range Fill -->
+                                <div style="position: absolute; left: 0%; width: 100%; height: 100%; background: #cbd5e1; border-radius: 3px;"></div>
+                                
+                                <!-- Entry Point Marker (Triangle) -->
+                                ${baseEntryLtp > 0 ? `
+                                <div style="position: absolute; left: ${entryPosPct}%; top: 6px; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center;" title="Entry / Ref Price: ₹${baseEntryLtp.toFixed(1)}">
+                                    <div style="width: 0; height: 0; border-left: 4px solid transparent; border-right: 4px solid transparent; border-bottom: 5px solid #0284c7;"></div>
+                                    <span style="font-size: 9px; font-weight: 700; color: #0284c7; white-space: nowrap; margin-top: 1px;">Entry: ₹${baseEntryLtp.toFixed(1)}</span>
+                                </div>` : ''}
+
+                                <!-- Live Current LTP Marker (Circle Dot) -->
+                                <div style="position: absolute; left: ${currPosPct}%; top: -3px; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center;" title="Live LTP: ₹${currUnderlyingLtp.toFixed(1)}">
+                                    <div style="width: 12px; height: 12px; border-radius: 50%; background: ${diffPts >= 0 ? '#16a34a' : '#dc2626'}; border: 2px solid #ffffff; box-shadow: 0 1px 3px rgba(0,0,0,0.3);"></div>
+                                    <span style="font-size: 9px; font-weight: 800; color: ${diffPts >= 0 ? '#16a34a' : '#dc2626'}; white-space: nowrap; margin-top: -24px; background: #ffffff; padding: 0 3px; border-radius: 2px; border: 1px solid var(--border-color);">LTP: ₹${currUnderlyingLtp.toFixed(1)}</span>
+                                </div>
+                            </div>
+                        </div>
+                        `;
+                    }
+
                     return `
                     <div class="card" style="margin-bottom: 0; border-top: 3px solid ${isActive ? 'var(--success)' : 'var(--border-color)'}; flex-direction: column; justify-content: space-between;">
                         <div>
@@ -5054,6 +5306,7 @@
                                     <h3 style="font-size: 15px; font-weight: 800; color: var(--text-primary); margin-bottom: 4px;">${s.name || 'Straddle Total SL'}</h3>
                                     <div style="display: flex; gap: 6px; flex-wrap: wrap; align-items: center;">
                                         <span style="background: var(--pastel-blue-bg); color: var(--pastel-blue-dark); border: 1px solid var(--pastel-blue-border); font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 4px;">${s.index_name}</span>
+                                        ${s.underlying_name ? `<span style="background: #fefce8; color: #854d0e; border: 1px solid #fef08a; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 4px;" title="ATM calculated from ${s.underlying_name}">📊 ${s.underlying_name} ${s.underlying_ltp ? `(₹${parseFloat(s.underlying_ltp).toFixed(1)})` : ''}</span>` : ''}
                                         <span style="background: #ffffff; color: var(--text-secondary); border: 1px solid var(--border-color); font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: 4px;">${s.product || 'NRML'}</span>
                                         ${actionBadge}
                                         ${positionBadge}
@@ -5066,6 +5319,7 @@
                             </div>
 
                             ${strikesBoxHtml}
+                            ${rangeBoxHtml}
                             ${priceCardBoxHtml}
                             ${adjustmentsBoxHtml}
                         </div>
@@ -5080,17 +5334,16 @@
 
                             <div style="display: flex; gap: 6px; margin-top: 12px; flex-wrap: wrap;">
                                 <button onclick="calculateStraddleStrikesFor('${s.id}')" class="btn-secondary" style="flex: 1; padding: 6px 4px; font-size: 11px;" title="Calculate strikes &amp; fetch live LTPs">
-                                    🔍 Calc Strikes
+                                    🔍 Calc
                                 </button>
                                 <button onclick="toggleStraddleStrategy('${s.id}')" class="${isActive ? 'btn-danger' : 'btn-primary'}" style="flex: 1; padding: 6px 4px; font-size: 11px;">
                                     ${isActive ? '⏹️ Stop' : '▶️ Start'}
                                 </button>
-                                ${isOrdersPlaced ? `
-                                <button onclick="squareoffStraddleStrategy('${s.id}')" class="btn-danger" style="flex: 1; padding: 6px 4px; font-size: 11px;" title="Exit both legs now">
-                                    ⚡ Square Off
-                                </button>` : ''}
+                                <button onclick="squareoffStraddleStrategy('${s.id}')" class="btn-secondary" style="padding: 6px 8px; font-size: 11px; color: var(--error); border-color: rgba(203, 83, 78, 0.4);" title="Manual Exit: Square off open position &amp; stop strategy">
+                                    ⚡ Exit
+                                </button>
                                 <button onclick="editStraddleStrategy('${s.id}')" class="btn-secondary" style="padding: 6px 8px; font-size: 11px;" title="Edit Strategy">
-                                    ✏️
+                                    ✏️ Edit
                                 </button>
                                 <button onclick="deleteStraddleStrategy('${s.id}')" class="btn-secondary" style="padding: 6px 8px; font-size: 11px; color: var(--danger);" title="Delete Strategy">
                                     🗑️
@@ -5643,10 +5896,14 @@
             document.getElementById('straddleGroupName').value = strat.group_name || 'Main Group';
             document.getElementById('straddleFormTitle').textContent = `✏️ Edit '${strat.name || strat.id}'`;
             document.getElementById('straddleStratType').value = strat.strategy_type || 'STRADDLE';
+            onStraddleStratTypeChange();
+
             document.getElementById('straddleLegSelection').value = strat.leg_selection || 'CE_ONLY';
             document.getElementById('straddleEntryTriggerType').value = strat.entry_trigger_type || 'CURRENT_PRICE';
-            document.getElementById('straddleEntryDecayPct').value = strat.trigger_decay_pct || 20;
-            document.getElementById('straddleEntryPremVal').value = strat.trigger_premium_val || 100;
+            document.getElementById('straddleEntryDecayPct').value = strat.trigger_decay_pct !== undefined ? strat.trigger_decay_pct : 20;
+            document.getElementById('straddleEntryPremVal').value = strat.trigger_premium_val !== undefined ? strat.trigger_premium_val : 100;
+            onStraddleEntryTriggerTypeChange();
+
             document.getElementById('straddleIndexName').value = strat.index_name || 'NIFTY';
             
             const mode = strat.strike_mode || (strat.manual_strike ? 'MANUAL' : (strat.strike_multiple ? 'ROUND_OFF' : 'ATM'));
@@ -5655,9 +5912,9 @@
             document.getElementById('straddleManualStrike').value = strat.manual_strike || '';
             document.getElementById('straddleCeStrike').value = strat.ce_strike || '';
             document.getElementById('straddlePeStrike').value = strat.pe_strike || '';
-            document.getElementById('straddleCeTargetPrem').value = strat.ce_target_premium || 80;
-            document.getElementById('straddlePeTargetPrem').value = strat.pe_target_premium || 80;
-            onStraddleStratTypeChange();
+            document.getElementById('straddleCeTargetPrem').value = strat.ce_target_premium !== undefined ? strat.ce_target_premium : 80;
+            document.getElementById('straddlePeTargetPrem').value = strat.pe_target_premium !== undefined ? strat.pe_target_premium : 80;
+            onStraddleStrikeModeChange();
 
             document.getElementById('straddleEntryAction').value = strat.entry_action || 'SELL';
             document.getElementById('straddleProduct').value = strat.product || 'NRML';
@@ -5727,7 +5984,7 @@
                 manualLegs.forEach(m => addManualAdjLegRow(m));
             }
             
-            loadStraddleExpiries(strat.expiry);
+            loadStraddleExpiries(strat.expiry, strat.underlying_type || 'CASH');
             document.getElementById('straddleEditCard').scrollIntoView({ behavior: 'smooth' });
         }
 
@@ -5771,6 +6028,8 @@
                 leg_selection: legSel
             });
 
+            const underlyingType = document.getElementById('straddleUnderlyingType') ? document.getElementById('straddleUnderlyingType').value : 'CASH';
+
             const payload = {
                 id: stratId || undefined,
                 name: document.getElementById('straddleStratName').value.trim(),
@@ -5781,6 +6040,7 @@
                 trigger_decay_pct: triggerDecayPct,
                 trigger_premium_val: triggerPremVal,
                 index_name: indexName,
+                underlying_type: underlyingType,
                 expiry: document.getElementById('straddleExpirySelect').value,
                 strike_mode: strikeMode,
                 strike_multiple: strikeMultiple,

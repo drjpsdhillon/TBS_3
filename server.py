@@ -2031,12 +2031,21 @@ def api_get_expiries():
     current_month_exp = monthly_expiries[0] if len(monthly_expiries) > 0 else current_exp
     next_month_exp = monthly_expiries[1] if len(monthly_expiries) > 1 else current_month_exp
 
+    # Get sorted futures contracts for this index
+    futs_list = []
+    try:
+        import straddle_total_sl
+        futs_list = straddle_total_sl.get_available_futures_for_index(idx_upper)
+    except Exception:
+        pass
+
     return jsonify({
         "current_expiry": current_exp,
         "next_expiry": next_exp,
         "current_month_expiry": current_month_exp,
         "next_month_expiry": next_month_exp,
         "monthly_expiries": monthly_expiries,
+        "futures": futs_list,
         "dates": expiries,
         "expiries": expiries  # legacy list fallback
     })
@@ -2434,7 +2443,7 @@ def api_straddle_total_sl_strategies():
             if strat_id:
                 target = next((s for s in strats if s.get("id") == strat_id), None)
                 if target:
-                    for k in ["name", "group_name", "index_name", "expiry", "strategy_type", "leg_selection", "entry_trigger_type", "trigger_decay_pct", "trigger_premium_val", "entry_action", "product", "strike", "strike_mode", "strike_multiple", "manual_strike", "ce_strike", "pe_strike", "ce_target_premium", "pe_target_premium", "sl_mode", "sl_value", "tp_mode", "tp_value", "total_sl_percent", "total_tp_percent", "enable_tsl", "tsl_type", "tsl_value", "tsl_step", "quantity", "entry_time", "morning_sl_time", "exit_time", "adjustments", "custom_legs"]:
+                    for k in ["name", "group_name", "index_name", "underlying_type", "underlying_name", "underlying_symbol", "underlying_ltp", "underlying_future_expiry", "expiry", "strategy_type", "leg_selection", "entry_trigger_type", "trigger_decay_pct", "trigger_premium_val", "entry_action", "product", "strike", "strike_mode", "strike_multiple", "manual_strike", "ce_strike", "pe_strike", "ce_target_premium", "pe_target_premium", "sl_mode", "sl_value", "tp_mode", "tp_value", "total_sl_percent", "total_tp_percent", "enable_tsl", "tsl_type", "tsl_value", "tsl_step", "quantity", "entry_time", "morning_sl_time", "exit_time", "adjustments", "custom_legs"]:
                         if k in data:
                             target[k] = data[k]
                 else:

@@ -459,6 +459,11 @@ DEFAULT_STRADDLE_STRATEGY = {
     "selected_ce_ltp": 0.0,
     "selected_pe": None,
     "selected_pe_ltp": 0.0,
+    "underlying_type": "CASH",    # "CASH" | "CURRENT_FUT" | "NEXT_FUT" | "FAR_FUT"
+    "underlying_name": "Cash Spot",
+    "underlying_symbol": None,
+    "underlying_ltp": 0.0,
+    "underlying_future_expiry": None,
     "run_tag": None,
     "pnl": 0.0,
     "unrealized_pnl": 0.0,
@@ -500,6 +505,11 @@ def load_straddle_strategies():
         s.setdefault("sl_trigger_premium", 0.0)
         s.setdefault("tp_trigger_premium", 0.0)
         s.setdefault("product", "NRML")
+        s.setdefault("underlying_type", "CASH")
+        s.setdefault("underlying_name", "Cash Spot")
+        s.setdefault("underlying_symbol", None)
+        s.setdefault("underlying_ltp", 0.0)
+        s.setdefault("underlying_future_expiry", None)
         s.setdefault("orders", {})
         s["orders"].setdefault("orders_placed", False)
         s["orders"].setdefault("CE", {"symbol": None, "first_entry_price": 0.0, "entry_price": 0.0, "current_ltp": 0.0, "exit_price": 0.0, "order_id": None, "status": "PENDING"})
@@ -555,10 +565,11 @@ def save_straddle_strategies(strategies_list):
 
 
 # --------------------------------------------------------------------------
-# Kite Client & Option Instruments Caching
+# Kite Client, Option & Future Instruments Caching
 # --------------------------------------------------------------------------
 kite_instance = None
 instruments_cache = []
+futures_cache = []
 cache_date = ""
 
 def get_kite_client():
@@ -587,7 +598,7 @@ def set_kite_client(client):
 
 
 def cache_instruments():
-    global instruments_cache, cache_date
+    global instruments_cache, futures_cache, cache_date
     kite = get_kite_client()
     if not kite:
         return []
@@ -595,21 +606,144 @@ def cache_instruments():
     if instruments_cache and cache_date == today_str:
         return instruments_cache
     try:
-        log_straddle("Downloading Option instruments for Straddle engine...")
+        log_straddle("Downloading Option and Future instruments for Straddle engine...")
         inst_nfo = kite.instruments("NFO")
         opt_nfo = [i for i in inst_nfo if i.get("segment") == "NFO-OPT"]
+        fut_nfo = [i for i in inst_nfo if i.get("segment") == "NFO-FUT" or i.get("instrument_type") == "FUT"]
         try:
             inst_bfo = kite.instruments("BFO")
             opt_bfo = [i for i in inst_bfo if i.get("segment") == "BFO-OPT"]
+            fut_bfo = [i for i in inst_bfo if i.get("segment") == "BFO-FUT" or i.get("instrument_type") == "FUT"]
         except Exception:
             opt_bfo = []
+            fut_bfo = []
         instruments_cache = opt_nfo + opt_bfo
+        futures_cache = fut_nfo + fut_bfo
         cache_date = today_str
-        log_straddle(f"Cached {len(instruments_cache)} Option contracts.")
+        log_straddle(f"Cached {len(instruments_cache)} Option and {len(futures_cache)} Future contracts.")
         return instruments_cache
     except Exception as e:
-        log_straddle(f"Error caching option instruments: {e}")
+        log_straddle(f"Error caching instruments: {e}")
         return []
+
+
+def get_available_futures_for_index(index_name):
+    """
+    Returns sorted future contracts list for the given index:
+    [
+        {"label": "Current Month Future", "expiry": "2026-09-24", "symbol": "NIFTY26SEPFUT", "tradingsymbol": "NIFTY26SEPFUT", "exchange": "NFO"},
+        ...
+    ]
+    """
+    cache_instruments()
+    global futures_cache
+    idx = str(index_name or "NIFTY").strip().upper()
+    today = date.today()
+    
+    candidates = []
+    for f in futures_cache:
+        name = str(f.get("name") or "").strip().upper()
+        if name == idx or (idx == "BANKNIFTY" and name == "BANKNIFTY") or (idx == "FINNIFTY" and name == "FINNIFTY") or (idx == "MIDCPNIFTY" and ("MIDCP" in name or "MIDCAP" in name)) or (idx == "SENSEX" and name == "SENSEX") or (idx == "BANKEX" and name == "BANKEX"):
+            exp = f.get("expiry")
+            if exp:
+                exp_date = exp if isinstance(exp, date) else datetime.strptime(str(exp), "%Y-%m-%d").date()
+                if exp_date >= today:
+                    candidates.append({
+                        "expiry_date": exp_date,
+                        "expiry": exp_date.strftime("%Y-%m-%d"),
+                        "symbol": f.get("tradingsymbol"),
+                        "exchange": f.get("segment", "NFO").split("-")[0] if "-" in f.get("segment", "") else ("BFO" if idx in ("SENSEX", "BANKEX") else "NFO")
+                    })
+
+    # Sort ascending by expiry date
+    candidates.sort(key=lambda x: x["expiry_date"])
+    
+    # Deduplicate by expiry
+    unique_futs = []
+    seen_exp = set()
+    for c in candidates:
+        if c["expiry"] not in seen_exp:
+            seen_exp.add(c["expiry"])
+            unique_futs.append(c)
+
+    # Assign friendly identifiers
+    labels = ["Current Month Future", "Next Month Future", "Far Month Future"]
+    for i, fut in enumerate(unique_futs):
+        lbl = labels[i] if i < len(labels) else f"Future #{i+1}"
+        fut["label"] = f"{lbl} ({fut['expiry']})"
+        fut["key"] = f"FUT_{i+1}"
+
+    return unique_futs
+
+
+def get_underlying_price_and_expiry(index_name, underlying_type="CASH"):
+    """
+    Fetches the live LTP and contract details for the specified underlying:
+    underlying_type: 'CASH' | 'CURRENT_FUT' | 'NEXT_FUT' | 'FAR_FUT' | or explicit future symbol
+    Returns: (ltp, symbol, expiry_str, display_name)
+    """
+    kite = get_kite_client()
+    idx_name = str(index_name or "NIFTY").upper()
+    u_type = str(underlying_type or "CASH").strip().upper()
+
+    if u_type in ("CASH", "SPOT", "INDEX"):
+        spot_sym = get_spot_symbol(idx_name)
+        ltp = 0.0
+        if kite:
+            try:
+                q = kite.ltp([spot_sym])
+                ltp = float(q.get(spot_sym, {}).get("last_price", 0.0))
+            except Exception as e:
+                logger.warning(f"Error fetching spot LTP for {spot_sym}: {e}")
+        return ltp, spot_sym, None, f"Cash Spot ({spot_sym})"
+
+    # Futures handling
+    futs = get_available_futures_for_index(idx_name)
+    selected_fut = None
+
+    if u_type in ("CURRENT_FUT", "CURRENT_FUTURE", "FUT_1", "NEAR_FUT"):
+        if len(futs) > 0:
+            selected_fut = futs[0]
+    elif u_type in ("NEXT_FUT", "NEXT_FUTURE", "FUT_2"):
+        if len(futs) > 1:
+            selected_fut = futs[1]
+        elif len(futs) > 0:
+            selected_fut = futs[0]
+    elif u_type in ("FAR_FUT", "FAR_FUTURE", "NEXT_NEXT_FUT", "NEXT_NEXT_FUTURE", "FUT_3"):
+        if len(futs) > 2:
+            selected_fut = futs[2]
+        elif len(futs) > 1:
+            selected_fut = futs[1]
+        elif len(futs) > 0:
+            selected_fut = futs[0]
+    else:
+        # Check if u_type matches a specific symbol or expiry
+        for f in futs:
+            if f["symbol"].upper() == u_type or f["expiry"] == u_type:
+                selected_fut = f
+                break
+        if not selected_fut and len(futs) > 0:
+            selected_fut = futs[0]
+
+    if not selected_fut:
+        # Fallback to Cash Spot
+        return get_underlying_price_and_expiry(idx_name, "CASH")
+
+    exch = selected_fut["exchange"]
+    sym = selected_fut["symbol"]
+    exp_str = selected_fut["expiry"]
+    query_key = f"{exch}:{sym}"
+    ltp = 0.0
+
+    if kite:
+        try:
+            q = kite.ltp([query_key])
+            ltp = float(q.get(query_key, {}).get("last_price", 0.0))
+        except Exception as e:
+            logger.warning(f"Error fetching future LTP for {query_key}: {e}")
+
+    display_name = f"{selected_fut.get('label', sym)} [{sym}]"
+    return ltp, query_key, exp_str, display_name
 
 
 def resolve_straddle_option_symbol(index_name, expiry_str, strike_price, option_type):
@@ -663,15 +797,21 @@ def calculate_straddle_strikes_for(strat):
     total_tp_pct = float(strat.get("total_tp_percent", 50.0))
     entry_action = strat.get("entry_action", "SELL").upper()
 
-    # 1. Fetch Spot LTP
-    spot_symbol = get_spot_symbol(idx_name)
-    spot_ltp = 0.0
-    try:
-        q = kite.ltp([spot_symbol])
-        spot_ltp = float(q.get(spot_symbol, {}).get("last_price", 0.0))
-        log_straddle(f"[{strat.get('name')}] Live Spot Price for {idx_name} ({spot_symbol}): ₹{spot_ltp:.2f}")
-    except Exception as e:
-        logger.warning(f"Could not fetch spot LTP for {spot_symbol}: {e}")
+    # 1. Fetch Underlying Price (Cash Spot or Selected Futures Contract)
+    u_type = strat.get("underlying_type") or "CASH"
+    spot_ltp, u_symbol, u_expiry, u_display = get_underlying_price_and_expiry(idx_name, u_type)
+    strat["underlying_ltp"] = spot_ltp
+    strat["underlying_calc_ltp"] = spot_ltp
+    strat["underlying_symbol"] = u_symbol
+    strat["underlying_future_expiry"] = u_expiry
+    strat["underlying_name"] = u_display
+    strat["underlying_type"] = u_type
+    if not strat.get("base_spot_entry") or float(strat.get("base_spot_entry") or 0.0) <= 0:
+        strat["base_spot_entry"] = spot_ltp
+        strat["entry_underlying_ltp"] = spot_ltp
+        strat["underlying_min_ltp"] = spot_ltp
+        strat["underlying_max_ltp"] = spot_ltp
+    log_straddle(f"[{strat.get('name')}] Selected Underlying: {u_display} | Live LTP: ₹{spot_ltp:.2f}")
 
     # 2. Resolve Expiry
     available_expiries = sorted(list({
@@ -963,18 +1103,25 @@ def place_straddle_orders_for(strat):
         if not ok:
             log_straddle(f"[{sname}] Cannot place orders: Strike calculation failed ({msg}).")
             return False, f"Strike calculation failed: {msg}"
-        ce_sym = strat.get("selected_ce")
-        pe_sym = strat.get("selected_pe")
+    # Record entry underlying LTP (Cash Spot or chosen Future)
+    u_type = strat.get("underlying_type") or "CASH"
+    entry_underlying_ltp, u_sym, u_exp, u_disp = get_underlying_price_and_expiry(instrument, u_type)
+    if entry_underlying_ltp <= 0:
+        # Fallback to spot
+        spot_sym = get_spot_symbol(instrument)
+        try:
+            q_spot = kite.ltp([spot_sym])
+            entry_underlying_ltp = float(q_spot.get(spot_sym, {}).get("last_price", 0.0))
+        except Exception:
+            pass
 
-    spot_symbol = get_spot_symbol(instrument)
-    entry_spot_ltp = 0.0
-    try:
-        q_spot = kite.ltp([spot_symbol])
-        entry_spot_ltp = float(q_spot.get(spot_symbol, {}).get("last_price", 0.0))
-        strat["base_spot_entry"] = entry_spot_ltp
-        log_straddle(f"[{sname}] 📌 Recorded Base Spot Entry LTP for {instrument} ({spot_symbol}): ₹{entry_spot_ltp:.2f}")
-    except Exception as e:
-        logger.warning(f"Could not fetch spot LTP for {spot_symbol} on entry: {e}")
+    strat["base_spot_entry"] = entry_underlying_ltp
+    strat["entry_underlying_ltp"] = entry_underlying_ltp
+    strat["underlying_min_ltp"] = entry_underlying_ltp
+    strat["underlying_max_ltp"] = entry_underlying_ltp
+    strat["underlying_symbol"] = u_sym
+    strat["underlying_name"] = u_disp
+    log_straddle(f"[{sname}] 📌 Recorded Underlying Entry Reference for {instrument} ({u_disp}): ₹{entry_underlying_ltp:.2f}")
 
     today_str = datetime.now().strftime("%m%d_%H%M")
     strat_id_suffix = strat.get("id", "")[-4:]
@@ -1621,6 +1768,15 @@ def monitor_straddle_strategies_cycle():
                 if sym:
                     symbols_to_quote.add(f"{exch}:{sym}")
 
+        # Underlying instrument (Cash Spot or Futures) for Strategy Range & Movement tracking
+        u_sym = s.get("underlying_symbol")
+        if not u_sym:
+            u_type = s.get("underlying_type") or "CASH"
+            _, u_sym, _, _ = get_underlying_price_and_expiry(s.get("index_name"), u_type)
+            s["underlying_symbol"] = u_sym
+        if u_sym:
+            symbols_to_quote.add(u_sym)
+
         # Adjustment symbols (active & manual pending)
         adj = s.get("adjustments", {})
         if adj.get("enabled"):
@@ -1667,6 +1823,33 @@ def monitor_straddle_strategies_cycle():
             init_tot_prem = float(s.get("initial_total_premium", 0.0))
             sl_trigger_prem = float(s.get("sl_trigger_premium", 0.0))
             tp_trigger_prem = float(s.get("tp_trigger_premium", 0.0))
+
+            # --- 0. Update Underlying Live Price & Strategy Range ---
+            u_key = s.get("underlying_symbol")
+            if u_key and u_key in quotes:
+                curr_u_ltp = float(quotes[u_key]["last_price"])
+                s["underlying_ltp"] = curr_u_ltp
+                
+                # Base entry price for underlying
+                base_u_entry = float(s.get("entry_underlying_ltp") or s.get("base_spot_entry") or 0.0)
+                if base_u_entry <= 0:
+                    base_u_entry = curr_u_ltp
+                    s["entry_underlying_ltp"] = curr_u_ltp
+                    s["base_spot_entry"] = curr_u_ltp
+
+                # Update Strategy High / Low Range
+                cur_min = float(s.get("underlying_min_ltp") or base_u_entry or curr_u_ltp)
+                cur_max = float(s.get("underlying_max_ltp") or base_u_entry or curr_u_ltp)
+                if cur_min <= 0 or curr_u_ltp < cur_min:
+                    s["underlying_min_ltp"] = curr_u_ltp
+                if cur_max <= 0 or curr_u_ltp > cur_max:
+                    s["underlying_max_ltp"] = curr_u_ltp
+
+                # Movement from entry
+                u_diff = curr_u_ltp - base_u_entry
+                u_diff_pct = (u_diff / base_u_entry * 100.0) if base_u_entry > 0 else 0.0
+                s["underlying_diff_pts"] = round(u_diff, 2)
+                s["underlying_diff_pct"] = round(u_diff_pct, 2)
 
             current_total_prem = 0.0
             base_pnl = 0.0
