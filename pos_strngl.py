@@ -553,6 +553,7 @@ def cache_instruments():
 
 def calculate_pos_strikes_for(strat):
     """Finds best matching CE/PE strikes for target premiums for a given positional strategy."""
+    global pos_strategies_store
     kite = get_kite_client()
     if not kite:
         log_pos(f"[{strat.get('name')}] Cannot calculate strikes: Kite client not authenticated.")
@@ -690,7 +691,6 @@ def calculate_pos_strikes_for(strat):
                     min_pe_diff = diff
                     best_pe = (inst, price)
 
-    global pos_strategies_store
     target_in_store = next((s for s in pos_strategies_store if s.get("id") == strat.get("id")), None)
 
     if best_ce:
@@ -951,6 +951,7 @@ def place_or_retry_pos_order(strat, leg_type, purpose, target_trigger, target_pr
 
 def place_positional_orders_for(strat):
     """Places fresh multi-day positional strangle entry orders and registers SL orders locally."""
+    global pos_strategies_store
     kite = get_kite_client()
     if not kite:
         log_pos(f"[{strat.get('name')}] Order placement failed: Not logged in.")
@@ -1085,7 +1086,6 @@ def place_positional_orders_for(strat):
     strat["entry_date"] = now_date
     strat["last_sl_date"] = now_date
 
-    global pos_strategies_store
     target_in_store = next((s for s in pos_strategies_store if s.get("id") == strat.get("id")), None)
     if target_in_store:
         target_in_store["orders"]["orders_placed"] = True
@@ -1270,8 +1270,9 @@ def place_pos_sl_for_reentered_leg(strat, leg_type):
     place_or_retry_pos_order(strat, leg_type, "SL", calc_sl)
 
 
-def squareoff_positional_strangle_for(strat):
+def squareoff_positional_strangle_for(strat, reason="Manual"):
     """Squares off all active positional strangle legs for a given strategy and clears pending orders."""
+    global pos_strategies_store
     kite = get_kite_client()
     if not kite:
         return False, "Not logged in"
@@ -1279,17 +1280,14 @@ def squareoff_positional_strangle_for(strat):
     sname = strat.get("name", "Positional Strangle")
     instrument = (strat.get("index_name") or "NIFTY").upper()
     exchange = get_pos_exchange(instrument)
-    qty = int(strat.get("quantity") or get_pos_lot_size(instrument))
     product = strat.get("product", "NRML").upper()
-    entry_action = strat.get("entry_action", "SELL").upper()
-    exit_txn = kite.TRANSACTION_TYPE_BUY if entry_action == "SELL" else kite.TRANSACTION_TYPE_SELL
-    pos_tag = strat.get("run_tag") or "ps_exit"
+    pos_tag = strat.get("run_tag") or f"ps_{datetime.now().strftime('%m%d_%H%M')}_{strat.get('id', '')[-4:]}"[:20]
 
-    log_pos(f"[{sname}] ⚡ Squaring off positional strangle...")
+    log_pos(f"[{sname}] === ⚡ STARTING VERIFIED EXIT CYCLE ({reason}) [Tag: '{pos_tag}'] ===")
 
-    # 1. Cancel pending SL orders and Re-entry orders
+    # 1. Cancel pending SL orders and Re-entry orders on Kite
     for leg in ["CE", "PE"]:
-        sl_id = strat["orders"][leg].get("sl_order_id")
+        sl_id = strat.get("orders", {}).get(leg, {}).get("sl_order_id")
         if sl_id:
             try:
                 kite.cancel_order(variety=kite.VARIETY_REGULAR, order_id=sl_id)
@@ -1297,7 +1295,7 @@ def squareoff_positional_strangle_for(strat):
             except Exception as e:
                 logger.warning(f"Could not cancel SL {sl_id}: {e}")
 
-        reentry_id = strat["orders"][leg].get("reentry_order_id")
+        reentry_id = strat.get("orders", {}).get(leg, {}).get("reentry_order_id")
         if reentry_id:
             try:
                 kite.cancel_order(variety=kite.VARIETY_REGULAR, order_id=reentry_id)
@@ -1310,18 +1308,126 @@ def squareoff_positional_strangle_for(strat):
         remove_pending_pos_order(f"{strat.get('id')}_{leg}_BREAKEVEN_SL")
         remove_pending_pos_order(f"{strat.get('id')}_{leg}_REENTRY")
 
-    # 2. Place Square-off orders for ACTIVE legs
+    # Cancel any remaining broker orders with this tag
+    try:
+        broker_orders = kite.orders()
+        for o in broker_orders:
+            o_tag = str(o.get("tag") or "")
+            o_id = o.get("order_id")
+            o_status = str(o.get("status") or "")
+            if o_status in ["OPEN", "TRIGGER PENDING"] and (o_tag == pos_tag or (pos_tag and o_tag.startswith(pos_tag[:14]))):
+                try:
+                    kite.cancel_order(variety=o.get("variety", kite.VARIETY_REGULAR), order_id=o_id)
+                    log_pos(f"[{sname}] 🛑 Cancelled open pending order {o_id} ({o.get('tradingsymbol')}, Tag: '{o_tag}')")
+                except Exception as ex:
+                    log_pos(f"[{sname}] Notice: Order {o_id} cancel response: {ex}")
+    except Exception as e:
+        logger.warning(f"[{sname}] Error querying broker orders during exit cancel step: {e}")
+
+    # 2. Confirm What Positions are Actually ON with Tag / Account Net
+    tag_net_positions = {}
+    try:
+        broker_orders = kite.orders()
+        for o in broker_orders:
+            o_tag = str(o.get("tag") or "")
+            o_status = str(o.get("status") or "")
+            if (o_tag == pos_tag or (pos_tag and o_tag.startswith(pos_tag[:14]))) and o_status == "COMPLETE":
+                sym = o.get("tradingsymbol")
+                filled_qty = int(o.get("filled_quantity", 0) or o.get("quantity", 0))
+                txn = o.get("transaction_type")
+                if sym and filled_qty > 0:
+                    if sym not in tag_net_positions:
+                        tag_net_positions[sym] = {"qty": 0, "exchange": o.get("exchange", exchange), "product": o.get("product", product)}
+                    if txn == kite.TRANSACTION_TYPE_BUY:
+                        tag_net_positions[sym]["qty"] += filled_qty
+                    elif txn == kite.TRANSACTION_TYPE_SELL:
+                        tag_net_positions[sym]["qty"] -= filled_qty
+    except Exception as e:
+        log_pos(f"[{sname}] Notice: Error querying tag order history: {e}")
+
+    # Fetch live account net positions
+    account_net_map = {}
+    try:
+        raw_positions = kite.positions().get("net", [])
+        for pos in raw_positions:
+            account_net_map[pos.get("tradingsymbol")] = {
+                "qty": int(pos.get("quantity", 0)),
+                "product": pos.get("product", product),
+                "exchange": pos.get("exchange", exchange)
+            }
+    except Exception as e:
+        log_pos(f"[{sname}] Warning: Could not fetch account net positions: {e}")
+
+    # Strategy known symbols
+    strat_known_symbols = set()
     for leg in ["CE", "PE"]:
-        sym = strat["orders"][leg].get("symbol")
-        curr_ltp = strat["orders"][leg].get("current_ltp", 0.0)
+        sym = strat.get("orders", {}).get(leg, {}).get("symbol") or strat.get(f"selected_{leg.lower()}")
+        if sym:
+            strat_known_symbols.add(sym)
+
+    confirmed_positions = {}
+    for sym, tinfo in tag_net_positions.items():
+        t_qty = tinfo["qty"]
+        if t_qty != 0:
+            acct_info = account_net_map.get(sym, {})
+            acct_qty = acct_info.get("qty", 0)
+            if acct_qty != 0:
+                if (t_qty > 0 and acct_qty > 0) or (t_qty < 0 and acct_qty < 0):
+                    close_qty = min(abs(t_qty), abs(acct_qty)) * (1 if t_qty > 0 else -1)
+                else:
+                    close_qty = acct_qty
+            else:
+                close_qty = 0
+            if close_qty != 0:
+                confirmed_positions[sym] = {
+                    "net_qty": close_qty,
+                    "product": acct_info.get("product") or tinfo.get("product") or product,
+                    "exchange": acct_info.get("exchange") or tinfo.get("exchange") or exchange,
+                    "source": f"Tag '{pos_tag}'"
+                }
+
+    for sym in strat_known_symbols:
+        if sym not in confirmed_positions:
+            acct_info = account_net_map.get(sym, {})
+            acct_qty = acct_info.get("qty", 0)
+            if acct_qty != 0:
+                confirmed_positions[sym] = {
+                    "net_qty": acct_qty,
+                    "product": acct_info.get("product") or product,
+                    "exchange": acct_info.get("exchange") or exchange,
+                    "source": "Strategy Symbol"
+                }
+
+    if not confirmed_positions:
+        log_pos(f"[{sname}] 🔍 Position Confirmation: No open positions detected on Kite for Tag '{pos_tag}' (All positions 0 / already closed).")
+    else:
+        log_pos(f"[{sname}] 🔍 Confirmed Open Positions for Tag '{pos_tag}':")
+        for sym, cpos in confirmed_positions.items():
+            side_str = "LONG" if cpos["net_qty"] > 0 else "SHORT"
+            log_pos(f"[{sname}]   👉 {sym}: Net Qty = {cpos['net_qty']} ({side_str}) [{cpos['product']} on {cpos['exchange']}] (Source: {cpos['source']})")
+
+    # 3. Send Exit Orders ONLY for Confirmed Open Positions
+    for sym, cpos in confirmed_positions.items():
+        net_qty = cpos["net_qty"]
+        if net_qty == 0:
+            continue
+
+        pos_product = cpos["product"]
+        pos_exchange = cpos["exchange"]
+        order_qty = abs(net_qty)
+
+        exit_txn = kite.TRANSACTION_TYPE_BUY if net_qty < 0 else kite.TRANSACTION_TYPE_SELL
+        side_desc = "BUY (Cover Short)" if net_qty < 0 else "SELL (Liquidate Long)"
+
+        curr_ltp = 0.0
         best_ask_price = 0.0
         best_ask_qty = 0
         best_bid_price = 0.0
         best_bid_qty = 0
 
         try:
-            quote_res = kite.quote([f"{exchange}:{sym}"])
-            inst_quote = quote_res.get(f"{exchange}:{sym}", {})
+            quote_res = kite.quote([f"{pos_exchange}:{sym}"])
+            inst_quote = quote_res.get(f"{pos_exchange}:{sym}", {})
             if inst_quote.get("last_price"):
                 curr_ltp = float(inst_quote["last_price"])
             depth_asks = inst_quote.get("depth", {}).get("sell", [])
@@ -1332,75 +1438,78 @@ def squareoff_positional_strangle_for(strat):
             if depth_bids and depth_bids[0].get("price", 0) > 0:
                 best_bid_price = float(depth_bids[0]["price"])
                 best_bid_qty = int(depth_bids[0].get("quantity", 0))
-        except Exception:
-            pass
+        except Exception as q_err:
+            logger.warning(f"[{sname}] Quote query during exit for {sym}: {q_err}")
 
-        if not strat["orders"][leg].get("exit_price") or float(strat["orders"][leg].get("exit_price", 0.0)) == 0.0:
-            strat["orders"][leg]["exit_price"] = curr_ltp
+        if exit_txn == kite.TRANSACTION_TYPE_BUY:
+            base_exit_p = best_ask_price if best_ask_price > 0 else curr_ltp
+            exit_limit = round((base_exit_p * 1.01) * 20) / 20 if base_exit_p > 0 else 0.0
+            log_pos(f"[{sname}] 📤 Sending {side_desc} Limit Order for {sym} Qty:{order_qty} ({pos_product}) on {pos_exchange} (Base: ₹{base_exit_p:.2f} -> Limit: ₹{exit_limit:.2f} [+1%])...")
+        else:
+            base_exit_p = best_bid_price if best_bid_price > 0 else curr_ltp
+            exit_limit = round((base_exit_p * 0.99) * 20) / 20 if base_exit_p > 0 else 0.0
+            log_pos(f"[{sname}] 📤 Sending {side_desc} Limit Order for {sym} Qty:{order_qty} ({pos_product}) on {pos_exchange} (Base: ₹{base_exit_p:.2f} -> Limit: ₹{exit_limit:.2f} [-1%])...")
 
-        if sym and strat["orders"][leg].get("status") == "ACTIVE":
-            if exit_txn == kite.TRANSACTION_TYPE_BUY:
-                # Exiting short position (buying back): use best ask/offer + 1%
-                base_exit_p = best_ask_price if best_ask_price > 0 else curr_ltp
-                exit_limit = round((base_exit_p * 1.01) * 20) / 20 if base_exit_p > 0 else 0.0
-                log_pos(f"[{sname}] Exit BUY Order for {leg} ({sym}): Best Ask/Offer: ₹{best_ask_price:.2f} (Depth Qty: {best_ask_qty}), LTP: ₹{curr_ltp:.2f} -> Limit: ₹{exit_limit:.2f} (+1%)...")
-            else:
-                base_exit_p = best_bid_price if best_bid_price > 0 else curr_ltp
-                exit_limit = round((base_exit_p * 0.99) * 20) / 20 if base_exit_p > 0 else 0.0
-                log_pos(f"[{sname}] Exit SELL Order for {leg} ({sym}): Best Bid: ₹{best_bid_price:.2f} (Depth Qty: {best_bid_qty}), LTP: ₹{curr_ltp:.2f} -> Limit: ₹{exit_limit:.2f} (-1%)...")
-
+        order_placed_ok = False
+        if exit_limit > 0:
             try:
-                if exit_limit > 0:
-                    oid = kite.place_order(
-                        variety=kite.VARIETY_REGULAR,
-                        exchange=exchange,
-                        tradingsymbol=sym,
-                        transaction_type=exit_txn,
-                        quantity=qty,
-                        product=product,
-                        order_type=kite.ORDER_TYPE_LIMIT,
-                        price=float(exit_limit),
-                        tag=pos_tag
-                    )
-                else:
-                    oid = kite.place_order(
-                        variety=kite.VARIETY_REGULAR,
-                        exchange=exchange,
-                        tradingsymbol=sym,
-                        transaction_type=exit_txn,
-                        quantity=qty,
-                        product=product,
-                        order_type=kite.ORDER_TYPE_MARKET,
-                        tag=pos_tag
-                    )
-                log_pos(f"[{sname}] Exit order placed for {leg} ({sym}) on {exchange}. Order ID: {oid}")
-                strat["orders"][leg]["status"] = "SQUARED_OFF"
-            except Exception as e:
-                log_pos(f"[{sname}] Limit exit failed for {leg} ({sym}): {e}. Retrying with MARKET order...")
-                try:
-                    oid = kite.place_order(
-                        variety=kite.VARIETY_REGULAR,
-                        exchange=exchange,
-                        tradingsymbol=sym,
-                        transaction_type=exit_txn,
-                        quantity=qty,
-                        product=product,
-                        order_type=kite.ORDER_TYPE_MARKET,
-                        tag=pos_tag
-                    )
-                    log_pos(f"[{sname}] Market exit order placed for {leg} ({sym}). Order ID: {oid}")
-                    strat["orders"][leg]["status"] = "SQUARED_OFF"
-                except Exception as mkt_e:
-                    log_pos(f"[{sname}] Market exit order ALSO failed for {leg} ({sym}): {mkt_e}")
+                oid = kite.place_order(
+                    variety=kite.VARIETY_REGULAR,
+                    exchange=pos_exchange,
+                    tradingsymbol=sym,
+                    transaction_type=exit_txn,
+                    quantity=order_qty,
+                    product=pos_product,
+                    order_type=kite.ORDER_TYPE_LIMIT,
+                    price=float(exit_limit),
+                    tag=pos_tag
+                )
+                log_pos(f"[{sname}] ✅ Placed Limit Exit Order {oid} for {sym} ({side_desc})")
+                order_placed_ok = True
+            except Exception as lim_e:
+                log_pos(f"[{sname}] ⚠️ Limit exit order failed for {sym}: {lim_e}. Retrying with MARKET order...")
+
+        if not order_placed_ok:
+            try:
+                oid = kite.place_order(
+                    variety=kite.VARIETY_REGULAR,
+                    exchange=pos_exchange,
+                    tradingsymbol=sym,
+                    transaction_type=exit_txn,
+                    quantity=order_qty,
+                    product=pos_product,
+                    order_type=kite.ORDER_TYPE_MARKET,
+                    tag=pos_tag
+                )
+                log_pos(f"[{sname}] ✅ Placed Market Exit Order {oid} for {sym} ({side_desc})")
+            except Exception as mkt_e:
+                log_pos(f"[{sname}] ❌ Market Exit Order ALSO failed for {sym}: {mkt_e}")
+
+    # 4. Update Internal Strategy State
+    for leg in ["CE", "PE"]:
+        if strat.get("orders", {}).get(leg):
+            strat["orders"][leg]["status"] = "SQUARED_OFF"
+            if not strat["orders"][leg].get("exit_price") or float(strat["orders"][leg].get("exit_price", 0.0)) == 0.0:
+                strat["orders"][leg]["exit_price"] = strat["orders"][leg].get("current_ltp", 0.0)
 
     strat["active"] = False
-    strat["status"] = "Squared Off"
+    strat["status"] = f"Squared Off ({reason})"
     strat["orders"]["orders_placed"] = False
     final_pnl = strat.get("pnl", 0.0)
 
+    target_in_store = next((s for s in pos_strategies_store if s.get("id") == strat.get("id")), None)
+    if target_in_store:
+        target_in_store.update({
+            "active": False,
+            "status": strat["status"],
+            "orders": strat["orders"],
+            "pnl": final_pnl
+        })
+
     save_pos_strategies(pos_strategies_store)
     record_pos_trade_exit(strat, final_pnl)
-    return True, f"Square off executed for '{sname}'"
+    log_pos(f"[{sname}] 🏁 VERIFIED EXIT CYCLE COMPLETED ({reason}) | Final P&L: ₹{final_pnl:.2f}")
+    return True, f"Square off executed for '{sname}' ({reason})"
 
 
 def ensure_daily_positional_sl_orders_for(strat, order_dict):
@@ -1553,6 +1662,12 @@ def monitor_positional_strategies_cycle():
                 continue
 
             sname = s.get("name", "Positional Strangle")
+            exit_t = s.get("exit_time", "15:15:00")
+            if now_time >= exit_t:
+                log_pos(f"[{sname}] 🔔 Scheduled Exit Time ({exit_t}) reached! Position is ON -> Executing verified exit cycle...")
+                squareoff_positional_strangle_for(s, reason=f"Exit Time ({exit_t}) Reached")
+                continue
+
             exch = get_pos_exchange(s.get("index_name"))
             total_pnl = 0.0
             qty = int(s.get("quantity") or get_pos_lot_size(s.get("index_name")))

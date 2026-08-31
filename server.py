@@ -2065,6 +2065,81 @@ def api_get_lot_sizes():
     return jsonify(lot_sizes_cache)
 
 
+@app.route("/api/underlying_ltp", methods=["GET"])
+def api_get_underlying_ltp():
+    index_name = (request.args.get("index") or "NIFTY").upper()
+    underlying_type = (request.args.get("underlying_type") or "CASH").upper()
+    strike_mode = (request.args.get("strike_mode") or "ATM").upper()
+    try:
+        strike_multiple = float(request.args.get("strike_multiple") or 500.0)
+    except Exception:
+        strike_multiple = 500.0
+
+    ltp = 0.0
+    symbol = ""
+    expiry = None
+    display_name = ""
+
+    try:
+        import straddle_total_sl
+        ltp, symbol, expiry, display_name = straddle_total_sl.get_underlying_price_and_expiry(index_name, underlying_type)
+    except Exception as e:
+        logger.warning(f"Error fetching underlying price: {e}")
+
+    # Fallback to server's own spot quote if ltp is 0
+    if ltp <= 0:
+        spot_sym = "NSE:NIFTY 50"
+        if "BANKNIFTY" in index_name:
+            spot_sym = "NSE:NIFTY BANK"
+        elif "FINNIFTY" in index_name:
+            spot_sym = "NSE:NIFTY FIN SERVICE"
+        elif "MIDCP" in index_name:
+            spot_sym = "NSE:NIFTY MID SELECT"
+        elif "SENSEX" in index_name:
+            spot_sym = "BSE:SENSEX"
+        elif "BANKEX" in index_name:
+            spot_sym = "BSE:BANKEX"
+        
+        global kite_client
+        if kite_client:
+            try:
+                q = kite_client.ltp([spot_sym])
+                ltp = float(q.get(spot_sym, {}).get("last_price", 0.0))
+                symbol = spot_sym
+                display_name = f"Cash Spot ({spot_sym})"
+            except Exception:
+                pass
+
+    # Standard strike intervals
+    step_map = {
+        "NIFTY": 50.0,
+        "BANKNIFTY": 100.0,
+        "FINNIFTY": 50.0,
+        "MIDCPNIFTY": 25.0,
+        "SENSEX": 100.0,
+        "BANKEX": 100.0
+    }
+    std_step = step_map.get(index_name, 50.0)
+
+    calculated_atm = 0
+    if ltp > 0:
+        if strike_mode == "ROUND_OFF" and strike_multiple > 0:
+            calculated_atm = int(round(ltp / strike_multiple) * strike_multiple)
+        else:
+            calculated_atm = int(round(ltp / std_step) * std_step)
+
+    return jsonify({
+        "index": index_name,
+        "underlying_type": underlying_type,
+        "ltp": round(ltp, 2),
+        "symbol": symbol,
+        "expiry": expiry,
+        "display_name": display_name or symbol or index_name,
+        "atm_strike": calculated_atm,
+        "standard_step": std_step
+    })
+
+
 @app.route("/api/strategy/config", methods=["GET", "POST"])
 def api_strategy_config():
     global strategies_store, lot_sizes_cache

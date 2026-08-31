@@ -22,11 +22,13 @@ import json
 import logging
 import time
 import threading
+import re
 from datetime import datetime, date, timedelta
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(BASE_DIR, "pykiteconnect"))
 from kiteconnect import KiteConnect
+import greeks
 
 logger = logging.getLogger("straddle_total_sl")
 logger.setLevel(logging.INFO)
@@ -781,6 +783,7 @@ def calculate_straddle_strikes_for(strat):
     4. Pairs both CE and PE at that ATM Strike.
     5. Calculates Initial Combined Total Premium & SL/Target thresholds.
     """
+    global straddle_strategies_store
     kite = get_kite_client()
     if not kite:
         log_straddle(f"[{strat.get('name')}] Cannot calculate ATM straddle: Not logged in.")
@@ -1052,7 +1055,6 @@ def calculate_straddle_strikes_for(strat):
     strat["tsl_reference_prem"] = init_total_prem
     strat["best_total_prem"] = init_total_prem
 
-    global straddle_strategies_store
     target_in_store = next((s for s in straddle_strategies_store if s.get("id") == strat.get("id")), None)
     if target_in_store:
         target_in_store.update({
@@ -1073,9 +1075,269 @@ def calculate_straddle_strikes_for(strat):
             "best_total_prem": init_total_prem
         })
 
+    # Compute initial strategy Greeks immediately
+    try:
+        compute_straddle_strategy_greeks(strat)
+        if target_in_store and strat.get("greeks"):
+            target_in_store["greeks"] = strat["greeks"]
+    except Exception as g_err:
+        logger.warning(f"[{strat.get('name')}] Initial Greeks calculation notice: {g_err}")
+
     save_straddle_strategies(straddle_strategies_store)
-    log_straddle(f"[{strat.get('name')}] 🎯 {strat_type} ({leg_sel}) Strikes {strat['selected_strike']} Calculated (Expiry: {expiry}) | CE: {ce_sym or '--'} (₹{ce_ltp:.2f}) + PE: {pe_sym or '--'} (₹{pe_ltp:.2f}) = Total: ₹{init_total_prem:.2f} | SL @ ₹{sl_trigger_prem:.2f} ({sl_val} {sl_mode}), Target @ ₹{tp_trigger_prem:.2f} ({tp_val} {tp_mode})")
+    g_summary = strat.get("greeks", {})
+    delta_str = f" | Δ Net: {g_summary.get('net_delta_unit', 0.0):+.2f} (Shares: {g_summary.get('net_delta_shares', 0.0):+.1f})" if g_summary else ""
+    log_straddle(f"[{strat.get('name')}] 🎯 {strat_type} ({leg_sel}) Strikes {strat['selected_strike']} Calculated (Expiry: {expiry}) | CE: {ce_sym or '--'} (₹{ce_ltp:.2f}) + PE: {pe_sym or '--'} (₹{pe_ltp:.2f}) = Total: ₹{init_total_prem:.2f}{delta_str} | SL @ ₹{sl_trigger_prem:.2f} ({sl_val} {sl_mode}), Target @ ₹{tp_trigger_prem:.2f} ({tp_val} {tp_mode})")
     return True, f"{strat_type} ({leg_sel}) Strike(s) {strat['selected_strike']} setup successfully (Total Prem: ₹{init_total_prem:.2f})"
+
+
+# --------------------------------------------------------------------------
+# Option Greeks & Risk Analytics Engine
+# --------------------------------------------------------------------------
+def compute_straddle_strategy_greeks(strat, quotes=None):
+    """
+    Calculates Option Greeks (Delta, Gamma, Theta, Vega, IV) for the full strategy,
+    including base CE/PE legs and ALL currently active adjustment legs.
+    
+    Position Greeks:
+    - For SELL (Short):
+        * Delta = -1 * raw_delta * quantity
+        * Theta = -1 * raw_theta * quantity (Short option earns time decay => positive daily ₹ decay profit)
+        * Vega = -1 * raw_vega * quantity
+        * Gamma = -1 * raw_gamma * quantity
+    - For BUY (Long):
+        * Delta = +1 * raw_delta * quantity
+        * Theta = +1 * raw_theta * quantity (Long option pays time decay => negative daily ₹ carry)
+        * Vega = +1 * raw_vega * quantity
+        * Gamma = +1 * raw_gamma * quantity
+    """
+    if quotes is None:
+        quotes = {}
+
+    index_name = (strat.get("index_name") or "NIFTY").upper()
+    exch = get_straddle_exchange(index_name)
+    lot_size = get_straddle_lot_size(index_name)
+    base_qty = int(strat.get("quantity") or lot_size)
+    expiry = strat.get("resolved_expiry") or strat.get("expiry")
+    if not expiry or str(expiry).strip() in ("", "--"):
+        expiry = datetime.now().strftime("%Y-%m-%d")
+
+    # Underlying spot / contract price
+    underlying_ltp = float(strat.get("underlying_ltp") or 0.0)
+    if underlying_ltp <= 0:
+        spot_sym = get_spot_symbol(index_name)
+        underlying_ltp = float(quotes.get(spot_sym, {}).get("last_price") or 0.0)
+    if underlying_ltp <= 0:
+        underlying_ltp = float(strat.get("base_spot_entry") or strat.get("entry_underlying_ltp") or strat.get("underlying_calc_ltp") or 0.0)
+    if underlying_ltp <= 0:
+        try:
+            p, _, _, _ = get_underlying_price_and_expiry(index_name, strat.get("underlying_type") or "CASH")
+            if p and p > 0:
+                underlying_ltp = float(p)
+                strat["underlying_ltp"] = underlying_ltp
+        except Exception:
+            pass
+
+    if underlying_ltp <= 0:
+        return {}
+
+    legs_greeks = []
+    total_pos_delta = 0.0
+    total_pos_theta = 0.0
+    total_pos_vega = 0.0
+    total_pos_gamma = 0.0
+    iv_list = []
+    iv_weights = []
+
+    # 1. Base CE and PE Legs
+    base_action = str(strat.get("entry_action") or "SELL").upper()
+    leg_selection = str(strat.get("leg_selection") or "BOTH").upper()
+    strat_type = str(strat.get("strategy_type") or "STRADDLE").upper()
+
+    legs_to_check = []
+    if strat_type == "INDIVIDUAL_LEG":
+        legs_to_check = ["CE"] if leg_selection == "CE_ONLY" else ["PE"]
+    else:
+        legs_to_check = ["CE", "PE"]
+
+    orders_dict = strat.setdefault("orders", {})
+
+    for opt_type in legs_to_check:
+        leg_data = orders_dict.setdefault(opt_type, {})
+        sym = leg_data.get("symbol") or strat.get(f"selected_{opt_type.lower()}")
+        strike = leg_data.get("strike") or strat.get("selected_strike") or strat.get(f"{opt_type.lower()}_strike")
+        try:
+            strike_val = float(strike)
+        except Exception:
+            strike_val = 0.0
+
+        if strike_val <= 0 and sym:
+            m = re.search(r'(\d+)(CE|PE)', sym)
+            if m:
+                try:
+                    strike_val = float(m.group(1))
+                except Exception:
+                    pass
+
+        if strike_val <= 0:
+            continue
+
+        q_key = f"{exch}:{sym}" if sym else None
+        curr_ltp = 0.0
+        if q_key and q_key in quotes:
+            curr_ltp = float(quotes[q_key].get("last_price") or 0.0)
+        if curr_ltp <= 0:
+            curr_ltp = float(leg_data.get("current_ltp") or leg_data.get("entry_price") or strat.get(f"selected_{opt_type.lower()}_ltp") or 0.0)
+
+        if curr_ltp <= 0:
+            continue
+
+        # Calculate raw greeks per share
+        raw_g = greeks.calculate_greeks(
+            S=underlying_ltp,
+            K=strike_val,
+            expiry_date=expiry,
+            ltp=curr_ltp,
+            opt_type=opt_type
+        )
+
+        pos_mult = 1.0 if base_action == "BUY" else -1.0
+        pos_delta = raw_g["delta"] * base_qty * pos_mult
+        # For Short (SELL) option, time decay is positive daily income (+₹/day)
+        pos_theta = -1.0 * raw_g["theta"] * base_qty if base_action == "SELL" else raw_g["theta"] * base_qty
+        pos_vega = raw_g["vega"] * base_qty * pos_mult
+        pos_gamma = raw_g["gamma"] * base_qty * pos_mult
+
+        leg_greek_dict = {
+            "leg_type": f"Base {opt_type}",
+            "symbol": sym or f"{index_name} {strike_val} {opt_type}",
+            "strike": strike_val,
+            "opt_type": opt_type,
+            "action": base_action,
+            "quantity": base_qty,
+            "ltp": curr_ltp,
+            "iv": raw_g.get("iv", 0.0),
+            "delta": raw_g.get("delta", 0.0),
+            "theta": raw_g.get("theta", 0.0),
+            "vega": raw_g.get("vega", 0.0),
+            "gamma": raw_g.get("gamma", 0.0),
+            "pos_delta": round(pos_delta, 2),
+            "pos_theta": round(pos_theta, 2),
+            "pos_vega": round(pos_vega, 2),
+            "pos_gamma": round(pos_gamma, 4)
+        }
+        leg_data["greeks"] = leg_greek_dict
+        legs_greeks.append(leg_greek_dict)
+
+        total_pos_delta += pos_delta
+        total_pos_theta += pos_theta
+        total_pos_vega += pos_vega
+        total_pos_gamma += pos_gamma
+        if raw_g.get("iv", 0) > 0:
+            iv_list.append(raw_g["iv"])
+            iv_weights.append(base_qty)
+
+    # 2. All ACTIVE Adjustment Legs
+    adj = strat.get("adjustments", {})
+    if adj.get("enabled"):
+        active_orders = adj.get("active_orders", {})
+        for adj_id, leg_data in active_orders.items():
+            if leg_data.get("status") != "ACTIVE":
+                continue
+
+            adj_sym = leg_data.get("symbol")
+            adj_opt_type = str(leg_data.get("option_type") or ("CE" if adj_sym and "CE" in adj_sym else "PE")).upper()
+            adj_action = str(leg_data.get("action") or "SELL").upper()
+            adj_qty = int(leg_data.get("quantity") or lot_size)
+
+            adj_strike = leg_data.get("strike")
+            try:
+                adj_strike_val = float(adj_strike)
+            except Exception:
+                adj_strike_val = 0.0
+
+            if adj_strike_val <= 0 and adj_sym:
+                m = re.search(r'(\d+)(CE|PE)', adj_sym)
+                if m:
+                    try:
+                        adj_strike_val = float(m.group(1))
+                    except Exception:
+                        pass
+
+            if adj_strike_val <= 0:
+                continue
+
+            q_key = f"{exch}:{adj_sym}" if adj_sym else None
+            curr_ltp = 0.0
+            if q_key and q_key in quotes:
+                curr_ltp = float(quotes[q_key].get("last_price") or 0.0)
+            if curr_ltp <= 0:
+                curr_ltp = float(leg_data.get("current_ltp") or leg_data.get("entry_price") or 0.0)
+
+            if curr_ltp <= 0:
+                continue
+
+            raw_g = greeks.calculate_greeks(
+                S=underlying_ltp,
+                K=adj_strike_val,
+                expiry_date=expiry,
+                ltp=curr_ltp,
+                opt_type=adj_opt_type
+            )
+
+            adj_mult = 1.0 if adj_action == "BUY" else -1.0
+            pos_delta = raw_g["delta"] * adj_qty * adj_mult
+            pos_theta = -1.0 * raw_g["theta"] * adj_qty if adj_action == "SELL" else raw_g["theta"] * adj_qty
+            pos_vega = raw_g["vega"] * adj_qty * adj_mult
+            pos_gamma = raw_g["gamma"] * adj_qty * adj_mult
+
+            leg_greek_dict = {
+                "leg_type": f"Adj {adj_id}",
+                "symbol": adj_sym or f"{index_name} {adj_strike_val} {adj_opt_type}",
+                "strike": adj_strike_val,
+                "opt_type": adj_opt_type,
+                "action": adj_action,
+                "quantity": adj_qty,
+                "ltp": curr_ltp,
+                "iv": raw_g.get("iv", 0.0),
+                "delta": raw_g.get("delta", 0.0),
+                "theta": raw_g.get("theta", 0.0),
+                "vega": raw_g.get("vega", 0.0),
+                "gamma": raw_g.get("gamma", 0.0),
+                "pos_delta": round(pos_delta, 2),
+                "pos_theta": round(pos_theta, 2),
+                "pos_vega": round(pos_vega, 2),
+                "pos_gamma": round(pos_gamma, 4)
+            }
+            leg_data["greeks"] = leg_greek_dict
+            legs_greeks.append(leg_greek_dict)
+
+            total_pos_delta += pos_delta
+            total_pos_theta += pos_theta
+            total_pos_vega += pos_vega
+            total_pos_gamma += pos_gamma
+            if raw_g.get("iv", 0) > 0:
+                iv_list.append(raw_g["iv"])
+                iv_weights.append(adj_qty)
+
+    # Strategy Totals
+    avg_iv = round(sum(w * iv for w, iv in zip(iv_weights, iv_list)) / sum(iv_weights), 2) if iv_weights else 0.0
+    net_unit_delta = round(total_pos_delta / lot_size, 3) if lot_size > 0 else round(total_pos_delta, 3)
+
+    summary_greeks = {
+        "underlying_ltp": round(underlying_ltp, 2),
+        "expiry": expiry,
+        "net_delta_shares": round(total_pos_delta, 2),
+        "net_delta_unit": net_unit_delta,       # e.g. +0.08 unit delta per lot
+        "net_theta": round(total_pos_theta, 2), # Daily ₹ decay for full strategy
+        "net_vega": round(total_pos_vega, 2),   # ₹ sensitivity per 1% IV
+        "net_gamma": round(total_pos_gamma, 6),
+        "avg_iv": avg_iv,
+        "legs": legs_greeks,
+        "active_legs_count": len(legs_greeks),
+        "last_updated": datetime.now().strftime("%H:%M:%S")
+    }
+    strat["greeks"] = summary_greeks
+    return summary_greeks
 
 
 # --------------------------------------------------------------------------
@@ -1083,6 +1345,7 @@ def calculate_straddle_strikes_for(strat):
 # --------------------------------------------------------------------------
 def place_straddle_orders_for(strat):
     """Places fresh multi-day straddle/strangle/individual leg entry orders for configured legs."""
+    global straddle_strategies_store
     kite = get_kite_client()
     if not kite:
         log_straddle(f"[{strat.get('name')}] Order placement failed: Not logged in.")
@@ -1236,7 +1499,6 @@ def place_straddle_orders_for(strat):
     strat["entry_date"] = now_date
     strat["last_sl_date"] = now_date
 
-    global straddle_strategies_store
     target_in_store = next((s for s in straddle_strategies_store if s.get("id") == strat.get("id")), None)
     if target_in_store:
         target_in_store.update({
@@ -1438,34 +1700,165 @@ def place_straddle_adjustment_order(strat, leg_id, sym, opt_type, strike, action
 
 
 def squareoff_straddle_strategy_for(strat, reason="Manual"):
-    """Squares off both CE and PE legs simultaneously for the straddle strategy, as well as all active adjustment legs."""
+    """
+    Complete verified Exit Cycle for Straddle Total SL:
+    1. Cancels all open/trigger pending broker orders matching the strategy tag.
+    2. Queries Kite Connect positions and orders to verify what positions are actually ON with tag.
+    3. Sends square-off limit/market orders ONLY for confirmed open net quantities.
+    4. Updates strategy status, orders status, and records the trade journal exit.
+    """
+    global straddle_strategies_store
     kite = get_kite_client()
     if not kite:
-        return False, "Not logged in"
+        return False, "Not logged in to Kite"
 
     sname = strat.get("name", "Straddle Total SL")
     instrument = (strat.get("index_name") or "NIFTY").upper()
     exchange = get_straddle_exchange(instrument)
-    qty = int(strat.get("quantity") or get_straddle_lot_size(instrument))
     product = strat.get("product", "NRML").upper()
-    entry_action = strat.get("entry_action", "SELL").upper()
-    exit_txn = kite.TRANSACTION_TYPE_BUY if entry_action == "SELL" else kite.TRANSACTION_TYPE_SELL
-    pos_tag = strat.get("run_tag") or "std_exit"
+    pos_tag = strat.get("run_tag") or f"std_{datetime.now().strftime('%m%d_%H%M')}_{strat.get('id', '')[-4:]}"[:20]
 
-    log_straddle(f"[{sname}] ⚡ Squaring off Straddle ({reason})...")
+    log_straddle(f"[{sname}] === ⚡ STARTING VERIFIED EXIT CYCLE ({reason}) [Tag: '{pos_tag}'] ===")
 
-    # 1. Square off Base CE & PE Legs
+    # 1. Cancel all Open / Trigger Pending orders on Kite for this tag
+    try:
+        broker_orders = kite.orders()
+        for o in broker_orders:
+            o_tag = str(o.get("tag") or "")
+            o_id = o.get("order_id")
+            o_status = str(o.get("status") or "")
+            if o_status in ["OPEN", "TRIGGER PENDING"] and (o_tag == pos_tag or (pos_tag and o_tag.startswith(pos_tag[:14]))):
+                try:
+                    kite.cancel_order(variety=o.get("variety", kite.VARIETY_REGULAR), order_id=o_id)
+                    log_straddle(f"[{sname}] 🛑 Cancelled open pending order {o_id} ({o.get('tradingsymbol')}, Tag: '{o_tag}')")
+                except Exception as ex:
+                    log_straddle(f"[{sname}] Notice: Order {o_id} cancel response: {ex}")
+    except Exception as e:
+        logger.warning(f"[{sname}] Error querying broker orders during exit cancel step: {e}")
+
+    # Clear pending straddle orders book for this strategy
+    remove_pending_straddle_order(f"{strat.get('id')}_CE_ENTRY")
+    remove_pending_straddle_order(f"{strat.get('id')}_PE_ENTRY")
+    adj_active = strat.get("adjustments", {}).get("active_orders", {})
+    for adj_id in list(adj_active.keys()):
+        remove_pending_straddle_order(f"{strat.get('id')}_{adj_id}_ADJ")
+
+    # 2. Confirm What Positions are Actually ON with Tag / Account Net
+    # Map filled orders for this tag
+    tag_net_positions = {}
+    try:
+        broker_orders = kite.orders()
+        for o in broker_orders:
+            o_tag = str(o.get("tag") or "")
+            o_status = str(o.get("status") or "")
+            if (o_tag == pos_tag or (pos_tag and o_tag.startswith(pos_tag[:14]))) and o_status == "COMPLETE":
+                sym = o.get("tradingsymbol")
+                filled_qty = int(o.get("filled_quantity", 0) or o.get("quantity", 0))
+                txn = o.get("transaction_type")
+                if sym and filled_qty > 0:
+                    if sym not in tag_net_positions:
+                        tag_net_positions[sym] = {"qty": 0, "exchange": o.get("exchange", exchange), "product": o.get("product", product)}
+                    if txn == kite.TRANSACTION_TYPE_BUY:
+                        tag_net_positions[sym]["qty"] += filled_qty
+                    elif txn == kite.TRANSACTION_TYPE_SELL:
+                        tag_net_positions[sym]["qty"] -= filled_qty
+    except Exception as e:
+        log_straddle(f"[{sname}] Notice: Error querying tag order history: {e}")
+
+    # Fetch live account net positions
+    account_net_map = {}
+    try:
+        raw_positions = kite.positions().get("net", [])
+        for pos in raw_positions:
+            account_net_map[pos.get("tradingsymbol")] = {
+                "qty": int(pos.get("quantity", 0)),
+                "product": pos.get("product", product),
+                "exchange": pos.get("exchange", exchange)
+            }
+    except Exception as e:
+        log_straddle(f"[{sname}] Warning: Could not fetch account net positions: {e}")
+
+    # Collect all strategy symbols (Base CE, Base PE, and all adjustment legs)
+    strat_known_symbols = set()
     for leg in ["CE", "PE"]:
-        sym = strat["orders"][leg].get("symbol")
-        curr_ltp = strat["orders"][leg].get("current_ltp", 0.0)
+        sym = strat.get("orders", {}).get(leg, {}).get("symbol")
+        if sym:
+            strat_known_symbols.add(sym)
+    for adj_id, leg_data in adj_active.items():
+        sym = leg_data.get("symbol")
+        if sym:
+            strat_known_symbols.add(sym)
+
+    # Reconcile confirmed open positions
+    confirmed_positions = {}
+
+    # Check tagged positions first
+    for sym, tinfo in tag_net_positions.items():
+        t_qty = tinfo["qty"]
+        if t_qty != 0:
+            acct_info = account_net_map.get(sym, {})
+            acct_qty = acct_info.get("qty", 0)
+            if acct_qty != 0:
+                if (t_qty > 0 and acct_qty > 0) or (t_qty < 0 and acct_qty < 0):
+                    close_qty = min(abs(t_qty), abs(acct_qty)) * (1 if t_qty > 0 else -1)
+                else:
+                    close_qty = acct_qty
+            else:
+                close_qty = 0
+            if close_qty != 0:
+                confirmed_positions[sym] = {
+                    "net_qty": close_qty,
+                    "product": acct_info.get("product") or tinfo.get("product") or product,
+                    "exchange": acct_info.get("exchange") or tinfo.get("exchange") or exchange,
+                    "source": f"Tag '{pos_tag}'"
+                }
+
+    # Fallback to strategy known symbols if tagged query was empty
+    for sym in strat_known_symbols:
+        if sym not in confirmed_positions:
+            acct_info = account_net_map.get(sym, {})
+            acct_qty = acct_info.get("qty", 0)
+            if acct_qty != 0:
+                confirmed_positions[sym] = {
+                    "net_qty": acct_qty,
+                    "product": acct_info.get("product") or product,
+                    "exchange": acct_info.get("exchange") or exchange,
+                    "source": "Strategy Leg Symbol"
+                }
+
+    # Log confirmation results
+    if not confirmed_positions:
+        log_straddle(f"[{sname}] 🔍 Position Confirmation: No open positions detected on Kite for Tag '{pos_tag}' (All positions 0 / already closed).")
+    else:
+        log_straddle(f"[{sname}] 🔍 Confirmed Open Positions for Tag '{pos_tag}':")
+        for sym, cpos in confirmed_positions.items():
+            side_str = "LONG" if cpos["net_qty"] > 0 else "SHORT"
+            log_straddle(f"[{sname}]   👉 {sym}: Net Qty = {cpos['net_qty']} ({side_str}) [{cpos['product']} on {cpos['exchange']}] (Source: {cpos['source']})")
+
+    # 3. Send Exit Orders ONLY for Confirmed Open Positions
+    for sym, cpos in confirmed_positions.items():
+        net_qty = cpos["net_qty"]
+        if net_qty == 0:
+            continue
+
+        pos_product = cpos["product"]
+        pos_exchange = cpos["exchange"]
+        order_qty = abs(net_qty)
+
+        # If net_qty < 0 (Short), we BUY. If net_qty > 0 (Long), we SELL.
+        exit_txn = kite.TRANSACTION_TYPE_BUY if net_qty < 0 else kite.TRANSACTION_TYPE_SELL
+        side_desc = "BUY (Cover Short)" if net_qty < 0 else "SELL (Liquidate Long)"
+
+        # Fetch market depth / quote for limit price
+        curr_ltp = 0.0
         best_ask_price = 0.0
         best_ask_qty = 0
         best_bid_price = 0.0
         best_bid_qty = 0
 
         try:
-            quote_res = kite.quote([f"{exchange}:{sym}"])
-            inst_quote = quote_res.get(f"{exchange}:{sym}", {})
+            quote_res = kite.quote([f"{pos_exchange}:{sym}"])
+            inst_quote = quote_res.get(f"{pos_exchange}:{sym}", {})
             if inst_quote.get("last_price"):
                 curr_ltp = float(inst_quote["last_price"])
             depth_asks = inst_quote.get("depth", {}).get("sell", [])
@@ -1476,158 +1869,84 @@ def squareoff_straddle_strategy_for(strat, reason="Manual"):
             if depth_bids and depth_bids[0].get("price", 0) > 0:
                 best_bid_price = float(depth_bids[0]["price"])
                 best_bid_qty = int(depth_bids[0].get("quantity", 0))
-        except Exception:
-            pass
+        except Exception as q_err:
+            logger.warning(f"[{sname}] Quote query during exit for {sym}: {q_err}")
 
-        strat["orders"][leg]["exit_price"] = curr_ltp
+        if exit_txn == kite.TRANSACTION_TYPE_BUY:
+            base_exit_p = best_ask_price if best_ask_price > 0 else curr_ltp
+            exit_limit = round((base_exit_p * 1.01) * 20) / 20 if base_exit_p > 0 else 0.0
+            log_straddle(f"[{sname}] 📤 Sending {side_desc} Limit Order for {sym} Qty:{order_qty} ({pos_product}) on {pos_exchange} (Base: ₹{base_exit_p:.2f} -> Limit: ₹{exit_limit:.2f} [+1%])...")
+        else:
+            base_exit_p = best_bid_price if best_bid_price > 0 else curr_ltp
+            exit_limit = round((base_exit_p * 0.99) * 20) / 20 if base_exit_p > 0 else 0.0
+            log_straddle(f"[{sname}] 📤 Sending {side_desc} Limit Order for {sym} Qty:{order_qty} ({pos_product}) on {pos_exchange} (Base: ₹{base_exit_p:.2f} -> Limit: ₹{exit_limit:.2f} [-1%])...")
 
-        if sym and strat["orders"][leg].get("status") == "ACTIVE":
-            if exit_txn == kite.TRANSACTION_TYPE_BUY:
-                base_exit_p = best_ask_price if best_ask_price > 0 else curr_ltp
-                exit_limit = round((base_exit_p * 1.01) * 20) / 20 if base_exit_p > 0 else 0.0
-                log_straddle(f"[{sname}] Exit BUY Order for base leg {leg} ({sym}): Best Ask/Offer: ₹{best_ask_price:.2f} (Depth Qty: {best_ask_qty}), LTP: ₹{curr_ltp:.2f} -> Limit: ₹{exit_limit:.2f} (+1%)...")
-            else:
-                base_exit_p = best_bid_price if best_bid_price > 0 else curr_ltp
-                exit_limit = round((base_exit_p * 0.99) * 20) / 20 if base_exit_p > 0 else 0.0
-                log_straddle(f"[{sname}] Exit SELL Order for base leg {leg} ({sym}): Best Bid: ₹{best_bid_price:.2f} (Depth Qty: {best_bid_qty}), LTP: ₹{curr_ltp:.2f} -> Limit: ₹{exit_limit:.2f} (-1%)...")
-
+        order_placed_ok = False
+        if exit_limit > 0:
             try:
-                if exit_limit > 0:
-                    oid = kite.place_order(
-                        variety=kite.VARIETY_REGULAR,
-                        exchange=exchange,
-                        tradingsymbol=sym,
-                        transaction_type=exit_txn,
-                        quantity=qty,
-                        product=product,
-                        order_type=kite.ORDER_TYPE_LIMIT,
-                        price=float(exit_limit),
-                        tag=pos_tag
-                    )
-                else:
-                    oid = kite.place_order(
-                        variety=kite.VARIETY_REGULAR,
-                        exchange=exchange,
-                        tradingsymbol=sym,
-                        transaction_type=exit_txn,
-                        quantity=qty,
-                        product=product,
-                        order_type=kite.ORDER_TYPE_MARKET,
-                        tag=pos_tag
-                    )
-                log_straddle(f"[{sname}] Exit order placed for base leg {leg} ({sym}) on {exchange}. Order ID: {oid}")
-                strat["orders"][leg]["status"] = "SQUARED_OFF"
-                remove_pending_straddle_order(f"{strat.get('id')}_{leg}_ENTRY")
-            except Exception as e:
-                log_straddle(f"[{sname}] Limit exit failed for base leg {leg} ({sym}): {e}. Retrying with MARKET order...")
-                try:
-                    oid = kite.place_order(
-                        variety=kite.VARIETY_REGULAR,
-                        exchange=exchange,
-                        tradingsymbol=sym,
-                        transaction_type=exit_txn,
-                        quantity=qty,
-                        product=product,
-                        order_type=kite.ORDER_TYPE_MARKET,
-                        tag=pos_tag
-                    )
-                    log_straddle(f"[{sname}] Market exit order placed for base leg {leg} ({sym}). Order ID: {oid}")
-                    strat["orders"][leg]["status"] = "SQUARED_OFF"
-                    remove_pending_straddle_order(f"{strat.get('id')}_{leg}_ENTRY")
-                except Exception as mkt_e:
-                    log_straddle(f"[{sname}] Market exit order ALSO failed for base leg {leg} ({sym}): {mkt_e}")
+                oid = kite.place_order(
+                    variety=kite.VARIETY_REGULAR,
+                    exchange=pos_exchange,
+                    tradingsymbol=sym,
+                    transaction_type=exit_txn,
+                    quantity=order_qty,
+                    product=pos_product,
+                    order_type=kite.ORDER_TYPE_LIMIT,
+                    price=float(exit_limit),
+                    tag=pos_tag
+                )
+                log_straddle(f"[{sname}] ✅ Placed Limit Exit Order {oid} for {sym} ({side_desc})")
+                order_placed_ok = True
+            except Exception as lim_e:
+                log_straddle(f"[{sname}] ⚠️ Limit exit order failed for {sym}: {lim_e}. Retrying with MARKET order...")
 
-    # 2. Square off all active Adjustment Legs
-    adj = strat.get("adjustments", {})
-    active_orders = adj.get("active_orders", {})
-    for adj_id, leg_data in list(active_orders.items()):
-        if leg_data.get("status") == "ACTIVE":
-            adj_sym = leg_data.get("symbol")
-            adj_qty = int(leg_data.get("quantity") or qty)
-            adj_action = leg_data.get("action", "SELL").upper()
-            adj_exit_txn = kite.TRANSACTION_TYPE_BUY if adj_action == "SELL" else kite.TRANSACTION_TYPE_SELL
-            adj_ltp = float(leg_data.get("current_ltp", 0.0))
-            best_adj_ask = 0.0
-            best_adj_bid = 0.0
-
+        if not order_placed_ok:
             try:
-                q_adj = kite.quote([f"{exchange}:{adj_sym}"])
-                inst_q = q_adj.get(f"{exchange}:{adj_sym}", {})
-                if inst_q.get("last_price"):
-                    adj_ltp = float(inst_q["last_price"])
-                d_asks = inst_q.get("depth", {}).get("sell", [])
-                if d_asks and d_asks[0].get("price", 0) > 0:
-                    best_adj_ask = float(d_asks[0]["price"])
-                d_bids = inst_q.get("depth", {}).get("buy", [])
-                if d_bids and d_bids[0].get("price", 0) > 0:
-                    best_adj_bid = float(d_bids[0]["price"])
-            except Exception:
-                pass
+                oid = kite.place_order(
+                    variety=kite.VARIETY_REGULAR,
+                    exchange=pos_exchange,
+                    tradingsymbol=sym,
+                    transaction_type=exit_txn,
+                    quantity=order_qty,
+                    product=pos_product,
+                    order_type=kite.ORDER_TYPE_MARKET,
+                    tag=pos_tag
+                )
+                log_straddle(f"[{sname}] ✅ Placed Market Exit Order {oid} for {sym} ({side_desc})")
+            except Exception as mkt_e:
+                log_straddle(f"[{sname}] ❌ Market Exit Order ALSO failed for {sym}: {mkt_e}")
 
-            if adj_exit_txn == kite.TRANSACTION_TYPE_BUY:
-                base_adj_p = best_adj_ask if best_adj_ask > 0 else adj_ltp
-                adj_exit_limit = round((base_adj_p * 1.01) * 20) / 20 if base_adj_p > 0 else 0.0
-            else:
-                base_adj_p = best_adj_bid if best_adj_bid > 0 else adj_ltp
-                adj_exit_limit = round((base_adj_p * 0.99) * 20) / 20 if base_adj_p > 0 else 0.0
+    # 4. Update Internal Strategy State
+    for leg in ["CE", "PE"]:
+        if strat.get("orders", {}).get(leg):
+            strat["orders"][leg]["status"] = "SQUARED_OFF"
+            if not strat["orders"][leg].get("exit_price") or float(strat["orders"][leg].get("exit_price", 0.0)) == 0.0:
+                strat["orders"][leg]["exit_price"] = strat["orders"][leg].get("current_ltp", 0.0)
 
-            try:
-                if adj_exit_limit > 0:
-                    oid = kite.place_order(
-                        variety=kite.VARIETY_REGULAR,
-                        exchange=exchange,
-                        tradingsymbol=adj_sym,
-                        transaction_type=adj_exit_txn,
-                        quantity=adj_qty,
-                        product=product,
-                        order_type=kite.ORDER_TYPE_LIMIT,
-                        price=float(adj_exit_limit),
-                        tag=pos_tag
-                    )
-                else:
-                    oid = kite.place_order(
-                        variety=kite.VARIETY_REGULAR,
-                        exchange=exchange,
-                        tradingsymbol=adj_sym,
-                        transaction_type=adj_exit_txn,
-                        quantity=adj_qty,
-                        product=product,
-                        order_type=kite.ORDER_TYPE_MARKET,
-                        tag=pos_tag
-                    )
-                log_straddle(f"[{sname}] Exit order placed for adjustment leg '{adj_id}' ({adj_sym}). Order ID: {oid}")
-                leg_data["status"] = "SQUARED_OFF"
-                leg_data["exit_price"] = adj_ltp
-                leg_data["exit_reason"] = f"Strategy Exit ({reason})"
-                remove_pending_straddle_order(f"{strat.get('id')}_{adj_id}_ADJ")
-            except Exception as e:
-                log_straddle(f"[{sname}] Limit exit failed for adjustment leg '{adj_id}': {e}. Retrying with MARKET order...")
-                try:
-                    oid = kite.place_order(
-                        variety=kite.VARIETY_REGULAR,
-                        exchange=exchange,
-                        tradingsymbol=adj_sym,
-                        transaction_type=adj_exit_txn,
-                        quantity=adj_qty,
-                        product=product,
-                        order_type=kite.ORDER_TYPE_MARKET,
-                        tag=pos_tag
-                    )
-                    log_straddle(f"[{sname}] Market exit order placed for adjustment leg '{adj_id}'. Order ID: {oid}")
-                    leg_data["status"] = "SQUARED_OFF"
-                    leg_data["exit_price"] = adj_ltp
-                    leg_data["exit_reason"] = f"Strategy Exit ({reason})"
-                    remove_pending_straddle_order(f"{strat.get('id')}_{adj_id}_ADJ")
-                except Exception as mkt_e:
-                    log_straddle(f"[{sname}] Market exit order ALSO failed for adjustment leg '{adj_id}': {mkt_e}")
+    for adj_id, leg_data in adj_active.items():
+        leg_data["status"] = "SQUARED_OFF"
+        leg_data["exit_reason"] = f"Strategy Exit ({reason})"
+        if not leg_data.get("exit_price") or float(leg_data.get("exit_price", 0.0)) == 0.0:
+            leg_data["exit_price"] = leg_data.get("current_ltp", 0.0)
 
     strat["active"] = False
     strat["status"] = f"Squared Off ({reason})"
     strat["orders"]["orders_placed"] = False
     final_pnl = strat.get("pnl", 0.0)
 
+    target_in_store = next((s for s in straddle_strategies_store if s.get("id") == strat.get("id")), None)
+    if target_in_store:
+        target_in_store.update({
+            "active": False,
+            "status": strat["status"],
+            "orders": strat["orders"],
+            "adjustments": strat.get("adjustments", {}),
+            "pnl": final_pnl
+        })
+
     save_straddle_strategies(straddle_strategies_store)
     record_straddle_trade_exit(strat, final_pnl)
+    log_straddle(f"[{sname}] 🏁 VERIFIED EXIT CYCLE COMPLETED ({reason}) | Final P&L: ₹{final_pnl:.2f}")
     return True, f"Straddle squared off for '{sname}' ({reason})"
 
 
@@ -1823,6 +2142,12 @@ def monitor_straddle_strategies_cycle():
                 continue
 
             sname = s.get("name", "Straddle Total SL")
+            exit_t = s.get("exit_time", "15:15:00")
+            if now_time >= exit_t:
+                log_straddle(f"[{sname}] 🔔 Scheduled Exit Time ({exit_t}) reached! Position is ON -> Executing verified exit cycle...")
+                squareoff_straddle_strategy_for(s, reason=f"Exit Time ({exit_t}) Reached")
+                continue
+
             exch = get_straddle_exchange(s.get("index_name"))
             qty = int(s.get("quantity") or get_straddle_lot_size(s.get("index_name")))
             lot_size = get_straddle_lot_size(s.get("index_name"))
@@ -2205,6 +2530,12 @@ def monitor_straddle_strategies_cycle():
                         s["tsl_reference_prem"] = round(ref_prem + (steps_count * step_pts), 2)
                         log_straddle(f"[{sname}] 🎯 TSL TRAIL for Base Setup: Premium rose to ₹{current_total_prem:.2f}. Trailed SL higher from ₹{curr_sl_trigger:.2f} ➔ ₹{new_sl:.2f} (Ref: ₹{s['tsl_reference_prem']:.2f})")
                         sl_trigger_prem = new_sl
+
+            # Live Strategy Option Greeks (Delta, Theta, Vega, IV) for Full Strategy + Adjustments
+            try:
+                compute_straddle_strategy_greeks(s, quotes)
+            except Exception as g_err:
+                logger.debug(f"Error computing live greeks for {sname}: {g_err}")
 
             # Total combined PnL
             total_strat_pnl = round(base_pnl + adj_pnl, 2)
