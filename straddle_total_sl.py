@@ -1162,13 +1162,12 @@ def place_straddle_orders_for(strat):
                 logger.warning(f"[{sname}] Quote query for {sym} notice: {q_err}")
 
             if entry_action == "SELL":
-                # For SELL order: get bid price & quantity, send order with 1% less trigger price and 20% up limit price
-                base_price = best_bid_price if best_bid_price > 0 else float(last_ltp)
+                # For SELL order: fetch best offer / ask price and send limit order with 1% less than ask price
+                base_price = best_ask_price if best_ask_price > 0 else float(last_ltp)
                 entry_txn = kite.TRANSACTION_TYPE_SELL
-                entry_trigger = round((base_price * 0.99) * 20) / 20
-                entry_limit = round((entry_trigger * 1.20) * 20) / 20
+                order_price = round((base_price * 0.99) * 20) / 20
 
-                log_pos_msg = f"[{sname}] Placing SELL SL Order for {sym} Qty:{qty} ({product}) on {exchange} (Best Bid: ₹{best_bid_price:.2f} [Depth Qty: {best_bid_qty}], Base: ₹{base_price:.2f} -> Trigger: ₹{entry_trigger:.2f} [-1%], Limit: ₹{entry_limit:.2f} [+20%])..."
+                log_pos_msg = f"[{sname}] Placing SELL Limit Order for {sym} Qty:{qty} ({product}) on {exchange} (Best Ask: ₹{best_ask_price:.2f} [Depth Qty: {best_ask_qty}], Base: ₹{base_price:.2f} -> Limit Order: ₹{order_price:.2f} [-1%])..."
                 log_straddle(log_pos_msg)
 
                 order_id = kite.place_order(
@@ -1178,9 +1177,8 @@ def place_straddle_orders_for(strat):
                     transaction_type=entry_txn,
                     quantity=qty,
                     product=product,
-                    order_type=kite.ORDER_TYPE_SL,
-                    price=float(entry_limit),
-                    trigger_price=float(entry_trigger),
+                    order_type=kite.ORDER_TYPE_LIMIT,
+                    price=float(order_price),
                     tag=pos_tag
                 )
                 actual_price = base_price
@@ -1336,23 +1334,23 @@ def place_straddle_adjustment_order(strat, leg_id, sym, opt_type, strike, action
     if last_ltp <= 0:
         last_ltp = 100.0
 
-    base_price = best_bid_price if (action_upper == "SELL" and best_bid_price > 0) else float(last_ltp)
+    base_price = best_ask_price if (action_upper == "SELL" and best_ask_price > 0) else (best_bid_price if best_bid_price > 0 else float(last_ltp))
 
     # Calculate initial SL trigger price
     sl_type_upper = str(sl_type or "PERCENT").upper()
     sl_val = float(sl_value or 30.0)
 
     if action_upper == "SELL":
-        entry_trigger = round((base_price * 0.99) * 20) / 20
-        order_price = round((entry_trigger * 1.20) * 20) / 20
-        order_type_val = kite.ORDER_TYPE_SL
+        entry_trigger = None
+        order_price = round((base_price * 0.99) * 20) / 20
+        order_type_val = kite.ORDER_TYPE_LIMIT
         if sl_type_upper == "PERCENT":
             sl_price = round(last_ltp * (1.0 + sl_val / 100.0), 2)
         else:
             sl_price = round(last_ltp + sl_val, 2)
     else:
         entry_trigger = None
-        order_price = round((last_ltp * 1.02) * 20) / 20
+        order_price = round((base_price * 1.01) * 20) / 20
         order_type_val = kite.ORDER_TYPE_LIMIT
         if sl_type_upper == "PERCENT":
             sl_price = round(max(0.05, last_ltp * (1.0 - sl_val / 100.0)), 2)

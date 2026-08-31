@@ -1593,13 +1593,12 @@ def run_entry_order_placement_for(strat):
                 logger.warning(f"[{sname}] Quote query for {sym} notice: {q_err}")
 
             if entry_action == "SELL":
-                # For SELL order: get bid price & quantity, send order with 1% less trigger price and 20% up limit price
-                base_price = best_bid_price if best_bid_price > 0 else float(last_ltp)
+                # For SELL order: fetch best offer/ask price and send limit order with 1% less than ask price
+                base_price = best_ask_price if best_ask_price > 0 else float(last_ltp)
                 entry_txn = kite_client.TRANSACTION_TYPE_SELL
-                entry_trigger = round((base_price * 0.99) * 20) / 20
-                entry_limit = round((entry_trigger * 1.20) * 20) / 20
+                order_price = round((base_price * 0.99) * 20) / 20
                 
-                log_execution(f"[{sname}] Placing SELL SL Order for {sym} Qty:{qty} (Best Bid: ₹{best_bid_price:.2f} [Depth Qty: {best_bid_qty}], Base: ₹{base_price:.2f} -> Trigger: ₹{entry_trigger:.2f} [-1%], Limit: ₹{entry_limit:.2f} [+20%])...")
+                log_execution(f"[{sname}] Placing SELL Limit Order for {sym} Qty:{qty} (Best Ask/Offer: ₹{best_ask_price:.2f} [Depth Qty: {best_ask_qty}], Base: ₹{base_price:.2f} -> Limit Order: ₹{order_price:.2f} [-1%])...")
                 order_id = kite_client.place_order(
                     variety=kite_client.VARIETY_REGULAR,
                     exchange=kite_client.EXCHANGE_NFO,
@@ -1607,9 +1606,8 @@ def run_entry_order_placement_for(strat):
                     transaction_type=entry_txn,
                     quantity=int(qty),
                     product=product,
-                    order_type=kite_client.ORDER_TYPE_SL,
-                    price=float(entry_limit),
-                    trigger_price=float(entry_trigger),
+                    order_type=kite_client.ORDER_TYPE_LIMIT,
+                    price=float(order_price),
                     tag=current_tag
                 )
             else:
