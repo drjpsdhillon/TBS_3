@@ -1011,12 +1011,12 @@ def place_positional_orders_for(strat):
                 logger.warning(f"[{sname}] Quote query for {sym} notice: {q_err}")
 
             if entry_action == "SELL":
-                # For SELL order: fetch best offer / ask price and send limit order with 1% less than ask price
-                base_price = best_ask_price if best_ask_price > 0 else float(last_ltp)
+                # For SELL order: send limit order with 3% less than LTP
+                base_price = float(last_ltp)
                 entry_txn = kite.TRANSACTION_TYPE_SELL
-                order_price = round((base_price * 0.99) * 20) / 20
+                order_price = round((base_price * 0.97) * 20) / 20
 
-                log_pos(f"[{sname}] Placing SELL Limit Order for {sym} Qty:{qty} ({product}) on {exchange} (Best Ask: ₹{best_ask_price:.2f} [Depth Qty: {best_ask_qty}], Base: ₹{base_price:.2f} -> Limit Order: ₹{order_price:.2f} [-1%])...")
+                log_pos(f"[{sname}] Placing SELL Limit Order for {sym} Qty:{qty} ({product}) on {exchange} (Base LTP: ₹{base_price:.2f} -> Limit Order: ₹{order_price:.2f} [-3%])...")
                 order_id = kite.place_order(
                     variety=kite.VARIETY_REGULAR,
                     exchange=exchange,
