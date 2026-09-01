@@ -111,6 +111,42 @@ def get_spot_symbol(index_name):
     return "NSE:NIFTY 50"
 
 
+def get_straddle_days_to_expiry(strat):
+    """
+    Calculates number of calendar days left until option expiry.
+    Returns: int (>= 0), or 0 if date cannot be parsed.
+    """
+    expiry_str = strat.get("resolved_expiry") or strat.get("expiry")
+    if not expiry_str or str(expiry_str).strip().upper() in ("CURRENT", "NEXT", "NEAREST", "NEXT_EXPIRY", "--", ""):
+        # Check if option symbol has expiry in orders
+        for leg in ["CE", "PE"]:
+            sym = strat.get("orders", {}).get(leg, {}).get("symbol")
+            if sym:
+                m = re.search(r'(\d{2}[A-Z]{3}\d{2})', sym)
+                if m:
+                    try:
+                        exp_d = datetime.strptime(m.group(1), "%y%b%d").date()
+                        return max(0, (exp_d - date.today()).days)
+                    except Exception:
+                        pass
+        return 0
+
+    try:
+        exp_d = datetime.strptime(str(expiry_str).strip(), "%Y-%m-%d").date()
+        return max(0, (exp_d - date.today()).days)
+    except Exception:
+        pass
+
+    try:
+        exp_d = datetime.strptime(str(expiry_str).strip(), "%d-%b-%Y").date()
+        return max(0, (exp_d - date.today()).days)
+    except Exception:
+        pass
+
+    return 0
+
+
+
 # --------------------------------------------------------------------------
 # Local Pending Orders Store (pending_straddle_orders.json)
 # --------------------------------------------------------------------------
@@ -395,6 +431,7 @@ DEFAULT_STRADDLE_STRATEGY = {
     "quantity": 65,
     "entry_time": "15:00:00",
     "exit_time": "15:15:00",
+    "exit_days_to_expiry": 0,     # Exit when days to expiry <= this (0 = Expiry Day at exit_time)
     "morning_sl_time": "09:17:00",
     "entry_date": "",
     "last_sl_date": "",
@@ -500,6 +537,7 @@ def load_straddle_strategies():
     for s in straddle_strategies_store:
         s.setdefault("total_sl_percent", 100.0)
         s.setdefault("total_tp_percent", 50.0)
+        s.setdefault("exit_days_to_expiry", 0)
         s.setdefault("strike", "ATM")
         s.setdefault("selected_strike", "--")
         s.setdefault("initial_total_premium", 0.0)
@@ -1988,11 +2026,15 @@ def monitor_straddle_strategies_cycle():
         entry_action = str(s.get("entry_action") or "SELL").upper()
 
         if not orders_placed:
+            # For new entry, check if today is beyond the exit window on target expiry day
+            days_left_entry = get_straddle_days_to_expiry(s)
+            exit_days_thresh = int(s.get("exit_days_to_expiry", 0) or 0)
+            if days_left_entry <= exit_days_thresh and now_time > exit_t:
+                s["status"] = f"Past Exit Time ({exit_t}) for Expiry Exit ({days_left_entry}d left)"
+                continue
+
             if now_time < entry_t:
                 s["status"] = f"Awaiting Entry Time ({entry_t})"
-                continue
-            if now_time > exit_t:
-                s["status"] = f"Past Exit Time ({exit_t})"
                 continue
 
             # Check if strike calculation is needed
@@ -2143,9 +2185,13 @@ def monitor_straddle_strategies_cycle():
 
             sname = s.get("name", "Straddle Total SL")
             exit_t = s.get("exit_time", "15:15:00")
-            if now_time >= exit_t:
-                log_straddle(f"[{sname}] 🔔 Scheduled Exit Time ({exit_t}) reached! Position is ON -> Executing verified exit cycle...")
-                squareoff_straddle_strategy_for(s, reason=f"Exit Time ({exit_t}) Reached")
+            exit_days_thresh = int(s.get("exit_days_to_expiry", 0) or 0)
+            days_to_exp = get_straddle_days_to_expiry(s)
+
+            # 1st Exit Condition: Expiry Days Left <= Target Threshold AND Time >= exit_time
+            if days_to_exp <= exit_days_thresh and now_time >= exit_t:
+                log_straddle(f"[{sname}] 🔔 Scheduled Expiry Exit reached ({days_to_exp}d left <= {exit_days_thresh}d threshold at {exit_t})! Executing verified exit cycle...")
+                squareoff_straddle_strategy_for(s, reason=f"Expiry Exit ({days_to_exp}d left at {exit_t})")
                 continue
 
             exch = get_straddle_exchange(s.get("index_name"))

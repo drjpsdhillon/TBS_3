@@ -2306,7 +2306,7 @@ def api_pos_strangle_strategies():
             if strat_id:
                 target = next((s for s in strats if s.get("id") == strat_id), None)
                 if target:
-                    for k in ["name", "index_name", "expiry", "entry_action", "product", "ce_premium", "pe_premium", "sl_type", "ce_sl_percent", "pe_sl_percent", "sl_percent", "sl_points", "tp_percent", "reentry_count", "quantity", "entry_time", "morning_sl_time", "exit_time", "start_time", "end_time"]:
+                    for k in ["name", "index_name", "expiry", "entry_action", "product", "ce_premium", "pe_premium", "sl_type", "ce_sl_percent", "pe_sl_percent", "sl_percent", "sl_points", "tp_percent", "enable_tsl", "tsl_points", "tsl_step", "tsl_value", "reentry_count", "quantity", "entry_time", "morning_sl_time", "exit_time", "start_time", "end_time"]:
                         if k in data:
                             target[k] = data[k]
                 else:
@@ -2524,7 +2524,7 @@ def api_straddle_total_sl_strategies():
             if strat_id:
                 target = next((s for s in strats if s.get("id") == strat_id), None)
                 if target:
-                    for k in ["name", "group_name", "index_name", "underlying_type", "underlying_name", "underlying_symbol", "underlying_ltp", "underlying_future_expiry", "expiry", "strategy_type", "leg_selection", "entry_trigger_type", "trigger_decay_pct", "trigger_premium_val", "entry_action", "product", "strike", "strike_mode", "strike_multiple", "manual_strike", "ce_strike", "pe_strike", "ce_target_premium", "pe_target_premium", "sl_mode", "sl_value", "tp_mode", "tp_value", "total_sl_percent", "total_tp_percent", "enable_tsl", "tsl_type", "tsl_value", "tsl_step", "quantity", "entry_time", "morning_sl_time", "exit_time", "adjustments", "custom_legs"]:
+                    for k in ["name", "group_name", "index_name", "underlying_type", "underlying_name", "underlying_symbol", "underlying_ltp", "underlying_future_expiry", "expiry", "strategy_type", "leg_selection", "entry_trigger_type", "trigger_decay_pct", "trigger_premium_val", "entry_action", "product", "strike", "strike_mode", "strike_multiple", "manual_strike", "ce_strike", "pe_strike", "ce_target_premium", "pe_target_premium", "sl_mode", "sl_value", "tp_mode", "tp_value", "total_sl_percent", "total_tp_percent", "enable_tsl", "tsl_type", "tsl_value", "tsl_step", "quantity", "entry_time", "morning_sl_time", "exit_time", "exit_days_to_expiry", "adjustments", "custom_legs"]:
                         if k in data:
                             target[k] = data[k]
                 else:
