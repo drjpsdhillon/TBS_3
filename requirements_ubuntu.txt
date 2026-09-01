@@ -35,8 +35,10 @@ urllib3>=2.0.0
 certifi>=2023.7.22
 charset-normalizer>=3.3.0
 
-# Zerodha Kite Connect & Ticker Dependencies
+# Zerodha Kite Connect & Ticker Dependencies (WebSockets & SSL)
 kiteconnect>=4.2.0
+twisted>=22.10.0
+autobahn>=22.7.1
 pyOpenSSL>=23.2.0
 service-identity>=23.1.0
 cryptography>=41.0.0
@@ -48,7 +50,7 @@ simple-websocket>=1.0.0
 websocket-client>=1.6.0
 wsproto>=1.2.0
 h11>=0.14.0
-eventlet>=0.35.0; sys_platform != 'win32'
+eventlet>=0.35.0; sys_platform != 'win32' and python_version < '3.12'
 gunicorn>=21.2.0; sys_platform != 'win32'
 
 # Authentication & Date Handling
@@ -56,11 +58,12 @@ pyotp>=2.9.0
 python-dateutil>=2.8.2
 six>=1.16.0
 
-# Option Greeks & Scientific Computing (Black-Scholes, IV, Delta, Theta, Gamma, Vega)
+# Option Greeks & Scientific Computing
+# Note: greeks.py is self-contained using pure Python math; numpy & scipy are optional accelerators
 numpy>=1.24.0
 scipy>=1.10.0
-py_vollib>=0.1.5
 
-# Data Storage & Excel/CSV Journal Processing
+# Data Storage & Excel/CSV Journal Processing (trade_journal.py)
 pandas>=2.0.0
 openpyxl>=3.1.0
+et_xmlfile>=1.1.0
