@@ -1520,121 +1520,135 @@
 
             <!-- TAB 4: INTRADAY STRATEGY CONSOLE & CONFIGURATION -->
             <div id="tabConfigLogs" class="tab-pane" style="margin-bottom: 28px;">
-                <!-- Intraday Action & Header Bar -->
-                <div
-                    style="display: flex; gap: 12px; align-items: center; justify-content: space-between; margin-bottom: 20px; flex-wrap: wrap;">
-                    <div>
-                        <h2
-                            style="font-size: 20px; font-weight: 800; letter-spacing: -0.5px; color: var(--text-primary);">
-                            ⚡
-                            Intraday Strategy Console</h2>
-                        <p style="font-size: 13px; color: var(--text-secondary); margin-top: 2px;">Configure, schedule,
-                            and
-                            run multiple automated intraday straddles &amp; strangles independently.</p>
+                <!-- Side-by-Side: PnL on Left Side & Run All Strategy on Right Side -->
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 18px; margin-bottom: 20px; align-items: stretch;">
+
+                    <!-- LEFT SIDE: Intraday Cumulative & Today's P&L Tracker -->
+                    <div class="card"
+                        style="margin-bottom: 0; padding: 16px 20px; background: linear-gradient(135deg, rgba(255,255,255,0.98), var(--pastel-blue-bg)); border: 1.5px solid var(--pastel-blue-border); display: flex; flex-direction: column; justify-content: space-between;">
+                        <div
+                            style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--pastel-blue-border);">
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <span style="font-size: 15px; font-weight: 800; color: var(--text-primary);">📊 Intraday P&amp;L Tracker</span>
+                                <span class="mtm-sync-badge" id="intraJournalDaysBadge">0 Days in Journal</span>
+                            </div>
+                            <div style="display: flex; gap: 6px;">
+                                <button onclick="toggleIntraHistoryTable()" class="btn-secondary"
+                                    style="width: auto; padding: 4px 10px; font-size: 11px; font-weight: 700;">
+                                    📜 Journal
+                                </button>
+                                <button onclick="exportIntradayPnL()" class="btn-secondary"
+                                    style="width: auto; padding: 4px 10px; font-size: 11px; font-weight: 700;"
+                                    title="Export & Download intraday_PnL.csv">
+                                    📥 CSV
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Stacked Vertically: Today's PnL UP, Cumulative PnL BELOW -->
+                        <div style="display: flex; flex-direction: column; gap: 10px;">
+                            <!-- Today's PnL (UP) -->
+                            <div
+                                style="background: #ffffff; padding: 12px 16px; border-radius: var(--radius-sm); border: 1px solid var(--border-color); border-left: 4px solid #2563eb; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 1px 3px rgba(0,0,0,0.02);">
+                                <div>
+                                    <div
+                                        style="font-size: 11px; font-weight: 800; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px;">
+                                        ⚡ Today's Intraday P&amp;L</div>
+                                    <div style="font-size: 10px; color: var(--text-muted); margin-top: 2px;" id="intraTodayBreakdown">Combined Live Intraday Strategies</div>
+                                </div>
+                                <div id="intraTodayPnlDisplay"
+                                    style="font-size: 22px; font-weight: 800; font-family: 'JetBrains Mono', monospace;"
+                                    class="pnl-neutral">₹0.00</div>
+                            </div>
+
+                            <!-- Cumulative PnL (BELOW) -->
+                            <div
+                                style="background: #ffffff; padding: 12px 16px; border-radius: var(--radius-sm); border: 1px solid var(--border-color); border-left: 4px solid #16a34a; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 1px 3px rgba(0,0,0,0.02);">
+                                <div>
+                                    <div
+                                        style="font-size: 11px; font-weight: 800; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px;">
+                                        📈 Cumulative Intraday P&amp;L</div>
+                                    <div style="font-size: 10px; color: var(--text-muted); margin-top: 2px;" id="intraCumulativeDaysText">Sum of All Past Recorded Days + Today</div>
+                                </div>
+                                <div id="intraCumulativePnlDisplay"
+                                    style="font-size: 22px; font-weight: 800; font-family: 'JetBrains Mono', monospace;"
+                                    class="pnl-neutral">₹0.00</div>
+                            </div>
+                        </div>
                     </div>
-                    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-                        <button class="btn-primary" onclick="runAllStrategies()"
-                            style="padding: 9px 16px; font-size: 13px;">
-                            🚀 Run All Intraday
-                        </button>
-                        <button class="btn-primary" onclick="stopAllStrategies()"
-                            style="background: linear-gradient(135deg, var(--error), #dc2626); padding: 9px 16px; font-size: 13px;">
-                            🛑 Stop All Intraday
-                        </button>
-                        <button class="btn-secondary" onclick="exportIntradayPnL()"
-                            style="padding: 9px 16px; font-size: 13px;"
-                            title="Export & Save Intraday PnL CSV for all instruments">
-                            📥 Export P&amp;L CSV
-                        </button>
-                        <button class="btn-secondary" onclick="openNewStrategyForm()"
-                            style="padding: 9px 16px; font-size: 13px;">
-                            ➕ New Strategy
-                        </button>
+
+                    <!-- RIGHT SIDE: Intraday Strategy Console & Run All Actions -->
+                    <div class="card"
+                        style="margin-bottom: 0; padding: 18px 20px; background: #ffffff; border: 1.5px solid var(--border-color); display: flex; flex-direction: column; justify-content: space-between;">
+                        <div>
+                            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+                                <h2 style="font-size: 18px; font-weight: 800; letter-spacing: -0.5px; color: var(--text-primary); margin: 0;">
+                                    ⚡ Intraday Strategy Console
+                                </h2>
+                            </div>
+                            <p style="font-size: 12px; color: var(--text-secondary); margin: 0 0 16px 0; line-height: 1.4;">
+                                Configure, schedule, and run multiple automated intraday straddles &amp; strangles independently.
+                            </p>
+                        </div>
+
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: auto;">
+                            <button class="btn-primary" onclick="runAllStrategies()"
+                                style="padding: 10px 14px; font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 6px; box-shadow: 0 2px 4px rgba(37,99,235,0.2);">
+                                🚀 Run All Intraday
+                            </button>
+                            <button class="btn-primary" onclick="stopAllStrategies()"
+                                style="background: linear-gradient(135deg, var(--error), #dc2626); border-color: #dc2626; padding: 10px 14px; font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 6px; box-shadow: 0 2px 4px rgba(220,38,38,0.2);">
+                                🛑 Stop All Intraday
+                            </button>
+                            <button class="btn-secondary" onclick="exportIntradayPnL()"
+                                style="padding: 10px 14px; font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 6px;"
+                                title="Export & Save Intraday PnL CSV for all instruments">
+                                📥 Export P&amp;L CSV
+                            </button>
+                            <button class="btn-secondary" onclick="openNewStrategyForm()"
+                                style="padding: 10px 14px; font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 6px; background: var(--pastel-blue-bg); border-color: var(--pastel-blue-border); color: var(--pastel-blue-dark);">
+                                ➕ New Strategy
+                            </button>
+                        </div>
                     </div>
+
                 </div>
 
-                <!-- Intraday Cumulative & Today's Performance Card -->
-                <div class="card"
-                    style="margin-bottom: 24px; padding: 18px 22px; background: linear-gradient(135deg, rgba(255,255,255,0.95), var(--pastel-blue-bg)); border: 1.5px solid var(--pastel-blue-border);">
+                <!-- Collapsible Daily P&L Journal History Table (Full Width) -->
+                <div id="intraHistoryContainer" class="card"
+                    style="display: none; margin-bottom: 24px; padding: 18px 22px; border: 1px solid var(--border-color);">
                     <div
-                        style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 14px;">
-                        <div style="display: flex; align-items: center; gap: 10px;">
-                            <span style="font-size: 16px; font-weight: 800; color: var(--text-primary);">📊 Intraday
-                                Cumulative &amp; Today's P&amp;L Tracker</span>
-                            <span class="mtm-sync-badge" id="intraJournalDaysBadge">0 Days in Journal</span>
-                        </div>
-                        <div style="display: flex; gap: 8px;">
-                            <button onclick="toggleIntraHistoryTable()" class="btn-secondary"
-                                style="width: auto; padding: 6px 12px; font-size: 11px;">
-                                📜 Toggle Daily P&amp;L Journal
-                            </button>
-                            <button onclick="exportIntradayPnL()" class="btn-secondary"
-                                style="width: auto; padding: 6px 12px; font-size: 11px;"
-                                title="Export & Download intraday_PnL.csv">
-                                📥 Download intraday_PnL.csv
-                            </button>
-                        </div>
+                        style="font-size: 13px; font-weight: 800; color: var(--accent-light); margin-bottom: 10px; text-transform: uppercase; display: flex; justify-content: space-between; align-items: center;">
+                        <span>📜 Intraday Strategy Trading Journal (intraday_PnL.csv)</span>
+                        <button onclick="toggleIntraHistoryTable()" class="btn-secondary" style="font-size: 11px; padding: 2px 8px;">✕ Close</button>
                     </div>
-
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 14px;">
-                        <div
-                            style="background: #ffffff; padding: 12px 16px; border-radius: var(--radius-sm); border: 1px solid var(--border-color); border-left: 3px solid #2563eb;">
-                            <div
-                                style="font-size: 11px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase;">
-                                ⚡ Today's Intraday P&amp;L</div>
-                            <div id="intraTodayPnlDisplay"
-                                style="font-size: 21px; font-weight: 800; font-family: 'JetBrains Mono', monospace;"
-                                class="pnl-neutral">₹0.00</div>
-                            <div style="font-size: 10px; color: var(--text-muted);" id="intraTodayBreakdown">Combined
-                                Live Intraday Strategies</div>
-                        </div>
-                        <div
-                            style="background: #ffffff; padding: 12px 16px; border-radius: var(--radius-sm); border: 1px solid var(--border-color); border-left: 3px solid #16a34a;">
-                            <div
-                                style="font-size: 11px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase;">
-                                📈 Cumulative Intraday P&amp;L</div>
-                            <div id="intraCumulativePnlDisplay"
-                                style="font-size: 21px; font-weight: 800; font-family: 'JetBrains Mono', monospace;"
-                                class="pnl-neutral">₹0.00</div>
-                            <div style="font-size: 10px; color: var(--text-muted);" id="intraCumulativeDaysText">Sum of
-                                All Past Recorded Days + Today</div>
-                        </div>
-                    </div>
-
-                    <!-- Collapsible History Table -->
-                    <div id="intraHistoryContainer"
-                        style="display: none; margin-top: 16px; border-top: 1px solid var(--border-color); padding-top: 14px;">
-                        <div
-                            style="font-size: 12px; font-weight: 700; color: var(--accent-light); margin-bottom: 8px; text-transform: uppercase;">
-                            📜 Intraday Strategy Trading Journal (intraday_PnL.csv)
-                        </div>
-                        <div class="table-responsive">
-                            <table class="custom-table" id="intraHistoryTable">
-                                <thead>
-                                    <tr>
-                                        <th>#</th>
-                                        <th>Date</th>
-                                        <th>Time</th>
-                                        <th>Strategy Name</th>
-                                        <th>Instrument</th>
-                                        <th>Lot Size</th>
-                                        <th>CE Leg (Entry / Exit)</th>
-                                        <th>PE Leg (Entry / Exit)</th>
-                                        <th>Day P&amp;L</th>
-                                        <th>Cumulative P&amp;L</th>
-                                        <th>Status</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="intraHistoryBody">
-                                    <tr>
-                                        <td colspan="11"
-                                            style="text-align: center; color: var(--text-muted); padding: 16px;">
-                                            No trade records in intraday_PnL.csv yet.
-                                        </td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
+                    <div class="table-responsive">
+                        <table class="custom-table" id="intraHistoryTable">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>Date &amp; Time</th>
+                                    <th>Strategy Name</th>
+                                    <th>Instrument &amp; Leg</th>
+                                    <th>Lot</th>
+                                    <th>Entry (Expected vs Fill)</th>
+                                    <th>Exit (Trigger vs Fill)</th>
+                                    <th>Slippage (Pts / ₹)</th>
+                                    <th>Trade P&amp;L</th>
+                                    <th>Cumulative P&amp;L</th>
+                                    <th>Exit Reason</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="intraHistoryBody">
+                                <tr>
+                                    <td colspan="11"
+                                        style="text-align: center; color: var(--text-muted); padding: 16px;">
+                                        No trade records in intraday_PnL.csv yet.
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
                     </div>
                 </div>
 
@@ -1971,15 +1985,16 @@
                                 <thead>
                                     <tr>
                                         <th>#</th>
-                                        <th>Date</th>
+                                        <th>Date &amp; Time</th>
                                         <th>Strategy Name</th>
-                                        <th>Instrument</th>
-                                        <th>Lot Size</th>
-                                        <th>CE Leg (Entry / Exit)</th>
-                                        <th>PE Leg (Entry / Exit)</th>
-                                        <th>Day P&amp;L</th>
+                                        <th>Instrument &amp; Leg</th>
+                                        <th>Lot</th>
+                                        <th>Entry (Expected vs Fill)</th>
+                                        <th>Exit (Trigger vs Fill)</th>
+                                        <th>Slippage (Pts / ₹)</th>
+                                        <th>Trade P&amp;L</th>
                                         <th>Cumulative P&amp;L</th>
-                                        <th>Exit Date</th>
+                                        <th>Exit Reason</th>
                                         <th>Status</th>
                                     </tr>
                                 </thead>
@@ -4831,8 +4846,8 @@
             if (!records || records.length === 0) {
                 tbody.innerHTML = `
                     <tr>
-                        <td colspan="11" style="text-align: center; color: var(--text-muted); padding: 16px;">
-                            No trade records in intraday_PnL.csv yet. Records are automatically added upon daily trade execution and exit.
+                        <td colspan="12" style="text-align: center; color: var(--text-muted); padding: 16px;">
+                            No trade records in intraday_PnL.csv yet. Records are automatically added upon trade execution, SL hit, and exit.
                         </td>
                     </tr>`;
                 return;
@@ -4844,22 +4859,48 @@
                 const sname = r.Strategy_Name || 'Intraday Strategy';
                 const inst = r.Instrument || '--';
                 const lot = r.Lot_Size || '--';
-                const ceInfo = r.CE_Symbol && r.CE_Symbol !== '--' ? `<span style="font-weight:600;">${r.CE_Symbol}</span><br><span style="font-size: 10px; color: var(--text-muted);">Entry: ₹${r.CE_Entry_Price || '--'} | Exit: ₹${r.CE_Exit_Price || '--'}</span>` : '--';
-                const peInfo = r.PE_Symbol && r.PE_Symbol !== '--' ? `<span style="font-weight:600;">${r.PE_Symbol}</span><br><span style="font-size: 10px; color: var(--text-muted);">Entry: ₹${r.PE_Entry_Price || '--'} | Exit: ₹${r.PE_Exit_Price || '--'}</span>` : '--';
+                const leg = r.Leg || (r.CE_Symbol && r.CE_Symbol !== '--' ? 'CE' : (r.PE_Symbol && r.PE_Symbol !== '--' ? 'PE' : '--'));
+                const sym = r.Symbol || r.CE_Symbol || r.PE_Symbol || '--';
+
+                const expEntry = r.Expected_Entry_Price && r.Expected_Entry_Price !== '--' && parseFloat(r.Expected_Entry_Price) > 0 ? `₹${parseFloat(r.Expected_Entry_Price).toFixed(2)}` : '--';
+                const actEntry = r.Actual_Entry_Price && r.Actual_Entry_Price !== '--' && parseFloat(r.Actual_Entry_Price) > 0 ? `₹${parseFloat(r.Actual_Entry_Price).toFixed(2)}` : (r.CE_Entry_Price || r.PE_Entry_Price || '--');
+
+                const expExit = r.Expected_Exit_Price && r.Expected_Exit_Price !== '--' && parseFloat(r.Expected_Exit_Price) > 0 ? `₹${parseFloat(r.Expected_Exit_Price).toFixed(2)}` : '--';
+                const actExit = r.Actual_Exit_Price && r.Actual_Exit_Price !== '--' && parseFloat(r.Actual_Exit_Price) > 0 ? `₹${parseFloat(r.Actual_Exit_Price).toFixed(2)}` : (r.CE_Exit_Price || r.PE_Exit_Price || '--');
+
+                const totSlipInr = parseFloat(r.Total_Slippage_INR || 0);
+                const totSlipPts = (parseFloat(r.Entry_Slippage_Pts || 0) + parseFloat(r.Exit_Slippage_Pts || 0));
+                const isFavorable = totSlipInr >= 0;
+                const slipBadge = (r.Total_Slippage_INR !== undefined && (totSlipPts !== 0 || totSlipInr !== 0))
+                    ? `<span style="font-family: 'JetBrains Mono', monospace; font-weight: 700; font-size: 11px; color: ${isFavorable ? '#16a34a' : '#dc2626'};">${isFavorable ? '+' : ''}₹${totSlipInr.toFixed(2)} (${isFavorable ? '+' : ''}${totSlipPts.toFixed(2)} pts)</span>`
+                    : '<span style="color: var(--text-muted); font-size: 11px;">0.00 pts</span>';
+
+                const isClosed = r.Status === 'CLOSED' || r.Status === 'RECORDED';
 
                 return `
                 <tr>
                     <td style="font-family: 'JetBrains Mono', monospace; font-weight: 700;">#${r.Serial_No}</td>
-                    <td style="font-weight: 700; color: var(--text-primary); font-family: monospace;">${r.Date}</td>
-                    <td style="font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--text-muted);">${r.Time || '--'}</td>
+                    <td style="font-weight: 600; color: var(--text-primary); font-family: monospace; font-size: 11px;">
+                        ${r.Date}<br><span style="font-size: 10px; color: var(--text-muted);">${r.Time || r.Entry_Time || '--'}</span>
+                    </td>
                     <td style="font-weight: 700; color: var(--accent-light);">${sname}</td>
-                    <td><span class="badge-tag badge-nifty" style="font-size: 11px;">${inst}</span></td>
+                    <td>
+                        <span class="badge-tag badge-nifty" style="font-size: 11px;">${inst}</span>
+                        ${leg !== '--' ? `<span class="badge-tag" style="font-weight: 700; font-size: 10px; margin-left: 4px;">${leg}</span>` : ''}
+                        <br><span style="font-size: 10px; color: var(--text-muted); font-family: monospace;">${sym}</span>
+                    </td>
                     <td style="font-family: 'JetBrains Mono', monospace; font-weight: 600;">${lot}</td>
-                    <td style="font-family: 'JetBrains Mono', monospace; font-size: 11px;">${ceInfo}</td>
-                    <td style="font-family: 'JetBrains Mono', monospace; font-size: 11px;">${peInfo}</td>
+                    <td style="font-family: 'JetBrains Mono', monospace; font-size: 11px;">
+                        <span style="color: var(--text-muted);">Exp:</span> ${expEntry}<br><b>Fill:</b> ${actEntry}
+                    </td>
+                    <td style="font-family: 'JetBrains Mono', monospace; font-size: 11px;">
+                        <span style="color: var(--text-muted);">Trig:</span> ${expExit}<br><b>Fill:</b> ${actExit}
+                    </td>
+                    <td>${slipBadge}</td>
                     <td style="font-family: 'JetBrains Mono', monospace; font-weight: 800;" class="${getPnlClass(dayPnl)}">${formatPnl(dayPnl)}</td>
                     <td style="font-family: 'JetBrains Mono', monospace; font-weight: 800;" class="${getPnlClass(cumPnl)}">${formatPnl(cumPnl)}</td>
-                    <td><span class="badge-tag badge-complete">${r.Status || 'RECORDED'}</span></td>
+                    <td><span style="font-size: 11px; font-weight: 600; color: var(--text-secondary);">${r.Exit_Reason || '--'}</span></td>
+                    <td><span class="badge-tag ${isClosed ? 'badge-complete' : 'badge-active'}">${r.Status || 'RECORDED'}</span></td>
                 </tr>`;
             }).join('');
         }
@@ -6202,7 +6243,7 @@
             if (!records || records.length === 0) {
                 tbody.innerHTML = `
                     <tr>
-                        <td colspan="11" style="text-align: center; color: var(--text-muted); padding: 16px;">
+                        <td colspan="12" style="text-align: center; color: var(--text-muted); padding: 16px;">
                             No positional trade records in pos_strategy_PnL.csv yet. Records are automatically added upon trade entry and exit.
                         </td>
                     </tr>`;
@@ -6215,23 +6256,47 @@
                 const sname = r.Strategy_Name || 'Positional Strategy';
                 const inst = r.Instrument || '--';
                 const lot = r.Lot_Size || '--';
-                const ceInfo = r.CE_Symbol && r.CE_Symbol !== '--' ? `<span style="font-weight:600;">${r.CE_Symbol}</span><br><span style="font-size: 10px; color: var(--text-muted);">Entry: ₹${r.CE_Entry_Price || '--'} | Exit: ₹${r.CE_Exit_Price || '--'}</span>` : '--';
-                const peInfo = r.PE_Symbol && r.PE_Symbol !== '--' ? `<span style="font-weight:600;">${r.PE_Symbol}</span><br><span style="font-size: 10px; color: var(--text-muted);">Entry: ₹${r.PE_Entry_Price || '--'} | Exit: ₹${r.PE_Exit_Price || '--'}</span>` : '--';
-                const exitDate = r.Exit_Date || '-- (OPEN)';
+                const leg = r.Leg || (r.CE_Symbol && r.CE_Symbol !== '--' ? 'CE' : (r.PE_Symbol && r.PE_Symbol !== '--' ? 'PE' : '--'));
+                const sym = r.Symbol || r.CE_Symbol || r.PE_Symbol || '--';
+
+                const expEntry = r.Expected_Entry_Price && r.Expected_Entry_Price !== '--' && parseFloat(r.Expected_Entry_Price) > 0 ? `₹${parseFloat(r.Expected_Entry_Price).toFixed(2)}` : '--';
+                const actEntry = r.Actual_Entry_Price && r.Actual_Entry_Price !== '--' && parseFloat(r.Actual_Entry_Price) > 0 ? `₹${parseFloat(r.Actual_Entry_Price).toFixed(2)}` : (r.CE_Entry_Price || r.PE_Entry_Price || '--');
+
+                const expExit = r.Expected_Exit_Price && r.Expected_Exit_Price !== '--' && parseFloat(r.Expected_Exit_Price) > 0 ? `₹${parseFloat(r.Expected_Exit_Price).toFixed(2)}` : '--';
+                const actExit = r.Actual_Exit_Price && r.Actual_Exit_Price !== '--' && parseFloat(r.Actual_Exit_Price) > 0 ? `₹${parseFloat(r.Actual_Exit_Price).toFixed(2)}` : (r.CE_Exit_Price || r.PE_Exit_Price || '--');
+
+                const totSlipInr = parseFloat(r.Total_Slippage_INR || 0);
+                const totSlipPts = (parseFloat(r.Entry_Slippage_Pts || 0) + parseFloat(r.Exit_Slippage_Pts || 0));
+                const isFavorable = totSlipInr >= 0;
+                const slipBadge = (r.Total_Slippage_INR !== undefined && (totSlipPts !== 0 || totSlipInr !== 0))
+                    ? `<span style="font-family: 'JetBrains Mono', monospace; font-weight: 700; font-size: 11px; color: ${isFavorable ? '#16a34a' : '#dc2626'};">${isFavorable ? '+' : ''}₹${totSlipInr.toFixed(2)} (${isFavorable ? '+' : ''}${totSlipPts.toFixed(2)} pts)</span>`
+                    : '<span style="color: var(--text-muted); font-size: 11px;">0.00 pts</span>';
+
                 const isClosed = r.Status === 'CLOSED';
 
                 return `
                 <tr>
                     <td style="font-family: 'JetBrains Mono', monospace; font-weight: 700;">#${r.Serial_No}</td>
-                    <td style="font-weight: 700; color: var(--text-primary); font-family: monospace;">${r.Date}</td>
+                    <td style="font-weight: 600; color: var(--text-primary); font-family: monospace; font-size: 11px;">
+                        ${r.Date}<br><span style="font-size: 10px; color: var(--text-muted);">${r.Time || r.Entry_Time || '--'}</span>
+                    </td>
                     <td style="font-weight: 700; color: var(--accent-light);">${sname}</td>
-                    <td><span class="badge-tag badge-nifty" style="font-size: 11px;">${inst}</span></td>
+                    <td>
+                        <span class="badge-tag badge-nifty" style="font-size: 11px;">${inst}</span>
+                        ${leg !== '--' ? `<span class="badge-tag" style="font-weight: 700; font-size: 10px; margin-left: 4px;">${leg}</span>` : ''}
+                        <br><span style="font-size: 10px; color: var(--text-muted); font-family: monospace;">${sym}</span>
+                    </td>
                     <td style="font-family: 'JetBrains Mono', monospace; font-weight: 600;">${lot}</td>
-                    <td style="font-family: 'JetBrains Mono', monospace; font-size: 11px;">${ceInfo}</td>
-                    <td style="font-family: 'JetBrains Mono', monospace; font-size: 11px;">${peInfo}</td>
+                    <td style="font-family: 'JetBrains Mono', monospace; font-size: 11px;">
+                        <span style="color: var(--text-muted);">Exp:</span> ${expEntry}<br><b>Fill:</b> ${actEntry}
+                    </td>
+                    <td style="font-family: 'JetBrains Mono', monospace; font-size: 11px;">
+                        <span style="color: var(--text-muted);">Trig:</span> ${expExit}<br><b>Fill:</b> ${actExit}
+                    </td>
+                    <td>${slipBadge}</td>
                     <td style="font-family: 'JetBrains Mono', monospace; font-weight: 800;" class="${getPnlClass(dayPnl)}">${formatPnl(dayPnl)}</td>
                     <td style="font-family: 'JetBrains Mono', monospace; font-weight: 800;" class="${getPnlClass(cumPnl)}">${formatPnl(cumPnl)}</td>
-                    <td style="font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--text-muted);">${exitDate}</td>
+                    <td><span style="font-size: 11px; font-weight: 600; color: var(--text-secondary);">${r.Exit_Reason || r.Exit_Date || '--'}</span></td>
                     <td><span class="badge-tag ${isClosed ? 'badge-complete' : 'badge-active'}">${r.Status || 'OPEN'}</span></td>
                 </tr>`;
             }).join('');

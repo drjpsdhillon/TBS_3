@@ -17,6 +17,7 @@ import time
 from datetime import datetime, date, timedelta
 from flask import Flask, request, jsonify, send_from_directory, Response
 from flask_cors import CORS
+import trade_journal
 
 # ---------------------------------------------------------------------------
 # Add pykiteconnect to path so kiteconnect can be imported
@@ -577,56 +578,41 @@ INTRADAY_PNL_XLSX = os.path.join(BASE_DIR, "intraday_PnL.xlsx")
 _last_eod_recorded_date = ""
 
 def load_intraday_pnl_records():
-    """Loads existing trade journal records from intraday_PnL.csv."""
-    records = []
-    if not os.path.exists(INTRADAY_PNL_CSV):
-        return records
-    try:
-        with open(INTRADAY_PNL_CSV, "r", encoding="utf-8") as f:
-            lines = [l.strip() for l in f if l.strip() and not l.startswith("#")]
-            if len(lines) > 1:
-                for line in lines[1:]:
-                    parts = [p.strip() for p in line.split(",")]
-                    if len(parts) >= 15:
-                        records.append({
-                            "Serial_No": int(parts[0]) if parts[0].isdigit() else len(records) + 1,
-                            "Date": parts[1],
-                            "Time": parts[2],
-                            "Strategy_Name": parts[3],
-                            "Instrument": parts[4],
-                            "Lot_Size": int(parts[5]) if parts[5].isdigit() else parts[5],
-                            "CE_Symbol": parts[6],
-                            "CE_Entry_Price": parts[7],
-                            "CE_Exit_Price": parts[8],
-                            "PE_Symbol": parts[9],
-                            "PE_Entry_Price": parts[10],
-                            "PE_Exit_Price": parts[11],
-                            "Day_PnL": float(parts[12]) if parts[12].replace("-","").replace(".","").isdigit() else 0.0,
-                            "Cumulative_PnL": float(parts[13]) if parts[13].replace("-","").replace(".","").isdigit() else 0.0,
-                            "Status": parts[14] if len(parts) > 14 else "RECORDED"
-                        })
-                    elif len(parts) >= 11:
-                        # Legacy fallback
-                        records.append({
-                            "Serial_No": int(parts[0]) if parts[0].isdigit() else len(records) + 1,
-                            "Date": parts[1],
-                            "Time": parts[2],
-                            "Strategy_Name": "Daily Intraday Summary",
-                            "Instrument": "ALL",
-                            "Lot_Size": "--",
-                            "CE_Symbol": "--",
-                            "CE_Entry_Price": "--",
-                            "CE_Exit_Price": "--",
-                            "PE_Symbol": "--",
-                            "PE_Entry_Price": "--",
-                            "PE_Exit_Price": "--",
-                            "Day_PnL": float(parts[3]) if parts[3].replace("-","").replace(".","").isdigit() else 0.0,
-                            "Cumulative_PnL": float(parts[4]) if parts[4].replace("-","").replace(".","").isdigit() else 0.0,
-                            "Status": parts[10] if len(parts) > 10 else "RECORDED"
-                        })
-    except Exception as e:
-        logger.warning(f"Failed parsing {INTRADAY_PNL_CSV}: {e}")
-    return records
+    """Loads existing trade journal records from intraday_PnL.csv via trade_journal."""
+    raw_records = trade_journal.load_journal_records(trade_journal.INTRADAY_PNL_CSV)
+    normalized = []
+    for r in raw_records:
+        rec = dict(r)
+        leg = rec.get("Leg", "").upper()
+        sym = rec.get("Symbol", "--")
+        act_entry = rec.get("Actual_Entry_Price") or rec.get("Expected_Entry_Price") or "--"
+        act_exit = rec.get("Actual_Exit_Price") or "--"
+        
+        if leg == "CE":
+            rec.setdefault("CE_Symbol", sym)
+            rec.setdefault("CE_Entry_Price", f"{act_entry:.2f}" if isinstance(act_entry, (int, float)) else str(act_entry))
+            rec.setdefault("CE_Exit_Price", f"{act_exit:.2f}" if isinstance(act_exit, (int, float)) else str(act_exit))
+            rec.setdefault("PE_Symbol", "--")
+            rec.setdefault("PE_Entry_Price", "--")
+            rec.setdefault("PE_Exit_Price", "--")
+        elif leg == "PE":
+            rec.setdefault("CE_Symbol", "--")
+            rec.setdefault("CE_Entry_Price", "--")
+            rec.setdefault("CE_Exit_Price", "--")
+            rec.setdefault("PE_Symbol", sym)
+            rec.setdefault("PE_Entry_Price", f"{act_entry:.2f}" if isinstance(act_entry, (int, float)) else str(act_entry))
+            rec.setdefault("PE_Exit_Price", f"{act_exit:.2f}" if isinstance(act_exit, (int, float)) else str(act_exit))
+        else:
+            rec.setdefault("CE_Symbol", rec.get("CE_Symbol", "--"))
+            rec.setdefault("CE_Entry_Price", rec.get("CE_Entry_Price", "--"))
+            rec.setdefault("CE_Exit_Price", rec.get("CE_Exit_Price", "--"))
+            rec.setdefault("PE_Symbol", rec.get("PE_Symbol", "--"))
+            rec.setdefault("PE_Entry_Price", rec.get("PE_Entry_Price", "--"))
+            rec.setdefault("PE_Exit_Price", rec.get("PE_Exit_Price", "--"))
+
+        rec.setdefault("Time", rec.get("Entry_Time", "--"))
+        normalized.append(rec)
+    return normalized
 
 
 MTM_CURVE_DATA_FILE = os.path.join(BASE_DIR, "mtm_curve_data.json")
@@ -687,118 +673,42 @@ def rewrite_intraday_pnl_file(records):
 
 
 def record_eod_intraday_pnl(force=False):
-    """Calculates each strategy's daily PnL, updates cumulative intraday total, and saves to CSV and Excel journal."""
+    """Reconciles session trades with broker order book, recalculates cumulative intraday totals, and syncs CSV/Excel."""
     global kite_client, strategies_store, _last_eod_recorded_date
     today_str = datetime.now().strftime("%Y-%m-%d")
     now_time_str = datetime.now().strftime("%H:%M:%S")
 
-    if not force and _last_eod_recorded_date == today_str:
+    if not force and _last_eod_recorded_date == today_str and now_time_str < "15:28:00":
         return True, "Already recorded for today"
 
     if not kite_client:
         return False, "Not connected to Kite"
 
     try:
-        log_execution(f"📊 Recording Daily Intraday Strategy P&L at {now_time_str}...")
+        log_execution(f"📊 Reconciling & Recording Daily Intraday Strategy P&L at {now_time_str}...")
+        # 1. Reconcile any open trades against broker orders
+        reconciled = trade_journal.reconcile_session_trades_with_broker(kite_client, "INTRADAY", strategies_store)
+
+        # 2. Get current positions for breakdown
         positions_res = kite_client.positions()
         net_pos = positions_res.get("net", []) if isinstance(positions_res, dict) else (positions_res or [])
-
-        # Build position lookup map for MIS
-        pos_by_sym = {}
         instrument_pnl = {"NIFTY": 0.0, "BANKNIFTY": 0.0, "FINNIFTY": 0.0, "MIDCPNIFTY": 0.0, "SENSEX": 0.0}
-
         for p in net_pos:
             product = str(p.get("product", "")).upper()
             if product not in ["NRML", "CNC"]:
                 sym = p.get("tradingsymbol", "")
                 pnl = float(p.get("pnl", 0.0) or p.get("m2m", 0.0) or 0.0)
-                if sym:
-                    pos_by_sym[sym] = p
                 for inst_key in instrument_pnl.keys():
                     if sym.startswith(inst_key):
                         instrument_pnl[inst_key] = round(instrument_pnl[inst_key] + pnl, 2)
                         break
 
-        existing_records = load_intraday_pnl_records()
-
-        # Update or record each configured intraday strategy
-        for strat in strategies_store:
-            sname = strat.get("name", "Intraday Strategy")
-            instrument = (strat.get("index_name") or "NIFTY").upper()
-            lot_size = int(strat.get("quantity") or get_broker_lot_size(instrument) or 65)
-
-            ce_sym = strat.get("selected_ce") or strat.get("orders", {}).get("CE", {}).get("symbol") or "--"
-            pe_sym = strat.get("selected_pe") or strat.get("orders", {}).get("PE", {}).get("symbol") or "--"
-
-            ce_entry = strat.get("orders", {}).get("CE", {}).get("first_entry_price") or strat.get("orders", {}).get("CE", {}).get("entry_price") or 0.0
-            pe_entry = strat.get("orders", {}).get("PE", {}).get("first_entry_price") or strat.get("orders", {}).get("PE", {}).get("entry_price") or 0.0
-
-            ce_pos = pos_by_sym.get(ce_sym, {})
-            pe_pos = pos_by_sym.get(pe_sym, {})
-
-            ce_pnl = float(ce_pos.get("pnl", 0.0) or ce_pos.get("m2m", 0.0) or 0.0)
-            pe_pnl = float(pe_pos.get("pnl", 0.0) or pe_pos.get("m2m", 0.0) or 0.0)
-            strat_day_pnl = round(ce_pnl + pe_pnl, 2)
-
-            ce_exit = strat.get("orders", {}).get("CE", {}).get("exit_price") or (ce_pos.get("sell_price") if strat.get("entry_action") == "BUY" else ce_pos.get("buy_price")) or 0.0
-            pe_exit = strat.get("orders", {}).get("PE", {}).get("exit_price") or (pe_pos.get("sell_price") if strat.get("entry_action") == "BUY" else pe_pos.get("buy_price")) or 0.0
-
-            # Find matching record for today & strategy name
-            target_rec = next((r for r in existing_records if r.get("Date") == today_str and r.get("Strategy_Name") == sname), None)
-
-            if target_rec:
-                target_rec["Time"] = now_time_str
-                target_rec["Instrument"] = instrument
-                target_rec["Lot_Size"] = lot_size
-                target_rec["CE_Symbol"] = ce_sym
-                target_rec["CE_Entry_Price"] = f"{float(ce_entry):.2f}" if ce_entry else "--"
-                target_rec["CE_Exit_Price"] = f"{float(ce_exit):.2f}" if ce_exit else "--"
-                target_rec["PE_Symbol"] = pe_sym
-                target_rec["PE_Entry_Price"] = f"{float(pe_entry):.2f}" if pe_entry else "--"
-                target_rec["PE_Exit_Price"] = f"{float(pe_exit):.2f}" if pe_exit else "--"
-                target_rec["Day_PnL"] = strat_day_pnl
-                target_rec["Status"] = "RECORDED"
-            else:
-                new_rec = {
-                    "Serial_No": len(existing_records) + 1,
-                    "Date": today_str,
-                    "Time": now_time_str,
-                    "Strategy_Name": sname,
-                    "Instrument": instrument,
-                    "Lot_Size": lot_size,
-                    "CE_Symbol": ce_sym,
-                    "CE_Entry_Price": f"{float(ce_entry):.2f}" if ce_entry else "--",
-                    "CE_Exit_Price": f"{float(ce_exit):.2f}" if ce_exit else "--",
-                    "PE_Symbol": pe_sym,
-                    "PE_Entry_Price": f"{float(pe_entry):.2f}" if pe_entry else "--",
-                    "PE_Exit_Price": f"{float(pe_exit):.2f}" if pe_exit else "--",
-                    "Day_PnL": strat_day_pnl,
-                    "Cumulative_PnL": 0.0,
-                    "Status": "RECORDED"
-                }
-                existing_records.append(new_rec)
-
-        # Recalculate cumulative PnL across all days & entries
-        running_cum = 0.0
-        for r in existing_records:
-            running_cum = round(running_cum + float(r.get("Day_PnL", 0.0)), 2)
-            r["Cumulative_PnL"] = running_cum
-
-        rewrite_intraday_pnl_file(existing_records)
-
-        # 2. Write multi-sheet Excel file
-        try:
-            import pandas as pd
-            excel_path = INTRADAY_PNL_XLSX
-            df_summary = pd.DataFrame(existing_records)
-            with pd.ExcelWriter(excel_path, engine="openpyxl", mode="w") as writer:
-                df_summary.to_excel(writer, sheet_name="Trading_Journal", index=False)
-        except Exception:
-            pass
+        existing_records = trade_journal.load_journal_records(trade_journal.INTRADAY_PNL_CSV)
+        running_cum = float(existing_records[-1].get("Cumulative_PnL", 0.0) if existing_records else 0.0)
 
         _last_eod_recorded_date = today_str
-        log_execution(f"✅ Intraday Strategy Journal saved to {INTRADAY_PNL_CSV} (Cumulative: ₹{running_cum:.2f})")
-        return True, {"records": len(existing_records), "cumulative_pnl": running_cum, "instruments": instrument_pnl}
+        log_execution(f"✅ Intraday Strategy Journal synced ({len(existing_records)} total trades, Cumulative: ₹{running_cum:.2f})")
+        return True, {"records": len(existing_records), "cumulative_pnl": running_cum, "instruments": instrument_pnl, "reconciled": reconciled}
     except Exception as e:
         logger.error(f"Error recording EOD Intraday PnL: {e}")
         return False, str(e)
@@ -1043,7 +953,21 @@ def poll_orders_and_manage_sl_for(strat):
                 sl_id = leg_data.get("sl_order_id")
                 sl_order = order_dict.get(str(sl_id)) if sl_id else None
                 if sl_order and sl_order.get("status") == "COMPLETE":
-                    if leg_data.get("tsl_active"):
+                    is_tsl = bool(leg_data.get("tsl_active"))
+                    exit_reason = "TSL_HIT" if is_tsl else "SL_HIT"
+                    avg_fill = float(sl_order.get("average_price", 0.0) or sl_order.get("price", 0.0) or curr_ltp)
+                    exp_trigger = float(sl_order.get("trigger_price", 0.0) or leg_data.get("current_sl_trigger", 0.0) or avg_fill)
+                    trade_id = leg_data.get("trade_id")
+                    if trade_id:
+                        trade_journal.log_trade_exit(
+                            strategy_type="INTRADAY",
+                            trade_id=trade_id,
+                            expected_exit_price=exp_trigger,
+                            actual_exit_price=avg_fill,
+                            exit_reason=exit_reason
+                        )
+
+                    if is_tsl:
                         # Trailed Stop Loss was hit!
                         leg_data["status"] = "TSL_HIT"
                         leg_data["tsl_hit"] = True
@@ -1105,7 +1029,21 @@ def poll_orders_and_manage_sl_for(strat):
                         leg_data["awaiting_1pct_reentry"] = False
                         done_reentries = leg_data["reentries_done"]
                         first_price = float(leg_data.get("first_entry_price", 0.0) or leg_data.get("entry_price", 0.0))
-                        log_execution(f"[{sname}] 🔄 Re-entry #{done_reentries} for {leg} EXECUTED at ₹{first_price:.2f}! Placing fresh Stop-Loss...")
+                        reentry_fill = float(reentry_order.get("average_price", 0.0) or reentry_order.get("price", 0.0) or first_price)
+                        new_trade_id = trade_journal.log_trade_entry(
+                            strategy_type="INTRADAY",
+                            strategy_name=f"{sname} [Re-entry #{done_reentries}]",
+                            instrument=strat.get("index_name", "NIFTY"),
+                            leg=leg,
+                            symbol=leg_data.get("symbol"),
+                            action=entry_action,
+                            lot_size=int(strat.get("quantity", 65)),
+                            expected_entry_price=first_price,
+                            actual_entry_price=reentry_fill
+                        )
+                        leg_data["trade_id"] = new_trade_id
+                        leg_data["entry_price"] = reentry_fill
+                        log_execution(f"[{sname}] 🔄 Re-entry #{done_reentries} for {leg} EXECUTED at ₹{reentry_fill:.2f} (Expected: ₹{first_price:.2f})! Placing fresh Stop-Loss...")
                         place_intraday_sl_for_reentered_leg(strat, leg)
                         save_strategies(strategies_store)
                     elif re_status in ["CANCELLED", "REJECTED"]:
@@ -1408,6 +1346,21 @@ def run_exit_cycle_for(strat):
                 except Exception as mkt_err:
                     log_execution(f"[{sname}] Market square off order ALSO failed for {symbol}: {mkt_err}")
 
+    # Finalize trade journal entries for remaining open legs before resetting in-memory orders
+    for opt_type in ["CE", "PE"]:
+        leg_data = strat.get("orders", {}).get(opt_type, {})
+        trade_id = leg_data.get("trade_id")
+        if trade_id and leg_data.get("status") in ["ACTIVE", "PENDING", "REENTRY_PENDING"]:
+            ex_price = float(leg_data.get("exit_price", 0.0) or leg_data.get("current_ltp", 0.0) or 0.0)
+            exp_price = float(leg_data.get("current_ltp", 0.0) or ex_price)
+            trade_journal.log_trade_exit(
+                strategy_type="INTRADAY",
+                trade_id=trade_id,
+                expected_exit_price=exp_price,
+                actual_exit_price=ex_price,
+                exit_reason="STRATEGY_EXIT_CYCLE"
+            )
+
     reset_strat_orders(strat)
     strat["active"] = False
     strat["status"] = "Exited"
@@ -1631,9 +1584,35 @@ def run_entry_order_placement_for(strat):
 
             log_execution(f"[{sname}] {entry_action} {sym} placed. Order ID: {order_id}")
 
+            # Query actual executed fill price if available
+            actual_fill = float(last_ltp)
+            try:
+                time.sleep(0.2)
+                oh = kite_client.order_history(order_id)
+                for h in reversed(oh):
+                    if h.get("status") == "COMPLETE" and float(h.get("average_price", 0.0) or 0.0) > 0:
+                        actual_fill = float(h["average_price"])
+                        break
+            except Exception:
+                pass
+
+            trade_id = trade_journal.log_trade_entry(
+                strategy_type="INTRADAY",
+                strategy_name=sname,
+                instrument=index_name,
+                leg=opt_type,
+                symbol=sym,
+                action=entry_action,
+                lot_size=int(qty),
+                expected_entry_price=float(last_ltp),
+                actual_entry_price=actual_fill
+            )
+
+            strat["orders"][opt_type]["trade_id"] = trade_id
             strat["orders"][opt_type]["symbol"] = sym
-            strat["orders"][opt_type]["first_entry_price"] = last_ltp
-            strat["orders"][opt_type]["entry_price"] = last_ltp
+            strat["orders"][opt_type]["first_entry_price"] = actual_fill
+            strat["orders"][opt_type]["entry_price"] = actual_fill
+            strat["orders"][opt_type]["expected_entry_price"] = float(last_ltp)
             strat["orders"][opt_type]["sell_order_id"] = order_id
             strat["orders"][opt_type]["reentry_order_id"] = None
             strat["orders"][opt_type]["status"] = "ACTIVE"

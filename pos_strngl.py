@@ -23,6 +23,7 @@ from datetime import datetime, date, timedelta
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(BASE_DIR, "pykiteconnect"))
 from kiteconnect import KiteConnect
+import trade_journal
 
 logger = logging.getLogger("pos_strangle")
 logger.setLevel(logging.INFO)
@@ -200,7 +201,7 @@ def load_pos_pnl_records():
 
 
 def record_pos_trade_entry(strat):
-    """Logs initial position entry with CE and PE positions & entry prices in pos_strategy_PnL.csv and Excel journal."""
+    """Logs initial position entry with CE and PE positions & entry prices in pos_strategy_PnL.csv, trade_journal, and Excel."""
     try:
         strat_id = strat.get("id")
         strat_name = strat.get("name", "Positional Strangle")
@@ -214,6 +215,37 @@ def record_pos_trade_entry(strat):
 
         ce_entry = strat.get("orders", {}).get("CE", {}).get("first_entry_price") or strat.get("orders", {}).get("CE", {}).get("entry_price") or strat.get("selected_ce_ltp") or 0.0
         pe_entry = strat.get("orders", {}).get("PE", {}).get("first_entry_price") or strat.get("orders", {}).get("PE", {}).get("entry_price") or strat.get("selected_pe_ltp") or 0.0
+
+        # Log individual legs to centralized trade journal with slippage
+        try:
+            ce_tid = trade_journal.log_trade_entry(
+                strategy_type="POSITIONAL",
+                strategy_name=strat_name,
+                instrument=instrument,
+                leg="CE",
+                symbol=ce_sym,
+                action="SELL",
+                lot_size=lot_size,
+                expected_entry_price=float(strat.get("selected_ce_ltp") or ce_entry or 0.0),
+                actual_entry_price=float(ce_entry or 0.0)
+            )
+            pe_tid = trade_journal.log_trade_entry(
+                strategy_type="POSITIONAL",
+                strategy_name=strat_name,
+                instrument=instrument,
+                leg="PE",
+                symbol=pe_sym,
+                action="SELL",
+                lot_size=lot_size,
+                expected_entry_price=float(strat.get("selected_pe_ltp") or pe_entry or 0.0),
+                actual_entry_price=float(pe_entry or 0.0)
+            )
+            if strat.get("orders", {}).get("CE"):
+                strat["orders"]["CE"]["trade_id"] = ce_tid
+            if strat.get("orders", {}).get("PE"):
+                strat["orders"]["PE"]["trade_id"] = pe_tid
+        except Exception as tj_err:
+            logger.warning(f"trade_journal entry log notice: {tj_err}")
 
         records = load_pos_pnl_records()
         serial_no = len(records) + 1
@@ -247,7 +279,7 @@ def record_pos_trade_entry(strat):
 
 
 def record_pos_trade_exit(strat, final_pnl):
-    """Updates exit date, CE/PE exit prices, final PnL and cumulative PnL in pos_strategy_PnL.csv and Excel sheet."""
+    """Updates exit date, CE/PE exit prices, final PnL and cumulative PnL in pos_strategy_PnL.csv and trade_journal."""
     try:
         strat_name = strat.get("name", "Positional Strangle")
         instrument = (strat.get("index_name") or "NIFTY").upper()
@@ -263,6 +295,29 @@ def record_pos_trade_exit(strat, final_pnl):
 
         ce_exit = strat.get("orders", {}).get("CE", {}).get("exit_price") or strat.get("orders", {}).get("CE", {}).get("current_ltp") or 0.0
         pe_exit = strat.get("orders", {}).get("PE", {}).get("exit_price") or strat.get("orders", {}).get("PE", {}).get("current_ltp") or 0.0
+
+        # Log individual leg exits to trade journal
+        try:
+            ce_tid = strat.get("orders", {}).get("CE", {}).get("trade_id")
+            pe_tid = strat.get("orders", {}).get("PE", {}).get("trade_id")
+            if ce_tid:
+                trade_journal.log_trade_exit(
+                    strategy_type="POSITIONAL",
+                    trade_id=ce_tid,
+                    expected_exit_price=float(ce_exit or 0.0),
+                    actual_exit_price=float(ce_exit or 0.0),
+                    exit_reason=strat.get("status", "CLOSED")
+                )
+            if pe_tid:
+                trade_journal.log_trade_exit(
+                    strategy_type="POSITIONAL",
+                    trade_id=pe_tid,
+                    expected_exit_price=float(pe_exit or 0.0),
+                    actual_exit_price=float(pe_exit or 0.0),
+                    exit_reason=strat.get("status", "CLOSED")
+                )
+        except Exception as tj_err:
+            logger.warning(f"trade_journal exit log notice: {tj_err}")
 
         # Find matching open record for this strategy name / instrument
         target_rec = None
