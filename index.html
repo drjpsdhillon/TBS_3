@@ -1643,7 +1643,7 @@
                     <div class="card-header collapsible-card-header" onclick="toggleCardCollapse('strategyFormCollapseContent', 'strategyFormChevron')"
                         style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 0; padding-bottom: 0; border-bottom: none;">
                         <div style="display: flex; align-items: center; gap: 8px;">
-                            <span id="strategyFormChevron" class="collapse-chevron">▼</span>
+                            <span id="strategyFormChevron" class="collapse-chevron collapsed">▼</span>
                             <div class="card-title" id="formCardTitle" style="margin-bottom: 0;">⚙️ Create / Edit Strategy</div>
                             <span style="font-size: 10px; color: var(--text-muted); font-weight: 600;">(Click header to toggle collapse)</span>
                         </div>
@@ -1653,7 +1653,7 @@
                         </button>
                     </div>
 
-                    <div id="strategyFormCollapseContent" class="collapsible-content" style="padding-top: 18px; border-top: 1px solid var(--border-color); margin-top: 14px;">
+                    <div id="strategyFormCollapseContent" class="collapsible-content" style="display: none; padding-top: 18px; border-top: 1px solid var(--border-color); margin-top: 14px;">
                         <form id="strategyForm" onsubmit="saveStrategyConfig(event)">
                             <input type="hidden" id="stratId" value="">
 
@@ -1769,14 +1769,15 @@
                                             Mode</label>
                                         <select id="slType" onchange="updateSlInputDisplay()"
                                             style="background: #ffffff; border-color: #fda4af; font-weight: 700;">
+                                            <option value="PERCENT" selected>Percentage (%)</option>
                                             <option value="POINTS">Points (₹ Absolute)</option>
-                                            <option value="PERCENT">Percentage (%)</option>
                                         </select>
                                     </div>
                                     <div class="form-group" style="margin-bottom: 0;">
                                         <label for="stopLossValue" id="lblStopLoss"
-                                            style="color: #be123c; font-weight: 700;">Stop Loss (Points)</label>
+                                            style="color: #be123c; font-weight: 700;">Stop Loss (%)</label>
                                         <input type="number" id="stopLossValue" value="20" step="0.5" required
+                                            placeholder="e.g. 20 for 20%"
                                             style="background: #ffffff; border-color: #fda4af; font-weight: 700;">
                                         <div class="time-hint" style="color: #be123c;">Square off when premium breaches
                                             SL</div>
@@ -2000,13 +2001,13 @@
                     <div class="card-header collapsible-card-header" onclick="toggleCardCollapse('posStrategyFormCollapseContent', 'posStrategyFormChevron')"
                         style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 0; padding-bottom: 0; border-bottom: none;">
                         <div style="display: flex; align-items: center; gap: 8px;">
-                            <span id="posStrategyFormChevron" class="collapse-chevron">▼</span>
+                            <span id="posStrategyFormChevron" class="collapse-chevron collapsed">▼</span>
                             <div class="card-title" id="posFormCardTitle" style="margin-bottom: 0;">⚙️ Create / Edit Positional Strategy</div>
                             <span style="font-size: 10px; color: var(--text-muted); font-weight: 600;">(Click header to toggle collapse)</span>
                         </div>
                     </div>
 
-                    <div id="posStrategyFormCollapseContent" class="collapsible-content" style="padding-top: 18px; border-top: 1px solid var(--border-color); margin-top: 14px;">
+                    <div id="posStrategyFormCollapseContent" class="collapsible-content" style="display: none; padding-top: 18px; border-top: 1px solid var(--border-color); margin-top: 14px;">
                         <form id="posStrangleForm" onsubmit="savePosStrangleConfig(event)">
                             <input type="hidden" id="posStratId" value="">
 
@@ -2382,14 +2383,14 @@
                     <div class="card-header collapsible-card-header" onclick="toggleCardCollapse('straddleFormCollapseContent', 'straddleFormChevron')"
                         style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 0; padding-bottom: 0; border-bottom: none;">
                         <div style="display: flex; align-items: center; gap: 8px;">
-                            <span id="straddleFormChevron" class="collapse-chevron">▼</span>
+                            <span id="straddleFormChevron" class="collapse-chevron collapsed">▼</span>
                             <div class="card-title" id="straddleFormTitle" style="margin-bottom: 0;">⚙️ Create / Edit Straddle Total SL Strategy</div>
                             <span style="font-size: 10px; color: var(--text-muted); font-weight: 600;">(Click header to toggle collapse)</span>
                         </div>
                         <span class="mtm-sync-badge">ATM Straddle Engine</span>
                     </div>
 
-                    <div id="straddleFormCollapseContent" class="collapsible-content" style="padding-top: 18px; border-top: 1px solid var(--border-color); margin-top: 14px;">
+                    <div id="straddleFormCollapseContent" class="collapsible-content" style="display: none; padding-top: 18px; border-top: 1px solid var(--border-color); margin-top: 14px;">
                         <form id="straddleStrategyForm" onsubmit="saveStraddleStrategyConfig(event)">
                             <input type="hidden" id="straddleStratId" value="">
 
@@ -3015,33 +3016,88 @@
         let loadedStrategies = [];
 
         // ═══════════════════════════════════════════════════════════════
-        // COLLAPSIBLE CARD HELPER
+        // PERSISTENT COLLAPSIBLE MANAGER (WINDOWS & SECTIONS)
         // ═══════════════════════════════════════════════════════════════
+        function getWindowCollapseState(contentId, defaultCollapsed = false) {
+            try {
+                const saved = JSON.parse(localStorage.getItem('tbs_window_collapse_state') || '{}');
+                if (saved.hasOwnProperty(contentId)) {
+                    return Boolean(saved[contentId]);
+                }
+            } catch (e) { }
+            return defaultCollapsed;
+        }
+
+        function setWindowCollapseState(contentId, isCollapsed) {
+            try {
+                const saved = JSON.parse(localStorage.getItem('tbs_window_collapse_state') || '{}');
+                saved[contentId] = Boolean(isCollapsed);
+                localStorage.setItem('tbs_window_collapse_state', JSON.stringify(saved));
+            } catch (e) { }
+        }
+
         function toggleCardCollapse(contentId, chevronId, forceExpand = false) {
             const content = document.getElementById(contentId);
-            const chevron = document.getElementById(chevronId);
+            const chevron = chevronId ? document.getElementById(chevronId) : null;
             if (!content) return;
 
             const isCurrentlyHidden = content.style.display === 'none' || getComputedStyle(content).display === 'none';
+            const willExpand = forceExpand || isCurrentlyHidden;
 
-            if (forceExpand || isCurrentlyHidden) {
-                content.style.display = 'block';
-                if (chevron) chevron.classList.remove('collapsed');
-            } else {
-                content.style.display = 'none';
-                if (chevron) chevron.classList.add('collapsed');
+            content.style.display = willExpand ? 'block' : 'none';
+            if (chevron) {
+                if (willExpand) chevron.classList.remove('collapsed');
+                else chevron.classList.add('collapsed');
             }
+
+            // Persist the state: true = collapsed, false = expanded
+            setWindowCollapseState(contentId, !willExpand);
         }
+
+        function initWindowCollapseStates() {
+            const collapsibleWindows = [
+                { contentId: 'strategyFormCollapseContent', chevronId: 'strategyFormChevron', defaultCollapsed: true },
+                { contentId: 'posStrategyFormCollapseContent', chevronId: 'posStrategyFormChevron', defaultCollapsed: true },
+                { contentId: 'straddleFormCollapseContent', chevronId: 'straddleFormChevron', defaultCollapsed: true },
+                { contentId: 'intraHistoryContainer', chevronId: null, defaultCollapsed: true }
+            ];
+
+            collapsibleWindows.forEach(win => {
+                const content = document.getElementById(win.contentId);
+                const chevron = win.chevronId ? document.getElementById(win.chevronId) : null;
+                if (!content) return;
+
+                const isCollapsed = getWindowCollapseState(win.contentId, win.defaultCollapsed);
+                content.style.display = isCollapsed ? 'none' : 'block';
+                if (chevron) {
+                    if (isCollapsed) chevron.classList.add('collapsed');
+                    else chevron.classList.remove('collapsed');
+                }
+            });
+        }
+
+        // Run early so UI starts in preferred state
+        try {
+            initWindowCollapseStates();
+        } catch (e) { }
 
         // ═══════════════════════════════════════════════════════════════
         // INDIVIDUAL STRATEGY CARD COLLAPSIBLE MANAGER (ALL TABS)
         // ═══════════════════════════════════════════════════════════════
-        const stratCardCollapseState = {}; // stratId -> boolean (true = collapsed, false = expanded)
+        function loadStratCardCollapseState() {
+            try {
+                return JSON.parse(localStorage.getItem('tbs_strat_card_collapse_state') || '{}');
+            } catch (e) {
+                return {};
+            }
+        }
+
+        const stratCardCollapseState = loadStratCardCollapseState();
 
         function isStrategyCardCollapsed(stratId) {
-            // Default to collapsed (true) so cards display in clean compact summary mode
+            // Check persisted state; default to collapsed (true) so cards display in clean compact summary mode
             if (stratCardCollapseState.hasOwnProperty(stratId)) {
-                return stratCardCollapseState[stratId];
+                return Boolean(stratCardCollapseState[stratId]);
             }
             return true;
         }
@@ -3050,6 +3106,10 @@
             const currentlyCollapsed = isStrategyCardCollapsed(stratId);
             const newState = forceExpand ? false : !currentlyCollapsed;
             stratCardCollapseState[stratId] = newState;
+
+            try {
+                localStorage.setItem('tbs_strat_card_collapse_state', JSON.stringify(stratCardCollapseState));
+            } catch (e) { }
 
             const body = document.getElementById(`stratCardBody_${stratId}`);
             const chevron = document.getElementById(`stratCardChevron_${stratId}`);
@@ -3082,6 +3142,10 @@
                     else chevron.classList.remove('collapsed');
                 }
             });
+
+            try {
+                localStorage.setItem('tbs_strat_card_collapse_state', JSON.stringify(stratCardCollapseState));
+            } catch (e) { }
         }
 
         function formatStrategyDelta(s) {
@@ -3310,7 +3374,7 @@
             const product = document.getElementById(`inline_intra_product_${stratId}`)?.value || 'MIS';
             const cePrem = parseFloat(document.getElementById(`inline_intra_ce_prem_${stratId}`)?.value || 100);
             const pePrem = parseFloat(document.getElementById(`inline_intra_pe_prem_${stratId}`)?.value || 100);
-            const slType = document.getElementById(`inline_intra_sl_type_${stratId}`)?.value || 'POINTS';
+            const slType = document.getElementById(`inline_intra_sl_type_${stratId}`)?.value || 'PERCENT';
             const slVal = parseFloat(document.getElementById(`inline_intra_sl_val_${stratId}`)?.value || 20);
             const enableTsl = document.getElementById(`inline_intra_enable_tsl_${stratId}`)?.checked || false;
             const tslPts = parseFloat(document.getElementById(`inline_intra_tsl_pts_${stratId}`)?.value || 10);
@@ -3488,8 +3552,8 @@
         }
 
         function buildIntraInlineEditPanel(s) {
-            const slType = (s.sl_type || 'POINTS').toUpperCase();
-            const slVal = (slType === 'PERCENT' ? s.sl_percent : s.sl_points) || 20;
+            const slType = (s.sl_type || 'PERCENT').toUpperCase();
+            const slVal = (slType === 'POINTS' ? s.sl_points : (s.sl_percent !== undefined ? s.sl_percent : 20)) || 20;
             const expOptions = buildExpirySelectOptions(s.index_name || 'NIFTY', s.expiry);
 
             return `
@@ -3563,8 +3627,8 @@
                     <div>
                         <label style="font-size: 11px; font-weight: 700; color: var(--text-secondary); display: block; margin-bottom: 3px;">Stop Loss Type</label>
                         <select id="inline_intra_sl_type_${s.id}" style="width: 100%; padding: 6px 10px; font-size: 12px; font-weight: 600; border: 1px solid var(--border-color); border-radius: var(--radius-sm); background: #ffffff;">
-                            <option value="POINTS" ${slType === 'POINTS' ? 'selected' : ''}>Points</option>
                             <option value="PERCENT" ${slType === 'PERCENT' ? 'selected' : ''}>Percentage (%)</option>
+                            <option value="POINTS" ${slType === 'POINTS' ? 'selected' : ''}>Points</option>
                         </select>
                     </div>
                     <div>
@@ -4754,8 +4818,10 @@
             const container = document.getElementById('intraHistoryContainer');
             if (container) {
                 const isHidden = container.style.display === 'none';
-                container.style.display = isHidden ? 'block' : 'none';
-                if (isHidden) fetchIntradayPnlSummary();
+                const willShow = isHidden;
+                container.style.display = willShow ? 'block' : 'none';
+                setWindowCollapseState('intraHistoryContainer', !willShow);
+                if (willShow) fetchIntradayPnlSummary();
             }
         }
 
@@ -5453,7 +5519,7 @@
             document.getElementById('stratId').value = '';
             setEntryAction('SELL');
             setStrategyType('STRANGLE');
-            document.getElementById('slType').value = 'POINTS';
+            document.getElementById('slType').value = 'PERCENT';
             document.getElementById('stopLossValue').value = '20';
             updateSlInputDisplay();
             document.getElementById('intraEnableTsl').checked = false;
@@ -5486,7 +5552,7 @@
         function cancelEditForm() {
             document.getElementById('stratId').value = '';
             setEntryAction('SELL');
-            document.getElementById('slType').value = 'POINTS';
+            document.getElementById('slType').value = 'PERCENT';
             document.getElementById('stopLossValue').value = '20';
             updateSlInputDisplay();
             document.getElementById('intraEnableTsl').checked = false;
@@ -7866,6 +7932,7 @@
         }
 
         (async function init() {
+            initWindowCollapseStates();
             initStraddleGreekToggles();
             await loadCredentials();
             const res = await api('/api/login/status');
