@@ -20,3 +20,7 @@ mtm_curve_data.json
 *.json
 *.csv
 lot_sizes.json
+venv/
+.venv/
+*.log
+*.pyc
