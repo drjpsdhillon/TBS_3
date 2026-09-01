@@ -5742,11 +5742,17 @@
                 reentry_count: parseInt(document.getElementById('reentryCount').value) || 0
             };
 
-            const res = await api('/api/strategies', 'POST', payload);
-            if (res.status === 'ok') {
-                toast('Strategy Saved Successfully');
-                cancelEditForm();
-                fetchAndRenderStrategies();
+            try {
+                const res = await api('/api/strategies', 'POST', payload);
+                if (res && res.status === 'ok') {
+                    toast('✅ Strategy Saved Successfully');
+                    cancelEditForm();
+                    fetchAndRenderStrategies();
+                } else {
+                    toast('❌ Error saving strategy: ' + ((res && res.message) || 'Server rejected request'), true);
+                }
+            } catch (err) {
+                toast('❌ Network or Server error: ' + err.message, true);
             }
         }
 
@@ -7368,16 +7374,25 @@
         }
 
         function toggleStraddleSpotDistSection() {
-            const enabled = document.getElementById('straddleEnableSpotDist').checked;
-            const fields = document.getElementById('straddleAdjSpotDistFields');
+            const chk = document.getElementById('straddleEnableSpotDist');
+            if (!chk) return;
+            const enabled = chk.checked;
+            const fields = document.getElementById('straddleSpotDistFields') || document.getElementById('straddleAdjSpotDistFields');
             if (fields) fields.style.display = enabled ? 'block' : 'none';
+            const container = document.getElementById('straddleSpotDistRulesContainer') || document.getElementById('straddleSpotRulesList');
+            if (enabled && container && container.children.length === 0) {
+                addSpotDistRuleRow({ action: 'SELL', move_step_pts: 500, strike_offset_pts: 2000, round_multiple: 500 });
+            }
         }
 
         function toggleStraddleManualLegsSection() {
-            const enabled = document.getElementById('straddleEnableManualLegs').checked;
+            const chk = document.getElementById('straddleEnableManualLegs');
+            if (!chk) return;
+            const enabled = chk.checked;
             const fields = document.getElementById('straddleManualLegsFields');
             if (fields) fields.style.display = enabled ? 'block' : 'none';
-            if (enabled && document.getElementById('straddleManualLegsList').children.length === 0) {
+            const container = document.getElementById('straddleManualLegsContainer') || document.getElementById('straddleManualLegsList');
+            if (enabled && container && container.children.length === 0) {
                 addManualAdjLegRow();
             }
         }
@@ -7400,17 +7415,8 @@
             toggleStraddleManualLegsSection();
         }
 
-        function toggleStraddleSpotDistSection() {
-            const enabled = document.getElementById('straddleEnableSpotDist').checked;
-            const fields = document.getElementById('straddleAdjSpotDistFields');
-            if (fields) fields.style.display = enabled ? 'block' : 'none';
-            if (enabled && document.getElementById('straddleSpotRulesList').children.length === 0) {
-                addSpotDistRuleRow({ action: 'SELL', move_step_pts: 500, strike_offset_pts: 2000, round_multiple: 500 });
-            }
-        }
-
         function addSpotDistRuleRow(data = {}) {
-            const container = document.getElementById('straddleSpotRulesList');
+            const container = document.getElementById('straddleSpotDistRulesContainer') || document.getElementById('straddleSpotRulesList');
             if (!container) return;
             const rowId = data.id || `srule_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
             const action = data.action || 'SELL';
@@ -7539,7 +7545,7 @@
         }
 
         function addManualAdjLegRow(data = {}) {
-            const container = document.getElementById('straddleManualLegsList');
+            const container = document.getElementById('straddleManualLegsContainer') || document.getElementById('straddleManualLegsList');
             if (!container) return;
             const rowId = data.id || `mleg_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
             const strike = data.strike || '';
@@ -7722,8 +7728,10 @@
             document.getElementById('straddleAdjSlType').value = 'PERCENT';
             document.getElementById('straddleAdjSlValue').value = 30;
             document.getElementById('straddleAdjEnableTsl').checked = true;
-            document.getElementById('straddleSpotRulesList').innerHTML = '';
-            document.getElementById('straddleManualLegsList').innerHTML = '';
+            const spotList = document.getElementById('straddleSpotDistRulesContainer') || document.getElementById('straddleSpotRulesList');
+            if (spotList) spotList.innerHTML = '';
+            const manList = document.getElementById('straddleManualLegsContainer') || document.getElementById('straddleManualLegsList');
+            if (manList) manList.innerHTML = '';
             currentStraddleAdjManualLegs = [];
 
             onStraddleIndexChange(true);

@@ -1898,7 +1898,7 @@ def api_save_strategy():
         found = False
         for s in strategies_store:
             if s.get("id") == strat_id:
-                for k in ["name", "strategy_type", "entry_action", "index_name", "expiry", "ce_premium", "pe_premium", "sl_type", "sl_points", "sl_percent", "product", "start_time", "end_time", "quantity", "reentry_count"]:
+                for k in ["name", "strategy_type", "entry_action", "index_name", "expiry", "ce_premium", "pe_premium", "sl_type", "sl_points", "sl_percent", "product", "enable_tsl", "tsl_points", "start_time", "end_time", "quantity", "reentry_count"]:
                     if k in data:
                         s[k] = data[k]
                 found = True
@@ -1909,7 +1909,7 @@ def api_save_strategy():
             data.setdefault("status", "Idle")
             data.setdefault("entry_action", "SELL")
             data.setdefault("reentry_count", 0)
-            data.setdefault("sl_type", "POINTS")
+            data.setdefault("sl_type", "PERCENT")
             data.setdefault("sl_percent", 20.0)
             strategies_store.append(data)
     else:
@@ -1919,7 +1919,7 @@ def api_save_strategy():
         data.setdefault("status", "Idle")
         data.setdefault("entry_action", "SELL")
         data.setdefault("reentry_count", 0)
-        data.setdefault("sl_type", "POINTS")
+        data.setdefault("sl_type", "PERCENT")
         data.setdefault("sl_percent", 20.0)
         strategies_store.append(data)
 
