@@ -484,7 +484,7 @@ def load_strategies():
         save_strategies(default_list)
         return default_list
     try:
-        with open(STRATEGIES_FILE, "r") as f:
+        with open(STRATEGIES_FILE, "r", encoding="utf-8") as f:
             strats = json.load(f)
             if isinstance(strats, list) and len(strats) > 0:
                 for s in strats:
@@ -529,7 +529,7 @@ def save_strategies(strats):
         for s in strats:
             item = dict(s)
             clean.append(item)
-        with open(STRATEGIES_FILE, "w") as f:
+        with open(STRATEGIES_FILE, "w", encoding="utf-8") as f:
             json.dump(clean, f, indent=4)
     except Exception as e:
         logger.error(f"Error saving strategies.json: {e}")
@@ -1882,10 +1882,31 @@ def api_logout():
     return jsonify({"status": "ok", "message": "Logged out."})
 
 
+def _safe_strategies_for_json(strats):
+    """Return a JSON-safe copy of strategies_store (converts date objects to strings)."""
+    result = []
+    for s in strats:
+        item = {}
+        for k, v in s.items():
+            if k.startswith("_"):  # skip internal state like _was_active
+                continue
+            if isinstance(v, (datetime, date)):
+                item[k] = v.isoformat()
+            elif isinstance(v, dict):
+                sub = {}
+                for sk, sv in v.items():
+                    sub[sk] = sv.isoformat() if isinstance(sv, (datetime, date)) else sv
+                item[k] = sub
+            else:
+                item[k] = v
+        result.append(item)
+    return result
+
+
 @app.route("/api/strategies", methods=["GET"])
 def api_get_strategies():
     global strategies_store
-    return jsonify(strategies_store)
+    return jsonify(_safe_strategies_for_json(strategies_store))
 
 
 @app.route("/api/strategies", methods=["POST"])
@@ -1924,7 +1945,7 @@ def api_save_strategy():
         strategies_store.append(data)
 
     save_strategies(strategies_store)
-    return jsonify({"status": "ok", "strategies": strategies_store})
+    return jsonify({"status": "ok", "strategies": _safe_strategies_for_json(strategies_store)})
 
 
 @app.route("/api/strategies/<strat_id>/toggle", methods=["POST"])
@@ -1944,7 +1965,7 @@ def api_toggle_strategy(strat_id):
             break
             
     save_strategies(strategies_store)
-    return jsonify({"status": "ok", "strategies": strategies_store})
+    return jsonify({"status": "ok", "strategies": _safe_strategies_for_json(strategies_store)})
 
 
 @app.route("/api/strategies/<strat_id>/squareoff", methods=["POST"])
@@ -1953,7 +1974,7 @@ def api_squareoff_strategy(strat_id):
     for s in strategies_store:
         if s.get("id") == strat_id:
             run_exit_cycle_for(s)
-            return jsonify({"status": "ok", "message": f"Exit cycle completed for '{s.get('name')}'", "strategies": strategies_store})
+            return jsonify({"status": "ok", "message": f"Exit cycle completed for '{s.get('name')}'", "strategies": _safe_strategies_for_json(strategies_store)})
             
     return jsonify({"status": "error", "message": "Strategy not found"}), 404
 
@@ -1970,7 +1991,7 @@ def api_run_all_strategies():
         s["status"] = "Waiting"
     log_execution("All strategy schedulers activated.")
     save_strategies(strategies_store)
-    return jsonify({"status": "ok", "strategies": strategies_store})
+    return jsonify({"status": "ok", "strategies": _safe_strategies_for_json(strategies_store)})
 
 
 @app.route("/api/strategies/stop-all", methods=["POST"])
@@ -1983,7 +2004,7 @@ def api_stop_all_strategies():
         s["status"] = "Stopped"
     log_execution("All strategy schedulers stopped.")
     save_strategies(strategies_store)
-    return jsonify({"status": "ok", "strategies": strategies_store})
+    return jsonify({"status": "ok", "strategies": _safe_strategies_for_json(strategies_store)})
 
 
 @app.route("/api/strategies/<strat_id>", methods=["DELETE"])
@@ -2000,7 +2021,7 @@ def api_delete_strategy(strat_id):
         strategies_store.remove(to_remove)
         save_strategies(strategies_store)
         log_execution(f"Deleted strategy '{to_remove.get('name')}'")
-    return jsonify({"status": "ok", "strategies": strategies_store})
+    return jsonify({"status": "ok", "strategies": _safe_strategies_for_json(strategies_store)})
 
 
 @app.route("/api/expiries", methods=["GET"])
@@ -2148,25 +2169,6 @@ def api_strategy_config():
     return jsonify(res)
 
 
-def _safe_strategies_for_json(strats):
-    """Return a JSON-safe copy of strategies_store (converts date objects to strings)."""
-    result = []
-    for s in strats:
-        item = {}
-        for k, v in s.items():
-            if k.startswith("_"):  # skip internal state like _was_active
-                continue
-            if isinstance(v, (datetime, date)):
-                item[k] = v.isoformat()
-            elif isinstance(v, dict):
-                sub = {}
-                for sk, sv in v.items():
-                    sub[sk] = sv.isoformat() if isinstance(sv, (datetime, date)) else sv
-                item[k] = sub
-            else:
-                item[k] = v
-        result.append(item)
-    return result
 
 
 @app.route("/api/strategies/<strat_id>/calculate", methods=["POST"])
@@ -2488,6 +2490,7 @@ def api_get_pos_pending_orders():
 
 @app.route("/api/straddle_total_sl/config", methods=["GET", "POST"])
 @app.route("/api/straddle_total_sl/strategies", methods=["GET", "POST"])
+@app.route("/api/straddle/strategies", methods=["GET", "POST"])
 def api_straddle_total_sl_strategies():
     global kite_client
     try:
@@ -2548,6 +2551,7 @@ def api_straddle_total_sl_squareoff_adjustment(strat_id, adj_id):
 
 
 @app.route("/api/straddle_total_sl/strategies/<strat_id>", methods=["DELETE"])
+@app.route("/api/straddle/strategies/<strat_id>", methods=["DELETE"])
 def api_straddle_total_sl_delete(strat_id):
     try:
         import straddle_total_sl

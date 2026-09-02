@@ -502,7 +502,7 @@ def load_pos_strategies():
         save_pos_strategies(defaults)
         return defaults
     try:
-        with open(POS_STRANGLE_FILE, "r") as f:
+        with open(POS_STRANGLE_FILE, "r", encoding="utf-8") as f:
             data = json.load(f)
             if isinstance(data, dict):  # upgrade from single object if needed
                 data = [data]
@@ -553,7 +553,7 @@ def save_pos_strategies(data):
     """Saves list of positional strategies to pos_strangle.json."""
     try:
         clean = [dict(s) for s in data]
-        with open(POS_STRANGLE_FILE, "w") as f:
+        with open(POS_STRANGLE_FILE, "w", encoding="utf-8") as f:
             json.dump(clean, f, indent=4)
     except Exception as e:
         logger.error(f"Failed to save {POS_STRANGLE_FILE}: {e}")

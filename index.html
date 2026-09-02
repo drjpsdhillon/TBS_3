@@ -3555,7 +3555,7 @@
                 adjustments: existing.adjustments || { enabled: false }
             };
 
-            const res = await api('/api/straddle/strategies', 'POST', payload);
+            const res = await api('/api/straddle_total_sl/strategies', 'POST', payload);
             if (res.status === 'ok') {
                 toast(`Strategy '${name}' updated successfully`);
                 inlineEditingStratIds.delete(stratId);
@@ -4182,6 +4182,8 @@
                 onStraddleIndexChange();
             });
             fetchAndRenderStrategies();
+            fetchPosStrangleStatus(true);
+            fetchStraddleStatus(true);
             fetchIntradayPnlSummary();
             loadSavedMtmChartData();
             startLiveMonitors();
@@ -4209,6 +4211,15 @@
                 const matchingBtn = document.querySelector(`.tab-btn[onclick*="${tabId}"]`);
                 if (matchingBtn) matchingBtn.classList.add('active');
             }
+
+            // Immediately refresh strategies and state for the active tab
+            if (tabId === 'tabConfigLogs') {
+                fetchAndRenderStrategies();
+            } else if (tabId === 'tabPosStrangle') {
+                fetchPosStrangleStatus(true);
+            } else if (tabId === 'tabStraddleTotalSl') {
+                fetchStraddleStatus(true);
+            }
         }
 
         // ═══════════════════════════════════════════════════════════════
@@ -4216,15 +4227,19 @@
         // ═══════════════════════════════════════════════════════════════
 
         let lastMtmPollTime = 0;
+        let liveMonitorsStarted = false;
 
         function startLiveMonitors() {
+            if (liveMonitorsStarted) return;
+            liveMonitorsStarted = true;
+
             // 1-second exchange clock
             setInterval(() => {
                 const now = new Date();
                 document.getElementById('exchangeClock').textContent = now.toLocaleTimeString('en-IN', { hour12: false });
             }, 1000);
 
-            // 3-second fast strategy logs & prices monitor
+            // 3-second fast strategy logs & prices monitor (Intraday multi-strategy)
             setInterval(async () => {
                 if (document.getElementById('consoleView').style.display !== 'block') return;
                 try {
@@ -4258,6 +4273,20 @@
                     }
                 } catch (e) {
                     // handle poll error
+                }
+            }, 3000);
+
+            // 3-second Positional Strangle monitor
+            setInterval(() => {
+                if (document.getElementById('consoleView').style.display === 'block') {
+                    fetchPosStrangleStatus();
+                }
+            }, 3000);
+
+            // 3-second Straddle Total SL monitor
+            setInterval(() => {
+                if (document.getElementById('consoleView').style.display === 'block') {
+                    fetchStraddleStatus();
                 }
             }, 3000);
 
@@ -5831,8 +5860,8 @@
             }
         }
 
-        async function fetchPosStrangleStatus() {
-            if (document.getElementById('consoleView').style.display !== 'block') return;
+        async function fetchPosStrangleStatus(force = false) {
+            if (!force && document.getElementById('consoleView').style.display !== 'block') return;
             try {
                 const res = await api('/api/pos_strangle/status');
                 if (res.status === 'ok') {
@@ -6521,8 +6550,8 @@
             }
         }
 
-        async function fetchStraddleStatus() {
-            if (document.getElementById('consoleView').style.display !== 'block') return;
+        async function fetchStraddleStatus(force = false) {
+            if (!force && document.getElementById('consoleView').style.display !== 'block') return;
             try {
                 const res = await api('/api/straddle_total_sl/status');
                 if (res.status === 'ok') {
@@ -8008,13 +8037,13 @@
             initWindowCollapseStates();
             initStraddleGreekToggles();
             await loadCredentials();
+            // Pre-fetch all saved strategies immediately from local disk so cards are rendered on launch
+            fetchAndRenderStrategies();
+            fetchPosStrangleStatus(true);
+            fetchStraddleStatus(true);
             const res = await api('/api/login/status');
             if (res.logged_in) {
                 showDashboard(res.user_name);
-                onPosIndexChange();
-                onStraddleIndexChange();
-                setInterval(fetchPosStrangleStatus, 3000);
-                setInterval(fetchStraddleStatus, 3000);
             }
         })();
 
