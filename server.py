@@ -2801,6 +2801,246 @@ def api_calculate_greeks():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 
+# ========================================================================
+# MCX COMMODITY STRATEGY & JOURNAL API ROUTES
+# ========================================================================
+
+@app.route("/api/commodity/expiries/<commodity_name>", methods=["GET"], strict_slashes=False)
+def api_commodity_expiries(commodity_name):
+    """Returns available MCX expiry dates for given commodity."""
+    global kite_client
+    try:
+        import commodity
+        if kite_client:
+            commodity.set_kite_client(kite_client)
+        expiries = commodity.get_commodity_expiries(commodity_name)
+        return jsonify({"status": "ok", "commodity_name": commodity_name, "expiries": expiries})
+    except Exception as e:
+        logger.error(f"Error in api_commodity_expiries: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route("/api/commodity/options_chain/<commodity_name>", methods=["GET"], strict_slashes=False)
+def api_commodity_options_chain(commodity_name):
+    """Returns option chain strikes & LTPs for given commodity & expiry."""
+    global kite_client
+    try:
+        import commodity
+        if kite_client:
+            commodity.set_kite_client(kite_client)
+        expiry = request.args.get("expiry")
+        chain = commodity.get_commodity_options_chain(commodity_name, expiry)
+        return jsonify({"status": "ok", "commodity_name": commodity_name, "expiry": expiry, "chain": chain})
+    except Exception as e:
+        logger.error(f"Error in api_commodity_options_chain: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route("/api/commodity/strategies", methods=["GET", "POST"], strict_slashes=False)
+@app.route("/api/commodity/strategies/", methods=["GET", "POST"], strict_slashes=False)
+def api_commodity_strategies():
+    """Handles both GET and POST for MCX commodity strategies."""
+    try:
+        import commodity
+        if request.method == "POST":
+            data = request.get_json(force=True, silent=True) or {}
+            strat_id = data.get("id")
+            strats = commodity.load_commodity_strategies()
+
+            if strat_id:
+                found = False
+                for idx, s in enumerate(strats):
+                    if str(s.get("id")) == str(strat_id):
+                        data.setdefault("active", s.get("active", False))
+                        data.setdefault("orders_placed", s.get("orders_placed", False))
+                        data.setdefault("orders", s.get("orders", {}))
+                        strats[idx] = data
+                        found = True
+                        break
+                if not found:
+                    strats.append(data)
+            else:
+                data["id"] = f"comm_{int(time.time() * 1000)}"
+                data.setdefault("active", False)
+                data.setdefault("orders_placed", False)
+                data.setdefault("orders", {})
+                strats.append(data)
+
+            commodity.save_commodity_strategies(strats)
+            return jsonify({"status": "ok", "strategy": data})
+        else:
+            strats = commodity.load_commodity_strategies()
+            return jsonify({"status": "ok", "strategies": strats})
+    except Exception as e:
+        logger.error(f"Error in api_commodity_strategies: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route("/api/commodity/strategies/<strat_id>", methods=["DELETE"])
+def api_delete_commodity_strategy(strat_id):
+    """Deletes an MCX commodity strategy."""
+    try:
+        import commodity
+        strats = commodity.load_commodity_strategies()
+        strats = [s for s in strats if str(s.get("id")) != str(strat_id)]
+        commodity.save_commodity_strategies(strats)
+        return jsonify({"status": "ok", "message": f"Strategy {strat_id} deleted."})
+    except Exception as e:
+        logger.error(f"Error in api_delete_commodity_strategy: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route("/api/commodity/strategies/<strat_id>/toggle", methods=["POST"])
+def api_toggle_commodity_strategy(strat_id):
+    """Activates or stops an MCX commodity strategy."""
+    try:
+        import commodity
+        data = request.get_json(silent=True) or {}
+        new_active = bool(data.get("active", False))
+        strats = commodity.load_commodity_strategies()
+
+        found = False
+        for s in strats:
+            if str(s.get("id")) == str(strat_id):
+                s["active"] = new_active
+                if not new_active:
+                    s["status"] = "Stopped"
+                found = True
+                break
+
+        if not found:
+            return jsonify({"status": "error", "message": f"Strategy {strat_id} not found."}), 404
+
+        commodity.save_commodity_strategies(strats)
+        return jsonify({"status": "ok", "active": new_active})
+    except Exception as e:
+        logger.error(f"Error in api_toggle_commodity_strategy: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route("/api/commodity/strategies/<strat_id>/calculate", methods=["POST"], strict_slashes=False)
+def api_calculate_commodity_strategy(strat_id):
+    """Calculates strikes & LTPs without placing orders for an MCX commodity strategy."""
+    global kite_client
+    try:
+        import commodity
+        if kite_client:
+            commodity.set_kite_client(kite_client)
+        strats = commodity.load_commodity_strategies()
+        target = next((s for s in strats if str(s.get("id")) == str(strat_id)), None)
+        if not target:
+            return jsonify({"status": "error", "message": f"Strategy {strat_id} not found."}), 404
+
+        ok, msg = commodity.calculate_commodity_strategy_strikes(target)
+        if ok:
+            return jsonify({"status": "ok", "message": msg, "strategy": target})
+        else:
+            return jsonify({"status": "error", "message": msg}), 400
+    except Exception as e:
+        logger.error(f"Error in api_calculate_commodity_strategy: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route("/api/commodity/strategies/<strat_id>/enter", methods=["POST"], strict_slashes=False)
+def api_enter_commodity_strategy(strat_id):
+    """Manually triggers entry order placement for an MCX commodity strategy."""
+    global kite_client
+    try:
+        import commodity
+        if kite_client:
+            commodity.set_kite_client(kite_client)
+        strats = commodity.load_commodity_strategies()
+        target = next((s for s in strats if str(s.get("id")) == str(strat_id)), None)
+        if not target:
+            return jsonify({"status": "error", "message": f"Strategy {strat_id} not found."}), 404
+
+        ok, msg = commodity.execute_commodity_strategy_entry(target)
+        if ok:
+            return jsonify({"status": "ok", "message": f"Entry executed for {target.get('name')}", "strategy": target})
+        else:
+            return jsonify({"status": "error", "message": f"Entry execution failed: {msg}"}), 400
+    except Exception as e:
+        logger.error(f"Error in api_enter_commodity_strategy: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route("/api/commodity/strategies/<strat_id>/squareoff", methods=["POST"])
+def api_squareoff_commodity_strategy(strat_id):
+    """Squares off all open positions for an MCX commodity strategy."""
+    global kite_client
+    try:
+        import commodity
+        if kite_client:
+            commodity.set_kite_client(kite_client)
+        strats = commodity.load_commodity_strategies()
+        target = next((s for s in strats if str(s.get("id")) == str(strat_id)), None)
+        if not target:
+            return jsonify({"status": "error", "message": f"Strategy {strat_id} not found."}), 404
+
+        commodity.squareoff_commodity_strategy(target, reason="MANUAL_SQUAREOFF", kite=kite_client)
+        return jsonify({"status": "ok", "message": f"Squared off {target.get('name')}"})
+    except Exception as e:
+        logger.error(f"Error in api_squareoff_commodity_strategy: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route("/api/commodity/status", methods=["GET"])
+def api_commodity_status():
+    """Returns live status of all MCX commodity strategies and logs."""
+    try:
+        import commodity
+        strats = commodity.load_commodity_strategies()
+        with commodity.commodity_lock:
+            logs = list(commodity.commodity_logs)
+        return jsonify({
+            "status": "ok",
+            "strategies": strats,
+            "logs": logs[-100:],
+            "active_count": sum(1 for s in strats if s.get("active"))
+        })
+    except Exception as e:
+        logger.error(f"Error in api_commodity_status: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route("/api/commodity/pnl/download", methods=["GET"])
+def api_download_commodity_pnl():
+    """Downloads commodity_PnL.csv."""
+    try:
+        csv_path = os.path.join(BASE_DIR, "commodity_PnL.csv")
+        if not os.path.exists(csv_path):
+            import trade_journal
+            trade_journal.get_target_csv_path("COMMODITY")
+        return send_from_directory(BASE_DIR, "commodity_PnL.csv", as_attachment=True)
+    except Exception as e:
+        logger.error(f"Error downloading commodity_PnL.csv: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route("/api/commodity/pnl/summary", methods=["GET"])
+def api_commodity_pnl_summary():
+    """Returns summary stats and trade records from commodity_PnL.csv."""
+    try:
+        import trade_journal
+        summary = trade_journal.get_commodity_pnl_summary()
+        return jsonify({"status": "ok", **summary})
+    except Exception as e:
+        logger.error(f"Error in api_commodity_pnl_summary: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route("/api/commodity/pending_orders", methods=["GET"])
+def api_commodity_pending_orders():
+    """Returns local pending orders for commodity engine."""
+    try:
+        import commodity
+        orders = commodity.load_pending_commodity_orders()
+        return jsonify({"status": "ok", "orders": orders})
+    except Exception as e:
+        logger.error(f"Error in api_commodity_pending_orders: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
 @app.route("/")
 def serve_root():
     return send_from_directory(BASE_DIR, "index.html")

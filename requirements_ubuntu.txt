@@ -2,6 +2,13 @@
 # Requirements & Setup Guide for Ubuntu / Debian Server
 # Python 3.9 - 3.13 Compatibility
 #
+# Unified Trading System Components:
+# 1. server.py (Flask Web App, Intraday Time-Based Straddle/Strangle, MTM Engine)
+# 2. pos_strngl.py (Positional Multi-Day Strangle Engine)
+# 3. straddle_total_sl.py (Positional Straddle Total SL & Adjustments Engine)
+# 4. commodity.py (MCX Commodity Options & Futures Engine: 09:00 - 23:30/23:55)
+# 5. trade_journal.py (Multi-Journal Slippage & PnL Engine: intraday, pos, straddle, commodity)
+#
 # 1. System Package Prerequisites (Run on Ubuntu terminal):
 #   sudo apt update
 #   sudo apt install -y python3-pip python3-venv build-essential \

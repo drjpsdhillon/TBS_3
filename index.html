@@ -1368,6 +1368,11 @@
                     <span class="tab-badge" id="straddleStatusBadge"
                         style="background:#e0f2fe; color:#0369a1;">Idle</span>
                 </button>
+                <button class="tab-btn" id="tabBtnCommodity" onclick="switchMainTab('tabCommodity', this)">
+                    <span>🛢️ Commodity Strategy</span>
+                    <span class="tab-badge" id="commStatusBadge"
+                        style="background:#fef3c7; color:#b45309;">MCX Idle</span>
+                </button>
             </div>
 
             <!-- TAB 0: LIVE OPEN INTEREST (OI) & ANALYTICS DASHBOARD -->
@@ -1394,14 +1399,22 @@
                                 </select>
                             </div>
 
+                            <!-- Dashboard Auto-Refresh Toggle -->
+                            <div style="display: flex; align-items: center; gap: 8px; background: #f8fafc; border: 1px solid var(--border-color); padding: 4px 10px; border-radius: var(--radius-sm);">
+                                <label class="switch" style="margin-bottom: 0; transform: scale(0.85);">
+                                    <input type="checkbox" id="dashAutoRefreshToggle" checked onchange="toggleDashAutoRefresh(this.checked)">
+                                    <span class="slider round"></span>
+                                </label>
+                                <span id="dashAutoRefreshLabel" style="font-size: 11px; font-weight: 800; color: #16a34a;">AUTO REFRESH: ON</span>
+                            </div>
+
                             <div style="display: flex; align-items: center; gap: 6px;">
-                                <label style="font-size: 11px; font-weight: 800; color: var(--text-secondary); text-transform: uppercase;">Auto-Refresh:</label>
+                                <label style="font-size: 11px; font-weight: 800; color: var(--text-secondary); text-transform: uppercase;">Interval:</label>
                                 <select id="dashRefreshIntervalSelect" onchange="onDashIntervalChange()" style="padding: 6px 10px; font-size: 12px; font-weight: 700; border-radius: var(--radius-sm); border: 1px solid var(--border-color); background: #ffffff;">
                                     <option value="5000">5 Seconds</option>
                                     <option value="10000" selected>10 Seconds</option>
                                     <option value="15000">15 Seconds</option>
                                     <option value="30000">30 Seconds</option>
-                                    <option value="0">Manual</option>
                                 </select>
                             </div>
                         </div>
@@ -3199,6 +3212,309 @@
                 </div>
             </div>
 
+            <!-- TAB 7: MCX COMMODITY STRATEGY (OPTIONS & FUTURES) -->
+            <div id="tabCommodity" class="tab-pane" style="margin-bottom: 28px;">
+                <div
+                    style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 12px;">
+                    <div>
+                        <h2
+                            style="font-size: 20px; font-weight: 800; letter-spacing: -0.5px; color: var(--text-primary);">
+                            🛢️ MCX Commodity Console (Options &amp; Futures)</h2>
+                        <p style="font-size: 13px; color: var(--text-secondary); margin-top: 2px;">Automated Time-Based
+                            Commodity Options (Straddle, Strangle, Single Leg) and Futures (Crude Oil, Natural Gas, Gold, Silver, etc.) tracked until MCX close (23:30/23:55).
+                        </p>
+                    </div>
+                    <div style="display: flex; gap: 8px;">
+                        <button onclick="downloadCommodityPnlCsv()" class="btn-secondary"
+                            style="padding: 9px 16px; font-size: 13px;" title="Download commodity_PnL.csv">
+                            📥 Download Commodity P&amp;L CSV
+                        </button>
+                        <button onclick="openNewCommodityStrategyForm()" class="btn-primary"
+                            style="padding: 9px 16px; font-size: 13px; background-color: #d97706; border-color: #b45309;">
+                            ➕ New Commodity Strategy
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Commodity Trading Journal Card (commodity_PnL.csv) -->
+                <div class="card" style="margin-bottom: 24px;">
+                    <div class="card-header"
+                        style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+                        <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                            <div class="card-title">📖 Commodity Trading Journal (commodity_PnL.csv)</div>
+                            <span id="commJournalTradesBadge"
+                                style="background: #fef3c7; color: #b45309; border: 1px solid #fde68a; padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 700;">0 Trades</span>
+                            <span id="commRealizedPnlBadge"
+                                style="background: #ecfdf5; color: #047857; border: 1px solid #a7f3d0; padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 700;">P&amp;L: ₹0.00</span>
+                        </div>
+                        <div style="display: flex; gap: 8px;">
+                            <button onclick="toggleCommodityHistoryTable()" class="btn-secondary"
+                                style="padding: 6px 14px; font-size: 12px;">
+                                📜 Toggle Journal History
+                            </button>
+                            <button onclick="downloadCommodityPnlCsv()" class="btn-secondary"
+                                style="padding: 6px 14px; font-size: 12px;" title="Download commodity_PnL.csv">
+                                📥 Download CSV
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="commHistoryContainer" style="display: none; padding-top: 10px;">
+                        <div class="table-responsive">
+                            <table class="custom-table" id="commHistoryTable">
+                                <thead>
+                                    <tr>
+                                        <th>#</th>
+                                        <th>Date</th>
+                                        <th>Strategy Name</th>
+                                        <th>Instrument</th>
+                                        <th>Leg</th>
+                                        <th>Symbol</th>
+                                        <th>Action</th>
+                                        <th>Qty</th>
+                                        <th>Entry Price</th>
+                                        <th>Exit Price</th>
+                                        <th>Day P&amp;L</th>
+                                        <th>Cumulative P&amp;L</th>
+                                        <th>Exit Reason</th>
+                                        <th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="commHistoryBody">
+                                    <tr>
+                                        <td colspan="14"
+                                            style="text-align: center; color: var(--text-muted); padding: 16px;">
+                                            No commodity trade records in commodity_PnL.csv yet.
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Create / Edit Commodity Strategy Form Window -->
+                <div class="card" id="commodityFormCard" style="margin-bottom: 24px;">
+                    <div class="card-header" onclick="toggleCardCollapse('commodityFormCollapseContent', 'commodityFormChevron')"
+                        style="cursor: pointer; user-select: none;">
+                        <div class="card-title" id="commodityFormTitle">➕ Create New MCX Commodity Strategy</div>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span class="chevron-btn collapsed" id="commodityFormChevron">▼</span>
+                        </div>
+                    </div>
+
+                    <div id="commodityFormCollapseContent" style="display: none; padding-top: 14px;">
+                        <form id="commodityStrategyForm" onsubmit="saveCommodityStrategy(event)">
+                            <input type="hidden" id="commodityEditId" value="">
+
+                            <!-- 1. Commodity Underlying & Strategy Segment -->
+                            <div
+                                style="background: #fffbeb; border: 1px solid #fde68a; border-left: 4px solid #f59e0b; border-radius: var(--radius-sm); padding: 12px 14px; margin-bottom: 12px;">
+                                <div
+                                    style="font-size: 11px; font-weight: 800; color: #b45309; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
+                                    <span>🛢️ Underlying Commodity &amp; Segment</span>
+                                </div>
+                                <div class="form-row" style="margin-bottom: 8px;">
+                                    <div class="form-group" style="margin-bottom: 0;">
+                                        <label for="commCommodityName" style="color: #b45309; font-weight: 700;">Commodity Underlying</label>
+                                        <select id="commCommodityName" onchange="onCommodityUnderlyingChange()"
+                                            style="background: #ffffff; border-color: #fcd34d; font-weight: 700;">
+                                            <option value="CRUDEOIL" selected>CRUDEOIL (100 bbl)</option>
+                                            <option value="CRUDEOILM">CRUDEOILM (10 bbl)</option>
+                                            <option value="NATURALGAS">NATURALGAS (1250 mmBtu)</option>
+                                            <option value="NATGASMINI">NATGASMINI (250 mmBtu)</option>
+                                            <option value="GOLD">GOLD (100 grams)</option>
+                                            <option value="GOLDM">GOLDM (10 grams)</option>
+                                            <option value="GOLDPETAL">GOLDPETAL (1 gram)</option>
+                                            <option value="SILVER">SILVER (30 kg)</option>
+                                            <option value="SILVERM">SILVERM (5 kg)</option>
+                                            <option value="SILVERMIC">SILVERMIC (1 kg)</option>
+                                            <option value="COPPER">COPPER (2500 kg)</option>
+                                            <option value="ZINC">ZINC (5000 kg)</option>
+                                            <option value="LEAD">LEAD (5000 kg)</option>
+                                            <option value="ALUMINIUM">ALUMINIUM (5000 kg)</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group" style="margin-bottom: 0;">
+                                        <label for="commStrategyType" style="color: #b45309; font-weight: 700;">Trading Segment &amp; Type</label>
+                                        <select id="commStrategyType" onchange="onCommodityTypeChange()"
+                                            style="background: #ffffff; border-color: #fcd34d; font-weight: 700;">
+                                            <option value="STRADDLE" selected>🎯 Options Straddle (ATM CE + PE)</option>
+                                            <option value="STRANGLE">📊 Options Strangle (CE + PE by Premium / Strike)</option>
+                                            <option value="SINGLE_CE">📈 Single Leg (CE Only)</option>
+                                            <option value="SINGLE_PE">📉 Single Leg (PE Only)</option>
+                                            <option value="FUTURES">⚡ MCX Futures (Long / Short Contract)</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="form-row" style="margin-bottom: 0;">
+                                    <div class="form-group" style="margin-bottom: 0;">
+                                        <label for="commStratName" style="color: #b45309; font-weight: 700;">Strategy Name</label>
+                                        <input type="text" id="commStratName" placeholder="e.g. Crude Oil Evening Straddle" required
+                                            style="background: #ffffff; border-color: #fcd34d; font-weight: 700;">
+                                    </div>
+                                    <div class="form-group" style="margin-bottom: 0;">
+                                        <label for="commEntryAction" style="color: #b45309; font-weight: 700;">Action</label>
+                                        <select id="commEntryAction" style="background: #ffffff; border-color: #fcd34d; font-weight: 700;">
+                                            <option value="SELL" selected>SELL (Short / Option Writing / Short Fut)</option>
+                                            <option value="BUY">BUY (Long / Option Buying / Long Fut)</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 2. Expiry & Strike / Premium Selection -->
+                            <div
+                                style="background: #eff6ff; border: 1px solid #bfdbfe; border-left: 4px solid #3b82f6; border-radius: var(--radius-sm); padding: 12px 14px; margin-bottom: 12px;">
+                                <div
+                                    style="font-size: 11px; font-weight: 800; color: #1d4ed8; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between; gap: 6px;">
+                                    <span>📅 Expiry &amp; Strike Configuration</span>
+                                    <button type="button" onclick="refreshCommodityExpiries()"
+                                        style="background: #ffffff; border: 1px solid #93c5fd; color: #1d4ed8; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 4px; cursor: pointer;">
+                                        🔄 Reload Expiries
+                                    </button>
+                                </div>
+                                <div class="form-row" style="margin-bottom: 8px;">
+                                    <div class="form-group" style="margin-bottom: 0;">
+                                        <label for="commExpirySelect" style="color: #1d4ed8; font-weight: 700;">Expiry Date</label>
+                                        <select id="commExpirySelect" style="background: #ffffff; border-color: #93c5fd; font-weight: 600;">
+                                            <option value="CURRENT">Nearest / Active Expiry</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group" style="margin-bottom: 0;">
+                                        <label for="commProduct" style="color: #1d4ed8; font-weight: 700;">Product Type</label>
+                                        <select id="commProduct" style="background: #ffffff; border-color: #93c5fd; font-weight: 600;">
+                                            <option value="MIS" selected>MIS (Intraday / Auto-squareoff)</option>
+                                            <option value="NRML">NRML (Overnight / Normal Margin)</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div id="commOptionsFields" class="form-row" style="margin-bottom: 0;">
+                                    <div class="form-group" id="commCePremGroup" style="margin-bottom: 0;">
+                                        <label for="commCePremium" style="color: #1d4ed8; font-weight: 700;">CE Target Premium (₹) [0 = ATM]</label>
+                                        <input type="number" id="commCePremium" step="any" value="0" min="0"
+                                            style="background: #ffffff; border-color: #93c5fd; font-weight: 700;" placeholder="0 for ATM strike">
+                                    </div>
+                                    <div class="form-group" id="commPePremGroup" style="margin-bottom: 0;">
+                                        <label for="commPePremium" style="color: #1d4ed8; font-weight: 700;">PE Target Premium (₹) [0 = ATM]</label>
+                                        <input type="number" id="commPePremium" step="any" value="0" min="0"
+                                            style="background: #ffffff; border-color: #93c5fd; font-weight: 700;" placeholder="0 for ATM strike">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 3. Stop Loss & Target Profit -->
+                            <div
+                                style="background: #fff1f2; border: 1px solid #fecdd3; border-left: 4px solid #e11d48; border-radius: var(--radius-sm); padding: 12px 14px; margin-bottom: 12px;">
+                                <div
+                                    style="font-size: 11px; font-weight: 800; color: #be123c; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
+                                    <span>🛑 Risk Controls (Stop Loss &amp; TSL)</span>
+                                </div>
+                                <div class="form-row" style="margin-bottom: 8px;">
+                                    <div class="form-group" style="margin-bottom: 0;">
+                                        <label for="commSlType" style="color: #be123c; font-weight: 700;">Stop Loss Mode</label>
+                                        <select id="commSlType" style="background: #ffffff; border-color: #fda4af; font-weight: 700;">
+                                            <option value="POINTS" selected>Points (pts)</option>
+                                            <option value="PERCENT">Percentage (%)</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group" style="margin-bottom: 0;">
+                                        <label for="commSlValue" style="color: #be123c; font-weight: 700;">SL Trigger Value</label>
+                                        <input type="number" id="commSlValue" step="any" value="30" min="0.01" required
+                                            style="background: #ffffff; border-color: #fda4af; font-weight: 700; color: #be123c;">
+                                    </div>
+                                    <div class="form-group" style="margin-bottom: 0;">
+                                        <label for="commReentryCount" style="color: #be123c; font-weight: 700;">SL Re-entries</label>
+                                        <select id="commReentryCount" style="background: #ffffff; border-color: #fda4af; font-weight: 600;">
+                                            <option value="0" selected>0 (No Re-entry)</option>
+                                            <option value="1">1 Time</option>
+                                            <option value="2">2 Times</option>
+                                            <option value="3">3 Times</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div
+                                    style="background: #ffffff; border: 1px dashed #fda4af; border-radius: 6px; padding: 10px; margin-top: 6px;">
+                                    <label
+                                        style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 12px; font-weight: 800; color: #be123c; margin-bottom: 6px;">
+                                        <input type="checkbox" id="commEnableTsl" onchange="toggleCommodityTslFields()"
+                                            style="width: 16px; height: 16px; accent-color: #e11d48;">
+                                        <span>🎯 Enable Trailing Stop Loss (TSL)</span>
+                                    </label>
+                                    <div id="commTslFields" class="form-row" style="margin-bottom: 0; display: none;">
+                                        <div class="form-group" style="margin-bottom: 0;">
+                                            <label for="commTslStep" style="font-size: 11px; font-weight: 700; color: #be123c;">Trail Trigger Step (Pts)</label>
+                                            <input type="number" id="commTslStep" value="10" step="any" min="0.01"
+                                                style="background: #fff5f5; border-color: #fda4af; font-weight: 700;">
+                                        </div>
+                                        <div class="form-group" style="margin-bottom: 0;">
+                                            <label for="commTslVal" style="font-size: 11px; font-weight: 700; color: #be123c;">SL Move Step (Pts)</label>
+                                            <input type="number" id="commTslVal" value="10" step="any" min="0.01"
+                                                style="background: #fff5f5; border-color: #fda4af; font-weight: 700;">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 4. Position Sizing & Execution Schedule -->
+                            <div class="form-row" style="margin-bottom: 12px;">
+                                <div class="form-group" style="margin-bottom: 0; flex: 1; background: #faf5ff; border: 1px solid #e9d5ff; border-left: 4px solid #9333ea; border-radius: var(--radius-sm); padding: 12px 14px;">
+                                    <div style="font-size: 11px; font-weight: 800; color: #6b21a8; text-transform: uppercase; margin-bottom: 6px;">📦 Sizing (Lots &amp; Qty)</div>
+                                    <label for="commQuantity" id="lblCommQuantity" style="color: #6b21a8; font-weight: 700;">Quantity (Lot Size: 100 for CRUDEOIL)</label>
+                                    <input type="number" id="commQuantity" value="100" step="1" min="1" required
+                                        style="background: #ffffff; border-color: #d8b4fe; font-weight: 700;">
+                                </div>
+                                <div class="form-group" style="margin-bottom: 0; flex: 1; background: #fff7ed; border: 1px solid #fed7aa; border-left: 4px solid #ea580c; border-radius: var(--radius-sm); padding: 12px 14px;">
+                                    <div style="font-size: 11px; font-weight: 800; color: #9a3412; text-transform: uppercase; margin-bottom: 6px;">⏰ MCX Schedule (09:00 - 23:30)</div>
+                                    <div class="form-row" style="margin-bottom: 0;">
+                                        <div class="form-group" style="margin-bottom: 0;">
+                                            <label for="commStartTime" style="color: #9a3412; font-weight: 700;">Start Time</label>
+                                            <input type="time" id="commStartTime" value="09:15:00" step="1" required
+                                                style="background: #ffffff; border-color: #fdba74; font-weight: 700;">
+                                        </div>
+                                        <div class="form-group" style="margin-bottom: 0;">
+                                            <label for="commEndTime" style="color: #9a3412; font-weight: 700;">Exit Time</label>
+                                            <input type="time" id="commEndTime" value="23:15:00" step="1" required
+                                                style="background: #ffffff; border-color: #fdba74; font-weight: 700;">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Action Buttons -->
+                            <div class="form-actions">
+                                <button type="submit" class="btn-primary btn-save" style="background: #d97706; border-color: #b45309;">
+                                    <span>💾</span> Save Commodity Strategy
+                                </button>
+                                <button type="button" onclick="cancelCommodityEditForm()" class="btn-secondary btn-cancel">
+                                    Cancel
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Commodity Instrument Groups Container -->
+                <div id="commInstrumentGroupsContainer" style="margin-bottom: 24px;">
+                    <!-- Dynamically rendered commodity cards -->
+                </div>
+
+                <!-- Commodity Execution Logs Card -->
+                <div class="card" style="margin-bottom: 24px;">
+                    <div class="card-header">
+                        <div class="card-title">📜 MCX Commodity Engine Logs</div>
+                        <span class="mtm-sync-badge" id="commLastChecked">Sync: Just now</span>
+                    </div>
+                    <div>
+                        <div id="commLogsTerminal" class="logs-terminal" style="height: 380px;">
+                            <div class="log-line">MCX Commodity strategy logs streaming...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
         </div>
 
     </div>
@@ -3257,7 +3573,9 @@
                 { contentId: 'strategyFormCollapseContent', chevronId: 'strategyFormChevron', defaultCollapsed: true },
                 { contentId: 'posStrategyFormCollapseContent', chevronId: 'posStrategyFormChevron', defaultCollapsed: true },
                 { contentId: 'straddleFormCollapseContent', chevronId: 'straddleFormChevron', defaultCollapsed: true },
-                { contentId: 'intraHistoryContainer', chevronId: null, defaultCollapsed: true }
+                { contentId: 'commodityFormCollapseContent', chevronId: 'commodityFormChevron', defaultCollapsed: true },
+                { contentId: 'intraHistoryContainer', chevronId: null, defaultCollapsed: true },
+                { contentId: 'commHistoryContainer', chevronId: null, defaultCollapsed: true }
             ];
 
             collapsibleWindows.forEach(win => {
@@ -4318,25 +4636,83 @@
 
         async function doTotpLogin() {
             const code = getTotpCode();
-            if (code.length !== 6) { toast('Enter 6 digit TOTP'); return; }
-            const res = await api('/api/login/totp', 'POST', { totp: code });
-            if (res.status === 'ok') {
-                toast(res.message);
-                showDashboard(res.user_name);
-            } else {
-                toast(res.message || 'Login failed');
+            if (code.length !== 6) { toast('Enter 6 digit TOTP', true); return; }
+            const btn = document.getElementById('btnTotpLogin');
+            const origText = btn ? btn.innerHTML : '';
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<span class="btn-text">⏳ Verifying TOTP with Zerodha...</span>';
+            }
+
+            try {
+                const res = await api('/api/login/totp', 'POST', { totp: code });
+                if (res.status === 'ok') {
+                    toast('✅ ' + (res.message || 'Login successful'));
+                    showDashboard(res.user_name);
+                } else {
+                    toast('❌ ' + (res.message || 'TOTP Login failed'), true);
+                }
+            } catch (err) {
+                toast('❌ Login error: ' + err.message, true);
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = origText;
+                }
+            }
+        }
+
+        async function doAutoLogin() {
+            const btn = document.getElementById('btnAutoLogin');
+            const origText = btn ? btn.innerHTML : '';
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<span class="btn-text">⏳ Checking Cached Session...</span>';
+            }
+
+            try {
+                const res = await api('/api/login/auto', 'POST');
+                if (res.status === 'ok') {
+                    toast('✅ ' + (res.message || 'Connected to Kite'));
+                    showDashboard(res.user_name);
+                } else {
+                    toast('ℹ️ ' + (res.message || 'Please enter fresh TOTP'), true);
+                }
+            } catch (err) {
+                toast('❌ Session error: ' + err.message, true);
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = origText;
+                }
             }
         }
 
         async function doTokenLogin() {
             const token = document.getElementById('accessToken').value.trim();
-            if (!token) { toast('Enter access token'); return; }
-            const res = await api('/api/login/access-token', 'POST', { access_token: token });
-            if (res.status === 'ok') {
-                toast(res.message);
-                showDashboard(res.user_name);
-            } else {
-                toast(res.message || 'Login failed');
+            if (!token) { toast('Enter access token', true); return; }
+            const btn = document.getElementById('btnTokenLogin');
+            const origText = btn ? btn.innerHTML : '';
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<span class="btn-text">⏳ Connecting...</span>';
+            }
+
+            try {
+                const res = await api('/api/login/access-token', 'POST', { access_token: token });
+                if (res.status === 'ok') {
+                    toast('✅ ' + (res.message || 'Connected'));
+                    showDashboard(res.user_name);
+                } else {
+                    toast('❌ ' + (res.message || 'Login failed'), true);
+                }
+            } catch (err) {
+                toast('❌ Token error: ' + err.message, true);
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = origText;
+                }
             }
         }
 
@@ -4346,10 +4722,23 @@
             showLogin();
         }
 
-        // TOTP Input listener
-        document.getElementById('totpInput').addEventListener('input', (e) => {
-            e.target.value = e.target.value.replace(/\D/g, '');
-        });
+        // TOTP Input listener & Enter key trigger
+        const totpEl = document.getElementById('totpInput');
+        if (totpEl) {
+            totpEl.addEventListener('input', (e) => {
+                e.target.value = e.target.value.replace(/\D/g, '');
+                if (e.target.value.length === 6) {
+                    // Automatically trigger when 6 digits are typed
+                    setTimeout(doTotpLogin, 100);
+                }
+            });
+            totpEl.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    doTotpLogin();
+                }
+            });
+        }
 
         // ═══════════════════════════════════════════════════════════════
         // OPEN INTEREST (OI) DASHBOARD STATE & LOGIC
@@ -4379,12 +4768,39 @@
             fetchDashboardOiAnalysis(true);
         }
 
+        function toggleDashAutoRefresh(enabled) {
+            const label = document.getElementById('dashAutoRefreshLabel');
+            const select = document.getElementById('dashRefreshIntervalSelect');
+            if (label) {
+                label.textContent = enabled ? 'AUTO REFRESH: ON' : 'AUTO REFRESH: OFF';
+                label.style.color = enabled ? '#16a34a' : '#94a3b8';
+            }
+            if (select) {
+                select.disabled = !enabled;
+                select.style.opacity = enabled ? '1' : '0.5';
+            }
+
+            if (!enabled) {
+                if (dashOiIntervalTimer) {
+                    clearInterval(dashOiIntervalTimer);
+                    dashOiIntervalTimer = null;
+                }
+                toast('⏸️ Dashboard Auto-Refresh Paused (Polling stopped)');
+            } else {
+                onDashIntervalChange();
+                toast('▶️ Dashboard Auto-Refresh Active');
+            }
+        }
+
         function onDashIntervalChange() {
             if (dashOiIntervalTimer) {
                 clearInterval(dashOiIntervalTimer);
                 dashOiIntervalTimer = null;
             }
-            const intervalMs = parseInt(document.getElementById('dashRefreshIntervalSelect').value);
+            const isAutoOn = document.getElementById('dashAutoRefreshToggle')?.checked ?? true;
+            if (!isAutoOn) return;
+
+            const intervalMs = parseInt(document.getElementById('dashRefreshIntervalSelect')?.value || '10000');
             if (intervalMs > 0) {
                 dashOiIntervalTimer = setInterval(() => {
                     if (document.getElementById('consoleView').style.display === 'block' && 
@@ -4663,7 +5079,9 @@
             fetchAndRenderStrategies();
             fetchPosStrangleStatus(true);
             fetchStraddleStatus(true);
+            fetchCommodityStatus(true);
             fetchIntradayPnlSummary();
+            fetchCommodityPnlSummary();
             loadSavedMtmChartData();
             startLiveMonitors();
         }
@@ -4700,6 +5118,9 @@
                 fetchPosStrangleStatus(true);
             } else if (tabId === 'tabStraddleTotalSl') {
                 fetchStraddleStatus(true);
+            } else if (tabId === 'tabCommodity') {
+                fetchCommodityStatus(true);
+                fetchCommodityPnlSummary();
             }
         }
 
@@ -4768,6 +5189,13 @@
             setInterval(() => {
                 if (document.getElementById('consoleView').style.display === 'block') {
                     fetchStraddleStatus();
+                }
+            }, 3000);
+
+            // 3-second MCX Commodity monitor
+            setInterval(() => {
+                if (document.getElementById('consoleView').style.display === 'block') {
+                    fetchCommodityStatus();
                 }
             }, 3000);
 
@@ -8514,6 +8942,668 @@
             }
         }
 
+        // ═══════════════════════════════════════════════════════════════
+        // TAB 7: MCX COMMODITY STRATEGY ENGINE
+        // ═══════════════════════════════════════════════════════════════
+
+        let loadedCommodityStrategies = [];
+        let commodityPnlSummaryData = { records: [], total_trades: 0, realized_pnl: 0 };
+        const commodityLotSizes = {
+            "CRUDEOIL": 100,
+            "CRUDEOILM": 10,
+            "NATURALGAS": 1250,
+            "NATGASMINI": 250,
+            "GOLD": 100,
+            "GOLDM": 10,
+            "GOLDPETAL": 1,
+            "GOLDGUINEA": 8,
+            "SILVER": 30,
+            "SILVERM": 5,
+            "SILVERMIC": 1,
+            "COPPER": 2500,
+            "ZINC": 5000,
+            "LEAD": 5000,
+            "ALUMINIUM": 5000,
+            "NICKEL": 1500
+        };
+
+        function getCommodityLotSize(cname) {
+            return commodityLotSizes[String(cname || '').toUpperCase()] || 100;
+        }
+
+        function onCommodityUnderlyingChange() {
+            const cname = document.getElementById('commCommodityName').value || 'CRUDEOIL';
+            const lot = getCommodityLotSize(cname);
+            const qtyInput = document.getElementById('commQuantity');
+            const lblQty = document.getElementById('lblCommQuantity');
+
+            if (qtyInput) {
+                qtyInput.value = lot;
+                qtyInput.step = lot;
+                qtyInput.min = lot;
+            }
+            if (lblQty) {
+                lblQty.textContent = `Quantity (Lot Size: ${lot} for ${cname})`;
+            }
+
+            const nameInput = document.getElementById('commStratName');
+            const typeSelect = document.getElementById('commStrategyType');
+            if (nameInput && (!nameInput.value || nameInput.value.includes('Crude') || nameInput.value.includes('Commodity') || nameInput.value.includes('Gold') || nameInput.value.includes('Silver') || nameInput.value.includes('Natural Gas'))) {
+                const typeName = typeSelect ? typeSelect.options[typeSelect.selectedIndex].text.split(' ')[1] || 'Strategy' : 'Strategy';
+                nameInput.value = `${cname} ${typeName}`;
+            }
+
+            fetchCommodityExpiries(cname);
+        }
+
+        function onCommodityTypeChange() {
+            const stype = document.getElementById('commStrategyType').value;
+            const optFields = document.getElementById('commOptionsFields');
+            const ceGroup = document.getElementById('commCePremGroup');
+            const peGroup = document.getElementById('commPePremGroup');
+
+            if (stype === 'FUTURES') {
+                if (optFields) optFields.style.display = 'none';
+            } else {
+                if (optFields) optFields.style.display = 'flex';
+                if (stype === 'SINGLE_CE') {
+                    if (ceGroup) ceGroup.style.display = 'block';
+                    if (peGroup) peGroup.style.display = 'none';
+                } else if (stype === 'SINGLE_PE') {
+                    if (ceGroup) ceGroup.style.display = 'none';
+                    if (peGroup) peGroup.style.display = 'block';
+                } else {
+                    if (ceGroup) ceGroup.style.display = 'block';
+                    if (peGroup) peGroup.style.display = 'block';
+                }
+            }
+        }
+
+        function toggleCommodityTslFields() {
+            const enabled = document.getElementById('commEnableTsl').checked;
+            const fields = document.getElementById('commTslFields');
+            if (fields) fields.style.display = enabled ? 'flex' : 'none';
+        }
+
+        async function fetchCommodityExpiries(commodityName) {
+            const cname = commodityName || document.getElementById('commCommodityName').value || 'CRUDEOIL';
+            const expSelect = document.getElementById('commExpirySelect');
+            if (!expSelect) return;
+
+            try {
+                const res = await api(`/api/commodity/expiries/${cname}`);
+                expSelect.innerHTML = '<option value="CURRENT">Nearest / Active Expiry</option>';
+                if (res.status === 'ok' && res.expiries && res.expiries.length > 0) {
+                    res.expiries.forEach(exp => {
+                        const opt = document.createElement('option');
+                        opt.value = exp;
+                        opt.textContent = exp;
+                        expSelect.appendChild(opt);
+                    });
+                }
+            } catch (e) {
+                console.error('Error loading commodity expiries:', e);
+            }
+        }
+
+        function refreshCommodityExpiries() {
+            const cname = document.getElementById('commCommodityName').value || 'CRUDEOIL';
+            toast('🔄 Reloading MCX expiries...');
+            fetchCommodityExpiries(cname);
+        }
+
+        function openNewCommodityStrategyForm() {
+            document.getElementById('commodityStrategyForm').reset();
+            document.getElementById('commodityEditId').value = '';
+            document.getElementById('commodityFormTitle').textContent = '➕ Create New MCX Commodity Strategy';
+            onCommodityUnderlyingChange();
+            toggleCardCollapse('commodityFormCollapseContent', 'commodityFormChevron', true);
+            const formCard = document.getElementById('commodityFormCard');
+            if (formCard) formCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
+        function cancelCommodityEditForm() {
+            document.getElementById('commodityStrategyForm').reset();
+            document.getElementById('commodityEditId').value = '';
+            toggleCardCollapse('commodityFormCollapseContent', 'commodityFormChevron', false);
+        }
+
+        function toggleCommodityHistoryTable() {
+            const container = document.getElementById('commHistoryContainer');
+            if (container) {
+                container.style.display = container.style.display === 'none' ? 'block' : 'none';
+            }
+        }
+
+        function downloadCommodityPnlCsv() {
+            toast('📥 Downloading commodity_PnL.csv...');
+            window.location.href = '/api/commodity/pnl/download';
+        }
+
+        async function fetchCommodityPnlSummary() {
+            try {
+                const res = await api('/api/commodity/pnl/summary');
+                if (res.status === 'ok') {
+                    commodityPnlSummaryData = res;
+                    const tradesBadge = document.getElementById('commJournalTradesBadge');
+                    if (tradesBadge) tradesBadge.textContent = `${res.total_trades || 0} Trades`;
+                    const pnlBadge = document.getElementById('commRealizedPnlBadge');
+                    if (pnlBadge) {
+                        const rp = parseFloat(res.realized_pnl || 0);
+                        pnlBadge.textContent = `P&L: ${formatPnl(rp)}`;
+                        pnlBadge.className = `status-badge ${getPnlClass(rp)}`;
+                    }
+
+                    const tbody = document.getElementById('commHistoryBody');
+                    if (tbody && res.records && res.records.length > 0) {
+                        tbody.innerHTML = res.records.map((r, idx) => `
+                            <tr>
+                                <td>${idx + 1}</td>
+                                <td>${r.Date || '--'}</td>
+                                <td><b>${r.Strategy_Name || '--'}</b></td>
+                                <td><span class="badge badge-instrument">${r.Instrument || '--'}</span></td>
+                                <td><b>${r.Leg || '--'}</b></td>
+                                <td><code>${r.Symbol || '--'}</code></td>
+                                <td><span class="badge ${r.Action === 'BUY' ? 'badge-buy' : 'badge-sell'}">${r.Action || '--'}</span></td>
+                                <td>${r.Lot_Size || 1}</td>
+                                <td>₹${parseFloat(r.Actual_Entry_Price || 0).toFixed(2)}</td>
+                                <td>${parseFloat(r.Actual_Exit_Price || 0) > 0 ? '₹' + parseFloat(r.Actual_Exit_Price).toFixed(2) : '--'}</td>
+                                <td class="${getPnlClass(parseFloat(r.Day_PnL || 0))}">${formatPnl(parseFloat(r.Day_PnL || 0))}</td>
+                                <td class="${getPnlClass(parseFloat(r.Cumulative_PnL || 0))}">${formatPnl(parseFloat(r.Cumulative_PnL || 0))}</td>
+                                <td><span style="font-size: 11px; color: var(--text-secondary);">${r.Exit_Reason || '--'}</span></td>
+                                <td><span class="status-pill ${r.Status === 'CLOSED' ? 'status-closed' : 'status-open'}">${r.Status || 'OPEN'}</span></td>
+                            </tr>
+                        `).join('');
+                    }
+                }
+            } catch (e) {
+                console.error('Error fetching commodity PnL summary:', e);
+            }
+        }
+
+        async function fetchCommodityStatus(silent = false) {
+            try {
+                const res = await api('/api/commodity/status');
+                if (res.status === 'ok') {
+                    loadedCommodityStrategies = res.strategies || [];
+                    renderCommodityStrategies(loadedCommodityStrategies);
+
+                    // Update logs terminal
+                    const terminal = document.getElementById('commLogsTerminal');
+                    if (terminal && res.logs && res.logs.length > 0) {
+                        terminal.innerHTML = res.logs.map(l => `<div class="log-line">${l}</div>`).join('');
+                        terminal.scrollTop = terminal.scrollHeight;
+                    }
+                    const lastSync = document.getElementById('commLastChecked');
+                    if (lastSync) lastSync.textContent = `Sync: ${new Date().toLocaleTimeString()}`;
+
+                    // Update main status badge
+                    const activeCount = loadedCommodityStrategies.filter(s => s.active).length;
+                    const commBadge = document.getElementById('commStatusBadge');
+                    if (commBadge) {
+                        if (activeCount > 0) {
+                            commBadge.textContent = `${activeCount} Active`;
+                            commBadge.style.background = '#dcfce7';
+                            commBadge.style.color = '#15803d';
+                        } else {
+                            commBadge.textContent = 'MCX Idle';
+                            commBadge.style.background = '#fef3c7';
+                            commBadge.style.color = '#b45309';
+                        }
+                    }
+                }
+            } catch (e) {
+                if (!silent) console.error('Error fetching commodity status:', e);
+            }
+        }
+
+        async function saveCommodityStrategy(e) {
+            e.preventDefault();
+            const editId = document.getElementById('commodityEditId').value;
+            const cname = document.getElementById('commCommodityName').value || 'CRUDEOIL';
+            const stype = document.getElementById('commStrategyType').value || 'STRADDLE';
+            const sname = document.getElementById('commStratName').value || `${cname} Strategy`;
+            const action = document.getElementById('commEntryAction').value || 'SELL';
+            const expiry = document.getElementById('commExpirySelect').value || 'CURRENT';
+            const product = document.getElementById('commProduct').value || 'MIS';
+            const cePrem = parseFloat(document.getElementById('commCePremium').value) || 0;
+            const pePrem = parseFloat(document.getElementById('commPePremium').value) || 0;
+            const slType = document.getElementById('commSlType').value || 'POINTS';
+            const slVal = parseFloat(document.getElementById('commSlValue').value) || 30;
+            const reentryCount = parseInt(document.getElementById('commReentryCount').value) || 0;
+            const enableTsl = document.getElementById('commEnableTsl').checked;
+            const tslStep = parseFloat(document.getElementById('commTslStep').value) || 10;
+            const tslVal = parseFloat(document.getElementById('commTslVal').value) || 10;
+            const quantity = parseInt(document.getElementById('commQuantity').value) || getCommodityLotSize(cname);
+            const startTime = document.getElementById('commStartTime').value || '09:15:00';
+            const endTime = document.getElementById('commEndTime').value || '23:15:00';
+
+            const payload = {
+                id: editId || undefined,
+                name: sname,
+                commodity_name: cname,
+                strategy_type: stype,
+                entry_action: action,
+                expiry: expiry,
+                product: product,
+                ce_premium: cePrem,
+                pe_premium: pePrem,
+                sl_type: slType,
+                sl_value: slVal,
+                sl_points: slVal,
+                reentry_count: reentryCount,
+                enable_tsl: enableTsl,
+                tsl_step: tslStep,
+                tsl_value: tslVal,
+                tsl_points: tslVal,
+                quantity: quantity,
+                start_time: startTime,
+                end_time: endTime,
+                active: false,
+                status: 'Idle'
+            };
+
+            try {
+                const res = await api('/api/commodity/strategies', 'POST', payload);
+                if (res.status === 'ok') {
+                    toast('✅ Commodity Strategy Saved!');
+                    cancelCommodityEditForm();
+                    fetchCommodityStatus();
+                } else {
+                    toast('❌ ' + (res.message || 'Error saving strategy'), true);
+                }
+            } catch (err) {
+                toast('❌ Failed saving strategy: ' + err.message, true);
+            }
+        }
+
+        function editCommodityStrategy(stratId) {
+            const s = loadedCommodityStrategies.find(x => x.id === stratId);
+            if (!s) return;
+
+            document.getElementById('commodityEditId').value = s.id;
+            document.getElementById('commCommodityName').value = s.commodity_name || 'CRUDEOIL';
+            document.getElementById('commStrategyType').value = s.strategy_type || 'STRADDLE';
+            document.getElementById('commStratName').value = s.name || '';
+            document.getElementById('commEntryAction').value = s.entry_action || 'SELL';
+            document.getElementById('commProduct').value = s.product || 'MIS';
+            document.getElementById('commCePremium').value = s.ce_premium || 0;
+            document.getElementById('commPePremium').value = s.pe_premium || 0;
+            document.getElementById('commSlType').value = s.sl_type || 'POINTS';
+            document.getElementById('commSlValue').value = s.sl_value || s.sl_points || 30;
+            document.getElementById('commReentryCount').value = s.reentry_count || 0;
+            document.getElementById('commEnableTsl').checked = Boolean(s.enable_tsl);
+            document.getElementById('commTslStep').value = s.tsl_step || 10;
+            document.getElementById('commTslVal').value = s.tsl_value || s.tsl_points || 10;
+            document.getElementById('commQuantity').value = s.quantity || getCommodityLotSize(s.commodity_name);
+            document.getElementById('commStartTime').value = s.start_time || '09:15:00';
+            document.getElementById('commEndTime').value = s.end_time || '23:15:00';
+
+            onCommodityTypeChange();
+            toggleCommodityTslFields();
+            fetchCommodityExpiries(s.commodity_name);
+            setTimeout(() => {
+                if (s.expiry) document.getElementById('commExpirySelect').value = s.expiry;
+            }, 300);
+
+            document.getElementById('commodityFormTitle').textContent = `✏️ Edit Strategy: ${s.name}`;
+            toggleCardCollapse('commodityFormCollapseContent', 'commodityFormChevron', true);
+            const formCard = document.getElementById('commodityFormCard');
+            if (formCard) formCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
+        async function toggleCommodityStrategy(stratId, newActive) {
+            const res = await api(`/api/commodity/strategies/${stratId}/toggle`, 'POST', { active: newActive });
+            if (res.status === 'ok') {
+                toast(newActive ? '🚀 Commodity Strategy Activated' : '🛑 Strategy Stopped & Squared Off');
+                fetchCommodityStatus();
+            } else {
+                toast('❌ Failed toggling strategy', true);
+            }
+        }
+
+        const commodityCollapsedCards = new Set();
+        function toggleCommodityCard(stratId) {
+            if (commodityCollapsedCards.has(stratId)) {
+                commodityCollapsedCards.delete(stratId);
+            } else {
+                commodityCollapsedCards.add(stratId);
+            }
+            const body = document.getElementById(`stratCardBody_${stratId}`);
+            const chev = document.getElementById(`stratCardChevron_${stratId}`);
+            if (body) {
+                const isNowHidden = commodityCollapsedCards.has(stratId);
+                body.style.display = isNowHidden ? 'none' : 'block';
+                if (chev) chev.className = `strat-card-chevron ${isNowHidden ? 'collapsed' : ''}`;
+            }
+        }
+
+        async function calculateCommodityStrategy(stratId) {
+            toast('🔍 Calculating Commodity Strikes & LTPs...');
+            try {
+                const res = await api(`/api/commodity/strategies/${stratId}/calculate`, 'POST');
+                if (res.status === 'ok') {
+                    toast('✅ ' + (res.message || 'Strikes calculated successfully'));
+                    if (res.strategy) {
+                        const idx = loadedCommodityStrategies.findIndex(x => x.id === stratId);
+                        if (idx !== -1) {
+                            loadedCommodityStrategies[idx] = res.strategy;
+                        } else {
+                            loadedCommodityStrategies.push(res.strategy);
+                        }
+                        renderCommodityStrategies(loadedCommodityStrategies);
+                    }
+                    fetchCommodityStatus(true);
+                } else {
+                    toast('❌ ' + (res.message || 'Calculation failed'), true);
+                }
+            } catch (e) {
+                toast('❌ Calculation error: ' + e.message, true);
+            }
+        }
+
+        async function forceEnterCommodityStrategy(stratId) {
+            const s = loadedCommodityStrategies.find(x => x.id === stratId);
+            if (!confirm(`Place live entry orders now for '${s ? s.name : stratId}'?`)) return;
+            toast('🚀 Placing Commodity Entry Orders...');
+            try {
+                const res = await api(`/api/commodity/strategies/${stratId}/enter`, 'POST');
+                if (res.status === 'ok') {
+                    toast('✅ ' + (res.message || 'Orders placed successfully'));
+                    fetchCommodityStatus();
+                } else {
+                    toast('❌ ' + (res.message || 'Order execution failed'), true);
+                }
+            } catch (e) {
+                toast('❌ Order execution error: ' + e.message, true);
+            }
+        }
+
+        async function squareoffCommodityStrategy(stratId) {
+            const s = loadedCommodityStrategies.find(x => x.id === stratId);
+            if (!confirm(`Are you sure you want to square off '${s ? s.name : stratId}'?`)) return;
+            toast('⚡ Squaring off Commodity Strategy...');
+            try {
+                const res = await api(`/api/commodity/strategies/${stratId}/squareoff`, 'POST');
+                if (res.status === 'ok') {
+                    toast('✅ ' + (res.message || 'Squareoff complete'));
+                    fetchCommodityStatus();
+                } else {
+                    toast('❌ ' + (res.message || 'Squareoff failed'), true);
+                }
+            } catch (e) {
+                toast('❌ Squareoff error: ' + e.message, true);
+            }
+        }
+
+        async function deleteCommodityStrategy(stratId) {
+            const s = loadedCommodityStrategies.find(x => x.id === stratId);
+            if (!confirm(`Delete commodity strategy '${s ? s.name : stratId}'?`)) return;
+            const res = await api(`/api/commodity/strategies/${stratId}`, 'DELETE');
+            if (res.status === 'ok') {
+                toast('Strategy Deleted');
+                fetchCommodityStatus();
+            }
+        }
+
+        function renderCommodityStrategies(strategies) {
+            const container = document.getElementById('commInstrumentGroupsContainer');
+            if (!container) return;
+
+            if (!strategies || strategies.length === 0) {
+                container.innerHTML = `
+                    <div class="card" style="text-align: center; padding: 36px 20px;">
+                        <div style="font-size: 32px; margin-bottom: 12px;">🛢️</div>
+                        <h3 style="font-size: 16px; font-weight: 800; color: var(--text-primary); margin-bottom: 6px;">No Commodity Strategies Configured</h3>
+                        <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 16px;">Create your first automated MCX Options or Futures strategy to start trading.</p>
+                        <button onclick="openNewCommodityStrategyForm()" class="btn-primary" style="background-color: #d97706; border-color: #b45309; padding: 8px 18px;">
+                            ➕ Create Commodity Strategy
+                        </button>
+                    </div>
+                `;
+                return;
+            }
+
+            // Group by commodity underlying
+            const groups = {};
+            strategies.forEach(s => {
+                const cname = s.commodity_name || 'CRUDEOIL';
+                if (!groups[cname]) groups[cname] = [];
+                groups[cname].push(s);
+            });
+
+            container.innerHTML = Object.entries(groups).map(([cname, strats]) => {
+                const groupActiveCount = strats.filter(s => s.active).length;
+                const lotSize = getCommodityLotSize(cname);
+
+                const cardsHtml = strats.map(s => {
+                    const isActive = Boolean(s.active);
+                    const statusClass = isActive ? 'connected' : 'disconnected';
+                    const statusText = s.status || (isActive ? 'Running' : 'Idle');
+                    const action = (s.entry_action || 'SELL').toUpperCase();
+                    const actionBadge = action === 'BUY'
+                        ? `<span style="background: #e6f4ea; color: #137333; border: 1px solid #ceead6; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 4px;">🟢 BUY</span>`
+                        : `<span style="background: #fce8e6; color: #c5221f; border: 1px solid #fad2cf; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 4px;">🔴 SELL</span>`;
+
+                    const isCollapsed = commodityCollapsedCards.has(s.id);
+                    const orders = s.orders || {};
+                    let totalPnl = 0;
+                    const legRows = [];
+
+                    ['FUT', 'CE', 'PE'].forEach(legKey => {
+                        const leg = orders[legKey];
+                        if (leg && leg.symbol) {
+                            const pnl = parseFloat(leg.pnl || 0);
+                            totalPnl += pnl;
+                            legRows.push(`
+                                <tr>
+                                    <td style="font-weight: 700; color: #b45309; padding: 6px 10px;">${legKey}</td>
+                                    <td style="font-family: monospace; font-weight: 700; padding: 6px 10px;">${leg.symbol}</td>
+                                    <td style="font-family: monospace; padding: 6px 10px;">₹${parseFloat(leg.entry_price || 0).toFixed(2)}</td>
+                                    <td style="font-family: monospace; font-weight: 700; padding: 6px 10px;">₹${parseFloat(leg.current_ltp || 0).toFixed(2)}</td>
+                                    <td style="font-family: monospace; color: #dc2626; font-weight: 700; padding: 6px 10px;">₹${parseFloat(leg.current_sl_trigger || 0).toFixed(2)}</td>
+                                    <td style="font-family: 'JetBrains Mono', monospace; font-weight: 800; padding: 6px 10px;" class="${getPnlClass(pnl)}">${formatPnl(pnl)}</td>
+                                </tr>
+                            `);
+                        }
+                    });
+
+                    // Expiry Formatting
+                    let expText = s.resolved_expiry;
+                    if (!expText) {
+                        expText = (s.expiry && s.expiry !== 'CURRENT' && s.expiry !== 'NEAREST' && s.expiry !== '--') ? s.expiry : 'Nearest Expiry';
+                    }
+
+                    // Sizing Formatting
+                    const qty = parseInt(s.quantity) || lotSize;
+                    const lotsCount = Math.max(1, Math.round(qty / lotSize));
+                    const sizingText = `Qty: ${qty} (${lotsCount} Lot${lotsCount > 1 ? 's' : ''}, Lot Size: ${lotSize})`;
+
+                    // Strikes Box HTML
+                    let strikesBoxHtml = '';
+                    if (s.selected_ce || s.selected_pe || s.future_symbol) {
+                        strikesBoxHtml = `
+                            <div style="margin-bottom: 12px; padding: 12px 14px; background: #fffbeb; border-radius: 8px; border: 1.5px solid #fde68a; font-size: 12px; box-shadow: var(--shadow-sm);">
+                                <div style="font-weight: 800; color: #b45309; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px;">
+                                    <span style="font-size: 13px;">📍 Live Calculated MCX Contracts &amp; Option Strikes</span>
+                                    ${s.future_symbol ? `<span style="background: #ffffff; padding: 2px 8px; border-radius: 4px; border: 1px solid #fde68a; font-family: monospace; color: #92400e; font-weight: 700;">Fut: ${s.future_symbol} (₹${parseFloat(s.future_ltp || 0).toFixed(2)})</span>` : ''}
+                                </div>
+                                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px;">
+                                    ${s.selected_ce ? `
+                                    <div style="background: #ffffff; padding: 8px 12px; border-radius: 6px; border: 1px solid #dcfce7; display: flex; justify-content: space-between; align-items: center;">
+                                        <div>
+                                            <span style="font-size: 10px; font-weight: 800; color: #16a34a; text-transform: uppercase; display: block;">CE Option Strike</span>
+                                            <span style="font-family: monospace; font-size: 13px; font-weight: 800; color: var(--text-primary);">${s.selected_ce}</span>
+                                        </div>
+                                        <div style="text-align: right;">
+                                            <span style="font-size: 10px; font-weight: 800; color: var(--text-secondary); display: block;">Live LTP</span>
+                                            <span style="font-family: monospace; font-size: 14px; font-weight: 800; color: #15803d;">₹${parseFloat(s.selected_ce_ltp || 0).toFixed(2)}</span>
+                                        </div>
+                                    </div>` : ''}
+                                    ${s.selected_pe ? `
+                                    <div style="background: #ffffff; padding: 8px 12px; border-radius: 6px; border: 1px solid #fef3c7; display: flex; justify-content: space-between; align-items: center;">
+                                        <div>
+                                            <span style="font-size: 10px; font-weight: 800; color: #d97706; text-transform: uppercase; display: block;">PE Option Strike</span>
+                                            <span style="font-family: monospace; font-size: 13px; font-weight: 800; color: var(--text-primary);">${s.selected_pe}</span>
+                                        </div>
+                                        <div style="text-align: right;">
+                                            <span style="font-size: 10px; font-weight: 800; color: var(--text-secondary); display: block;">Live LTP</span>
+                                            <span style="font-family: monospace; font-size: 14px; font-weight: 800; color: #b45309;">₹${parseFloat(s.selected_pe_ltp || 0).toFixed(2)}</span>
+                                        </div>
+                                    </div>` : ''}
+                                </div>
+                            </div>
+                        `;
+                    } else {
+                        strikesBoxHtml = `
+                            <div style="margin-bottom: 12px; padding: 10px 14px; background: #fffbeb; border-radius: 6px; border: 1px dashed #fde68a; font-size: 11px; color: #b45309; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+                                <span style="font-weight: 700;">🎯 Strikes not calculated — click 🔍 Calc to preview strikes &amp; LTPs</span>
+                                <button type="button" onclick="calculateCommodityStrategy('${s.id}')" class="btn-secondary" style="padding: 4px 10px; font-size: 11px; background: #ffffff; color: #b45309; font-weight: 800;">
+                                    🔍 Calculate Strikes
+                                </button>
+                            </div>
+                        `;
+                    }
+
+                    // Header strikes badge
+                    let headerStrikesBadge = '';
+                    if (s.selected_ce || s.selected_pe) {
+                        headerStrikesBadge = `
+                            <span style="background: #fffbeb; color: #92400e; border: 1px solid #fde68a; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 6px; font-family: monospace; display: inline-flex; align-items: center; gap: 6px;" title="Selected Strikes">
+                                ${s.selected_ce ? `<span style="color: #15803d;">CE: <b>${s.selected_ce}</b> (₹${parseFloat(s.selected_ce_ltp || 0).toFixed(2)})</span>` : ''}
+                                ${s.selected_ce && s.selected_pe ? `<span style="color: #f59e0b;">|</span>` : ''}
+                                ${s.selected_pe ? `<span style="color: #b45309;">PE: <b>${s.selected_pe}</b> (₹${parseFloat(s.selected_pe_ltp || 0).toFixed(2)})</span>` : ''}
+                            </span>
+                        `;
+                    }
+
+                    return `
+                    <div class="card strat-card" data-strat-id="${s.id}" data-group-id="${cname}" style="border-top: 3px solid ${isActive ? 'var(--success)' : '#f59e0b'}; padding: 0; margin-bottom: 12px;">
+                        <!-- Collapsible Header Summary Strip -->
+                        <div class="strat-card-header" onclick="toggleCommodityCard('${s.id}')">
+                            <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                                <span id="stratCardChevron_${s.id}" class="strat-card-chevron ${isCollapsed ? 'collapsed' : ''}">▼</span>
+                                <span style="font-size: 14px; font-weight: 800; color: var(--text-primary);">${s.name || 'Commodity Strategy'}</span>
+                                <span style="background: #fef3c7; color: #92400e; border: 1px solid #fde68a; font-size: 10px; font-weight: 800; padding: 2px 7px; border-radius: 4px;">🛢️ ${cname}</span>
+                                <span style="background: #ffffff; color: var(--text-secondary); border: 1px solid var(--border-color); font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: 4px;">${s.strategy_type} (${s.product || 'MIS'})</span>
+                                ${actionBadge}
+                                <span style="background: #faf5ff; color: #6b21a8; border: 1px solid #e9d5ff; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 4px;">${sizingText}</span>
+                                <span class="status-pill ${statusClass}" style="margin: 0; padding: 2px 8px; font-size: 10px;">
+                                    <span class="status-dot"></span>
+                                    <span>${statusText}</span>
+                                </span>
+                            </div>
+
+                            <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                                ${headerStrikesBadge}
+                                <span style="background: #f8fafc; color: #334155; border: 1px solid #cbd5e1; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 6px; font-family: monospace;" title="Expiry Date">
+                                    📅 ${expText}
+                                </span>
+                                <span style="background: #fff7ed; color: #9a3412; border: 1px solid #fed7aa; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 6px; font-family: monospace;" title="MCX Schedule">
+                                    ⏰ ${s.start_time || '09:15'} - ${s.end_time || '23:15'}
+                                </span>
+                                <div style="display: flex; align-items: center; gap: 5px;">
+                                    <span style="font-size: 11px; color: var(--text-secondary); font-weight: 600;">Live P&amp;L:</span>
+                                    <span class="${getPnlClass(totalPnl)}" style="font-family: 'JetBrains Mono', monospace; font-size: 14px; font-weight: 800; padding: 2px 8px; border-radius: 6px; background: #ffffff; border: 1px solid var(--border-color); white-space: nowrap;">${formatPnl(totalPnl)}</span>
+                                </div>
+
+                                <!-- Full-size Quick Action Buttons -->
+                                <div style="display: flex; gap: 6px; align-items: center;" onclick="event.stopPropagation()">
+                                    <button onclick="toggleCommodityStrategy('${s.id}', ${!isActive})" class="${isActive ? 'btn-danger' : 'btn-primary'}" style="padding: 4px 10px; font-size: 11px; width: auto;">
+                                        ${isActive ? '⏹️ Stop' : '▶️ Start'}
+                                    </button>
+                                    <button onclick="calculateCommodityStrategy('${s.id}')" class="btn-secondary" style="padding: 4px 8px; font-size: 11px; width: auto; font-weight: 700;" title="Calculate strikes &amp; fetch live LTPs">🔍 Calc</button>
+                                    <button onclick="forceEnterCommodityStrategy('${s.id}')" class="btn-secondary" style="padding: 4px 8px; font-size: 11px; width: auto; color: #16a34a; border-color: rgba(22, 163, 74, 0.4);" title="Force Enter Orders Now">🚀 Enter</button>
+                                    <button onclick="squareoffCommodityStrategy('${s.id}')" class="btn-secondary" style="padding: 4px 8px; font-size: 11px; width: auto; color: var(--error); border-color: rgba(203, 83, 78, 0.4);" title="Exit Strategy">⚡ Exit</button>
+                                    <button onclick="editCommodityStrategy('${s.id}')" class="btn-secondary" style="padding: 4px 8px; font-size: 11px; width: auto;" title="Edit Strategy">✏️ Edit</button>
+                                    <button onclick="deleteCommodityStrategy('${s.id}')" class="btn-secondary" style="padding: 4px 8px; font-size: 11px; width: auto; color: var(--error);" title="Delete Strategy">🗑️</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Collapsible Body Content -->
+                        <div id="stratCardBody_${s.id}" class="strat-card-body" style="display: ${isCollapsed ? 'none' : 'block'}; padding: 14px 18px 18px 18px; border-top: 1px solid var(--border-color);">
+                            <!-- Strategy Metadata & Parameters Bar -->
+                            <div style="background: #f8fafc; padding: 10px 14px; border-radius: var(--radius-sm); font-size: 12px; margin-bottom: 10px; border: 1px solid var(--border-color); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
+                                <div>
+                                    <span style="color: var(--text-secondary); font-weight: 600;">⏰ Execution Window:</span>
+                                    <span style="font-family: monospace; font-weight: 700; color: #9a3412;"> ${s.start_time || '09:15:00'} ➔ ${s.end_time || '23:15:00'}</span>
+                                </div>
+                                <div>
+                                    <span style="color: var(--text-secondary); font-weight: 600;">🛑 Risk Control:</span>
+                                    <span style="font-weight: 700; color: #dc2626;"> SL: ${s.sl_value || 30} ${s.sl_type || 'POINTS'}</span>
+                                    <span style="font-weight: 700; color: #0284c7; margin-left: 6px;">| TSL: ${s.enable_tsl ? `ON (${s.tsl_value || 10} pts)` : 'OFF'}</span>
+                                </div>
+                                <div>
+                                    <span style="color: var(--text-secondary); font-weight: 600;">🔄 Re-entries:</span>
+                                    <span style="font-weight: 700; color: #6b21a8;"> ${s.reentry_count || 0} allowed</span>
+                                </div>
+                                <div>
+                                    <span style="color: var(--text-secondary); font-weight: 600;">📦 Sizing:</span>
+                                    <span style="font-weight: 700; color: #6b21a8;"> ${sizingText}</span>
+                                </div>
+                            </div>
+
+                            <!-- Calculated Strikes Box -->
+                            ${strikesBoxHtml}
+
+                            <!-- Active Legs Position Table -->
+                            <div style="margin-top: 10px;">
+                                <div style="font-size: 11px; font-weight: 800; color: var(--text-secondary); text-transform: uppercase; margin-bottom: 6px;">
+                                    📋 Active Leg Orders &amp; Open Positions
+                                </div>
+                                ${legRows.length > 0 ? `
+                                    <div style="overflow-x: auto; background: #ffffff; border: 1px solid var(--border-color); border-radius: var(--radius-sm);">
+                                        <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
+                                            <thead>
+                                                <tr style="background: #f1f5f9; text-align: left; font-size: 10px; color: var(--text-secondary); text-transform: uppercase;">
+                                                    <th style="padding: 6px 10px;">Leg</th>
+                                                    <th style="padding: 6px 10px;">Contract Symbol</th>
+                                                    <th style="padding: 6px 10px;">Entry Price</th>
+                                                    <th style="padding: 6px 10px;">Live LTP</th>
+                                                    <th style="padding: 6px 10px;">SL Trigger</th>
+                                                    <th style="padding: 6px 10px;">Leg PnL</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                ${legRows.join('')}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                ` : `
+                                    <div style="padding: 12px; background: #ffffff; border: 1px dashed var(--border-color); border-radius: var(--radius-sm); text-align: center; color: var(--text-muted); font-size: 11px;">
+                                        No active orders placed yet. Click <b>▶️ Start</b> to run scheduled entry or <b>🚀 Enter</b> to execute immediately.
+                                    </div>
+                                `}
+                            </div>
+                        </div>
+                    </div>`;
+                }).join('');
+
+                return `
+                <div style="margin-bottom: 24px; background: rgba(255,255,255,0.65); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 18px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; padding-bottom: 8px; border-bottom: 2px solid #fed7aa; flex-wrap: wrap; gap: 8px;">
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <span style="font-size: 20px;">🛢️</span>
+                            <span style="font-size: 16px; font-weight: 800; color: #9a3412;">${cname} Strategies (${strats.length})</span>
+                            <span style="background: #fff7ed; color: #c2410c; border: 1px solid #fed7aa; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 4px;">
+                                Lot Size: ${lotSize}
+                            </span>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <span style="font-size: 12px; font-weight: 700; color: var(--text-secondary);">
+                                Active: <b style="color: #16a34a;">${groupActiveCount}</b> / ${strats.length}
+                            </span>
+                            <span class="tab-badge" style="background: #fef3c7; color: #b45309; font-weight: 800;">MCX (09:00 - 23:30)</span>
+                        </div>
+                    </div>
+                    <div style="display: flex; flex-direction: column; gap: 10px; width: 100%;">
+                        ${cardsHtml}
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
         (async function init() {
             initWindowCollapseStates();
             initStraddleGreekToggles();
@@ -8522,9 +9612,20 @@
             fetchAndRenderStrategies();
             fetchPosStrangleStatus(true);
             fetchStraddleStatus(true);
+            fetchCommodityStatus(true);
+            fetchCommodityPnlSummary();
             const res = await api('/api/login/status');
             if (res.logged_in) {
                 showDashboard(res.user_name);
+            } else {
+                // Attempt fast auto-login using today's cached token
+                try {
+                    const autoRes = await api('/api/login/auto', 'POST');
+                    if (autoRes.status === 'ok') {
+                        toast('✅ Automatically reconnected with cached session');
+                        showDashboard(autoRes.user_name);
+                    }
+                } catch (e) { }
             }
         })();
 

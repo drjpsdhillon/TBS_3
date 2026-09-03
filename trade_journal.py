@@ -29,6 +29,9 @@ POS_PNL_XLSX = os.path.join(BASE_DIR, "pos_strategy_PnL.xlsx")
 STRADDLE_PNL_CSV = os.path.join(BASE_DIR, "straddle_total_sl_PnL.csv")
 STRADDLE_PNL_XLSX = os.path.join(BASE_DIR, "straddle_total_sl_PnL.xlsx")
 
+COMMODITY_PNL_CSV = os.path.join(BASE_DIR, "commodity_PnL.csv")
+COMMODITY_PNL_XLSX = os.path.join(BASE_DIR, "commodity_PnL.xlsx")
+
 _journal_lock = threading.Lock()
 
 # Comprehensive Unified CSV Header
@@ -114,7 +117,9 @@ def calculate_trade_pnl(action: str, entry_price: float, exit_price: float, quan
 
 def get_target_csv_path(strategy_type: str) -> str:
     st = str(strategy_type).upper()
-    if "POS" in st:
+    if "COMMODITY" in st or "MCX" in st:
+        return COMMODITY_PNL_CSV
+    elif "POS" in st:
         return POS_PNL_CSV
     elif "STRADDLE" in st:
         return STRADDLE_PNL_CSV
@@ -123,7 +128,9 @@ def get_target_csv_path(strategy_type: str) -> str:
 
 def get_target_xlsx_path(strategy_type: str) -> str:
     st = str(strategy_type).upper()
-    if "POS" in st:
+    if "COMMODITY" in st or "MCX" in st:
+        return COMMODITY_PNL_XLSX
+    elif "POS" in st:
         return POS_PNL_XLSX
     elif "STRADDLE" in st:
         return STRADDLE_PNL_XLSX
@@ -413,3 +420,25 @@ def reconcile_session_trades_with_broker(kite_client, strategy_type: str = "INTR
     except Exception as e:
         logger.error(f"Error during broker order reconciliation: {e}")
         return 0
+
+
+def get_commodity_pnl_summary():
+    """Calculates summary statistics and records from commodity_PnL.csv."""
+    with _journal_lock:
+        csv_path = get_target_csv_path("COMMODITY")
+        records = load_journal_records(csv_path)
+
+        total_trades = len(records)
+        closed_trades = [r for r in records if r.get("Status") == "CLOSED"]
+        total_realized = sum(float(r.get("Day_PnL", 0.0) or 0.0) for r in closed_trades)
+        total_slippage = sum(float(r.get("Total_Slippage_INR", 0.0) or 0.0) for r in closed_trades)
+
+        return {
+            "records": records,
+            "total_trades": total_trades,
+            "closed_trades": len(closed_trades),
+            "open_trades": total_trades - len(closed_trades),
+            "realized_pnl": round(total_realized, 2),
+            "total_slippage_inr": round(total_slippage, 2)
+        }
+

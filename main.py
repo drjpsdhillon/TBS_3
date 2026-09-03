@@ -52,10 +52,20 @@ def start_straddle_total_sl():
     except Exception as e:
         print(f"❌ [Main] Error initializing straddle_total_sl.py: {e}")
 
+def start_commodity():
+    """Starts the MCX Commodity Options & Futures strategy engine."""
+    print("🛢️ [Main] Initializing commodity.py engine...")
+    try:
+        import commodity
+        # commodity starts its internal background daemon thread upon import
+        print("✅ [Main] commodity.py engine initialized and monitoring.")
+    except Exception as e:
+        print(f"❌ [Main] Error initializing commodity.py: {e}")
+
 def main():
     print("=" * 65)
     print("  KITE CONNECT TRADING SYSTEM — UNIFIED MASTER LAUNCHER")
-    print("  Components: server.py + pos_strngl.py + straddle_total_sl.py")
+    print("  Components: server.py + pos_strngl.py + straddle_total_sl.py + commodity.py")
     print("=" * 65)
 
     # 1. Initialize positional strangle engine
@@ -64,7 +74,10 @@ def main():
     # 2. Initialize positional straddle total SL engine
     start_straddle_total_sl()
 
-    # 3. Run Flask Web Server in main thread
+    # 3. Initialize commodity options & futures engine
+    start_commodity()
+
+    # 4. Run Flask Web Server in main thread
     start_server()
 
 if __name__ == "__main__":
