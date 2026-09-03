@@ -2722,6 +2722,57 @@ def api_save_mtm_chart_point():
 def api_clear_mtm_chart_data():
     """Clears MTM curve data file for today."""
     empty_data = {"date": datetime.now().strftime("%Y-%m-%d"), "points": []}
+    save_mtm_curve_data(empty_data)
+    return jsonify({"status": "ok", "count": 0})
+
+
+# ========================================================================
+# DASHBOARD OPEN INTEREST (OI) & MARKET ANALYTICS API ROUTES
+# ========================================================================
+
+@app.route("/api/options/oi_analysis", methods=["GET"])
+def api_options_oi_analysis():
+    """Returns real-time Max CE/PE OI, PCR, and strike shift tracking from dashboard.py."""
+    global kite_client
+    if not kite_client:
+        return jsonify({"status": "error", "message": "Kite client not connected / logged in."}), 401
+
+    try:
+        import dashboard
+        dashboard.set_kite_client(kite_client)
+        index_name = request.args.get("index", "NIFTY").strip().upper()
+        expiry = request.args.get("expiry")
+        strike_range = float(request.args.get("range_pct", 0.08))
+
+        res = dashboard.analyze_open_interest(
+            kite=kite_client,
+            index_name=index_name,
+            target_expiry=expiry,
+            strike_range_pct=strike_range
+        )
+        return jsonify(res)
+    except Exception as e:
+        logger.error(f"Error in api_options_oi_analysis: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route("/api/options/expiries", methods=["GET"])
+def api_options_expiries():
+    """Returns all available upcoming expiries for a given index."""
+    global kite_client
+    if not kite_client:
+        return jsonify({"status": "error", "message": "Kite client not connected / logged in."}), 401
+
+    try:
+        import dashboard
+        index_name = request.args.get("index", "NIFTY").strip().upper()
+        expiries = dashboard.get_available_expiries(kite_client, index_name)
+        return jsonify({"status": "ok", "index_name": index_name, "expiries": expiries})
+    except Exception as e:
+        logger.error(f"Error in api_options_expiries: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
 @app.route("/api/greeks/calculate", methods=["POST"])
 def api_calculate_greeks():
     """Calculates Option Greeks (Delta, Gamma, Theta, Vega, Rho, IV) for given option parameters."""

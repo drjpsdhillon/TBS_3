@@ -1341,7 +1341,11 @@
 
             <!-- ===== TAB NAVIGATION ===== -->
             <div class="tab-nav">
-                <button class="tab-btn active" onclick="switchMainTab('tabOrderBook', this)">
+                <button class="tab-btn active" id="tabBtnDashboard" onclick="switchMainTab('tabDashboard', this)">
+                    <span>📊 DASHBOARD</span>
+                    <span class="tab-badge" id="dashPcrBadge" style="background:#e0f2fe; color:#0369a1;">PCR --</span>
+                </button>
+                <button class="tab-btn" onclick="switchMainTab('tabOrderBook', this)">
                     <span>📑 Order Book &amp; SL Tracker</span>
                     <span class="tab-badge" id="orderCountBadge">0</span>
                 </button>
@@ -1366,8 +1370,187 @@
                 </button>
             </div>
 
+            <!-- TAB 0: LIVE OPEN INTEREST (OI) & ANALYTICS DASHBOARD -->
+            <div id="tabDashboard" class="tab-pane active" style="margin-bottom: 28px;">
+                <!-- Controls Bar -->
+                <div class="card" style="padding: 16px 20px; margin-bottom: 20px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px;">
+                        <div style="display: flex; align-items: center; gap: 14px; flex-wrap: wrap;">
+                            <div style="display: flex; align-items: center; gap: 6px;">
+                                <label style="font-size: 11px; font-weight: 800; color: var(--text-secondary); text-transform: uppercase;">Instrument:</label>
+                                <select id="dashIndexSelect" onchange="onDashIndexChange()" style="padding: 6px 12px; font-size: 13px; font-weight: 800; border-radius: var(--radius-sm); border: 1px solid var(--border-color); background: #ffffff; color: var(--text-primary);">
+                                    <option value="NIFTY" selected>NIFTY 50</option>
+                                    <option value="BANKNIFTY">BANKNIFTY</option>
+                                    <option value="SENSEX">SENSEX (BSE)</option>
+                                    <option value="FINNIFTY">FINNIFTY</option>
+                                    <option value="MIDCPNIFTY">MIDCPNIFTY</option>
+                                </select>
+                            </div>
+
+                            <div style="display: flex; align-items: center; gap: 6px;">
+                                <label style="font-size: 11px; font-weight: 800; color: var(--text-secondary); text-transform: uppercase;">Expiry:</label>
+                                <select id="dashExpirySelect" onchange="fetchDashboardOiAnalysis()" style="padding: 6px 12px; font-size: 13px; font-weight: 700; border-radius: var(--radius-sm); border: 1px solid var(--border-color); background: #ffffff; color: var(--text-primary);">
+                                    <option value="CURRENT">Nearest Expiry</option>
+                                </select>
+                            </div>
+
+                            <div style="display: flex; align-items: center; gap: 6px;">
+                                <label style="font-size: 11px; font-weight: 800; color: var(--text-secondary); text-transform: uppercase;">Auto-Refresh:</label>
+                                <select id="dashRefreshIntervalSelect" onchange="onDashIntervalChange()" style="padding: 6px 10px; font-size: 12px; font-weight: 700; border-radius: var(--radius-sm); border: 1px solid var(--border-color); background: #ffffff;">
+                                    <option value="5000">5 Seconds</option>
+                                    <option value="10000" selected>10 Seconds</option>
+                                    <option value="15000">15 Seconds</option>
+                                    <option value="30000">30 Seconds</option>
+                                    <option value="0">Manual</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <span id="dashLastSyncText" style="font-size: 11px; font-family: monospace; color: var(--text-muted);">Sync: --</span>
+                            <button id="btnDashRefresh" onclick="fetchDashboardOiAnalysis(true)" class="btn-primary" style="padding: 6px 14px; font-size: 12px; width: auto;">
+                                🔄 Refresh OI
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Top 4 KPI Analytics Cards Grid -->
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin-bottom: 24px;">
+                    <!-- Card 1: Max CE OI (Resistance) -->
+                    <div class="card" style="padding: 18px; border-left: 5px solid #dc2626; background: linear-gradient(135deg, #ffffff 0%, #fff5f5 100%);">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                            <span style="font-size: 11px; font-weight: 800; color: #991b1b; text-transform: uppercase; letter-spacing: 0.5px;">🔴 Max CE OI (Resistance)</span>
+                            <span id="dashCeOiBadge" style="font-size: 10px; font-weight: 800; background: #fee2e2; color: #991b1b; padding: 2px 6px; border-radius: 4px; border: 1px solid #fecaca;">CALL WALL</span>
+                        </div>
+                        <div style="display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 6px;">
+                            <div id="dashMaxCeStrike" style="font-size: 26px; font-weight: 900; color: #991b1b; font-family: 'JetBrains Mono', monospace;">--</div>
+                            <div id="dashMaxCeLtp" style="font-size: 14px; font-weight: 700; color: var(--text-secondary); font-family: monospace;">LTP: ₹--</div>
+                        </div>
+                        <div style="font-size: 11px; color: var(--text-secondary); display: flex; justify-content: space-between; border-top: 1px dashed #fecaca; padding-top: 6px;">
+                            <span>Total OI: <b id="dashMaxCeOiCount" style="color: var(--text-primary); font-family: monospace;">--</b></span>
+                            <span id="dashMaxCeDiff" style="font-weight: 700;">--</span>
+                        </div>
+                    </div>
+
+                    <!-- Card 2: Max PE OI (Support) -->
+                    <div class="card" style="padding: 18px; border-left: 5px solid #16a34a; background: linear-gradient(135deg, #ffffff 0%, #f0fdf4 100%);">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                            <span style="font-size: 11px; font-weight: 800; color: #166534; text-transform: uppercase; letter-spacing: 0.5px;">🟢 Max PE OI (Support)</span>
+                            <span id="dashPeOiBadge" style="font-size: 10px; font-weight: 800; background: #dcfce7; color: #166534; padding: 2px 6px; border-radius: 4px; border: 1px solid #bbf7d0;">PUT BASE</span>
+                        </div>
+                        <div style="display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 6px;">
+                            <div id="dashMaxPeStrike" style="font-size: 26px; font-weight: 900; color: #166534; font-family: 'JetBrains Mono', monospace;">--</div>
+                            <div id="dashMaxPeLtp" style="font-size: 14px; font-weight: 700; color: var(--text-secondary); font-family: monospace;">LTP: ₹--</div>
+                        </div>
+                        <div style="font-size: 11px; color: var(--text-secondary); display: flex; justify-content: space-between; border-top: 1px dashed #bbf7d0; padding-top: 6px;">
+                            <span>Total OI: <b id="dashMaxPeOiCount" style="color: var(--text-primary); font-family: monospace;">--</b></span>
+                            <span id="dashMaxPeDiff" style="font-weight: 700;">--</span>
+                        </div>
+                    </div>
+
+                    <!-- Card 3: Put-Call Ratio (PCR) & Sentiment -->
+                    <div class="card" style="padding: 18px; border-left: 5px solid #2563eb; background: linear-gradient(135deg, #ffffff 0%, #eff6ff 100%);">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                            <span style="font-size: 11px; font-weight: 800; color: #1e40af; text-transform: uppercase; letter-spacing: 0.5px;">⚖️ Put-Call Ratio (PCR)</span>
+                            <span id="dashPcrSentimentBadge" style="font-size: 10px; font-weight: 800; background: #dbeafe; color: #1e40af; padding: 2px 6px; border-radius: 4px; border: 1px solid #bfdbfe;">NEUTRAL</span>
+                        </div>
+                        <div style="display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 6px;">
+                            <div id="dashPcrValue" style="font-size: 26px; font-weight: 900; color: #1e40af; font-family: 'JetBrains Mono', monospace;">--</div>
+                            <div id="dashSpotLtpDisplay" style="font-size: 13px; font-weight: 700; color: var(--text-primary); font-family: monospace;">Spot: ₹--</div>
+                        </div>
+                        <div style="font-size: 11px; color: var(--text-secondary); display: flex; justify-content: space-between; border-top: 1px dashed #bfdbfe; padding-top: 6px;">
+                            <span>PE OI: <b id="dashTotalPeOiDisplay" style="color: #166534; font-family: monospace;">--</b></span>
+                            <span>CE OI: <b id="dashTotalCeOiDisplay" style="color: #991b1b; font-family: monospace;">--</b></span>
+                        </div>
+                    </div>
+
+                    <!-- Card 4: OI Shift & Direction Tracker -->
+                    <div class="card" style="padding: 18px; border-left: 5px solid #d97706; background: linear-gradient(135deg, #ffffff 0%, #fffbeb 100%);">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                            <span style="font-size: 11px; font-weight: 800; color: #92400e; text-transform: uppercase; letter-spacing: 0.5px;">🧭 Max OI Shift Tracker</span>
+                            <span id="dashShiftStatusBadge" style="font-size: 10px; font-weight: 800; background: #fef3c7; color: #92400e; padding: 2px 6px; border-radius: 4px; border: 1px solid #fde68a;">MONITORING</span>
+                        </div>
+                        <div id="dashShiftSummary" style="font-size: 13px; font-weight: 800; color: var(--text-primary); line-height: 1.4; margin-bottom: 6px; min-height: 38px;">
+                            No strike shift detected in current session.
+                        </div>
+                        <div style="font-size: 10px; color: var(--text-secondary); border-top: 1px dashed #fde68a; padding-top: 6px; display: flex; justify-content: space-between;">
+                            <span id="dashLastShiftTime">Last Checked: Just now</span>
+                            <span id="dashShiftDirectionTag" style="font-weight: 700;">Active Base</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Shift History & Top Strikes Dual Layout -->
+                <div style="display: grid; grid-template-columns: 1fr 1.3fr; gap: 20px; margin-bottom: 24px;">
+                    <!-- Left: Shift History Log & Top 5 Strikes Summary -->
+                    <div class="card" style="padding: 20px;">
+                        <div class="card-header" style="margin-bottom: 14px; padding-bottom: 8px;">
+                            <div class="card-title" style="font-size: 14px;">🚨 OI Strike Shift Log</div>
+                            <span style="font-size: 11px; color: var(--text-secondary);">Live Tracking</span>
+                        </div>
+                        <div id="dashShiftHistoryList" style="max-height: 280px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px;">
+                            <div style="text-align: center; color: var(--text-muted); font-size: 12px; padding: 24px;">
+                                Monitoring active for Resistance &amp; Support strike movements...
+                            </div>
+                        </div>
+
+                        <!-- Top 5 Resistance & Support Summary Table -->
+                        <div style="margin-top: 18px; border-top: 1px solid var(--border-color); padding-top: 14px;">
+                            <h4 style="font-size: 12px; font-weight: 800; color: var(--text-primary); margin-bottom: 10px; text-transform: uppercase;">Top 5 Active Strikes by OI</h4>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                                <div>
+                                    <div style="font-size: 11px; font-weight: 800; color: #dc2626; margin-bottom: 6px;">🔴 Top Call (CE) Resistance</div>
+                                    <div id="dashTopCeList" style="font-size: 11px; font-family: monospace; display: flex; flex-direction: column; gap: 4px;">
+                                        <!-- Rendered dynamically -->
+                                    </div>
+                                </div>
+                                <div>
+                                    <div style="font-size: 11px; font-weight: 800; color: #16a34a; margin-bottom: 6px;">🟢 Top Put (PE) Support</div>
+                                    <div id="dashTopPeList" style="font-size: 11px; font-family: monospace; display: flex; flex-direction: column; gap: 4px;">
+                                        <!-- Rendered dynamically -->
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Right: Visual Open Interest Bar Chart & Strike Table -->
+                    <div class="card" style="padding: 20px;">
+                        <div class="card-header" style="margin-bottom: 14px; padding-bottom: 8px;">
+                            <div class="card-title" style="font-size: 14px;">📊 Open Interest Strike Distribution</div>
+                            <div style="display: flex; align-items: center; gap: 12px; font-size: 11px; font-weight: 700;">
+                                <span style="display: flex; align-items: center; gap: 4px; color: #dc2626;"><span style="width: 10px; height: 10px; background: #dc2626; border-radius: 2px; display: inline-block;"></span> Call (CE) OI</span>
+                                <span style="display: flex; align-items: center; gap: 4px; color: #16a34a;"><span style="width: 10px; height: 10px; background: #16a34a; border-radius: 2px; display: inline-block;"></span> Put (PE) OI</span>
+                            </div>
+                        </div>
+
+                        <div class="table-responsive" style="max-height: 380px; overflow-y: auto;">
+                            <table class="custom-table" id="dashOiTable" style="font-size: 11px;">
+                                <thead>
+                                    <tr>
+                                        <th style="width: 32%; text-align: right; color: #dc2626;">CE OI (Contracts)</th>
+                                        <th style="width: 14%; text-align: right;">CE LTP</th>
+                                        <th style="width: 16%; text-align: center; background: #f8fafc; font-weight: 900;">Strike</th>
+                                        <th style="width: 14%; text-align: left;">PE LTP</th>
+                                        <th style="width: 32%; text-align: left; color: #16a34a;">PE OI (Contracts)</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="dashOiTableBody">
+                                    <tr>
+                                        <td colspan="5" style="text-align: center; color: var(--text-muted); padding: 24px;">
+                                            Loading Open Interest data...
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- TAB 1: ORDER BOOK & STOP LOSS TRACKER -->
-            <div id="tabOrderBook" class="tab-pane active" style="margin-bottom: 28px;">
+            <div id="tabOrderBook" class="tab-pane" style="margin-bottom: 28px;">
                 <div class="card" style="padding: 20px;">
                     <div
                         style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 10px;">
@@ -4169,6 +4352,296 @@
         });
 
         // ═══════════════════════════════════════════════════════════════
+        // OPEN INTEREST (OI) DASHBOARD STATE & LOGIC
+        // ═══════════════════════════════════════════════════════════════
+
+        let dashOiIntervalTimer = null;
+        let lastDashOiData = null;
+
+        async function onDashIndexChange() {
+            const index = document.getElementById('dashIndexSelect').value;
+            const expirySelect = document.getElementById('dashExpirySelect');
+            expirySelect.innerHTML = `<option value="CURRENT">Loading expiries...</option>`;
+            
+            try {
+                const res = await api(`/api/options/expiries?index=${index}`);
+                if (res.status === 'ok' && res.expiries && res.expiries.length > 0) {
+                    expirySelect.innerHTML = res.expiries.map((exp, idx) => 
+                        `<option value="${exp}">${exp} ${idx === 0 ? '(Nearest Expiry)' : ''}</option>`
+                    ).join('');
+                } else {
+                    expirySelect.innerHTML = `<option value="CURRENT">Current Expiry</option><option value="NEXT">Next Expiry</option>`;
+                }
+            } catch (e) {
+                expirySelect.innerHTML = `<option value="CURRENT">Current Expiry</option>`;
+            }
+
+            fetchDashboardOiAnalysis(true);
+        }
+
+        function onDashIntervalChange() {
+            if (dashOiIntervalTimer) {
+                clearInterval(dashOiIntervalTimer);
+                dashOiIntervalTimer = null;
+            }
+            const intervalMs = parseInt(document.getElementById('dashRefreshIntervalSelect').value);
+            if (intervalMs > 0) {
+                dashOiIntervalTimer = setInterval(() => {
+                    if (document.getElementById('consoleView').style.display === 'block' && 
+                        document.getElementById('tabDashboard').classList.contains('active')) {
+                        fetchDashboardOiAnalysis();
+                    }
+                }, intervalMs);
+            }
+        }
+
+        async function fetchDashboardOiAnalysis(showToast = false) {
+            const index = document.getElementById('dashIndexSelect')?.value || 'NIFTY';
+            const expiry = document.getElementById('dashExpirySelect')?.value || 'CURRENT';
+            
+            const syncEl = document.getElementById('dashLastSyncText');
+            if (syncEl) syncEl.textContent = 'Syncing...';
+
+            try {
+                const res = await api(`/api/options/oi_analysis?index=${index}&expiry=${expiry}`);
+                if (res.status === 'ok') {
+                    lastDashOiData = res;
+                    renderDashboardOiView(res);
+                    if (syncEl) syncEl.textContent = `Sync: ${res.last_updated ? res.last_updated.split(' ')[1] : 'Just now'}`;
+                    if (showToast) toast(`✅ Open Interest updated for ${index}`);
+                } else {
+                    if (syncEl) syncEl.textContent = 'Sync Error';
+                    if (showToast) toast(`❌ ${res.message || 'Error fetching OI'}`, true);
+                }
+            } catch (e) {
+                if (syncEl) syncEl.textContent = 'Sync Failed';
+                if (showToast) toast(`❌ Network error while fetching OI`, true);
+            }
+        }
+
+        function renderDashboardOiView(data) {
+            if (!data) return;
+
+            // 1. Spot LTP Display
+            const spotPrice = parseFloat(data.spot_price || 0);
+            document.getElementById('dashSpotLtpDisplay').textContent = spotPrice > 0 ? `Spot: ₹${spotPrice.toFixed(1)}` : 'Spot: --';
+
+            // 2. Max CE OI Card (Resistance)
+            const maxCe = data.max_ce || {};
+            const ceStrike = maxCe.strike || '--';
+            const ceLtp = parseFloat(maxCe.ltp || 0);
+            const ceOi = parseInt(maxCe.oi || 0);
+            const ceDiff = parseFloat(maxCe.diff_pts || 0);
+
+            document.getElementById('dashMaxCeStrike').textContent = ceStrike !== '--' ? `${ceStrike} CE` : '--';
+            document.getElementById('dashMaxCeLtp').textContent = ceLtp > 0 ? `LTP: ₹${ceLtp.toFixed(2)}` : 'LTP: --';
+            document.getElementById('dashMaxCeOiCount').textContent = ceOi > 0 ? `${(ceOi / 100000).toFixed(2)}L (${ceOi.toLocaleString('en-IN')})` : '--';
+            
+            const ceDiffEl = document.getElementById('dashMaxCeDiff');
+            if (ceDiffEl) {
+                ceDiffEl.textContent = ceDiff !== 0 ? `${ceDiff >= 0 ? '+' : ''}${ceDiff.toFixed(1)} pts away` : '';
+                ceDiffEl.style.color = '#991b1b';
+            }
+
+            // 3. Max PE OI Card (Support)
+            const maxPe = data.max_pe || {};
+            const peStrike = maxPe.strike || '--';
+            const peLtp = parseFloat(maxPe.ltp || 0);
+            const peOi = parseInt(maxPe.oi || 0);
+            const peDiff = parseFloat(maxPe.diff_pts || 0);
+
+            document.getElementById('dashMaxPeStrike').textContent = peStrike !== '--' ? `${peStrike} PE` : '--';
+            document.getElementById('dashMaxPeLtp').textContent = peLtp > 0 ? `LTP: ₹${peLtp.toFixed(2)}` : 'LTP: --';
+            document.getElementById('dashMaxPeOiCount').textContent = peOi > 0 ? `${(peOi / 100000).toFixed(2)}L (${peOi.toLocaleString('en-IN')})` : '--';
+            
+            const peDiffEl = document.getElementById('dashMaxPeDiff');
+            if (peDiffEl) {
+                peDiffEl.textContent = peDiff !== 0 ? `${peDiff >= 0 ? '+' : ''}${peDiff.toFixed(1)} pts away` : '';
+                peDiffEl.style.color = '#166534';
+            }
+
+            // 4. PCR & Sentiment Card
+            const pcr = parseFloat(data.pcr || 0);
+            const totPe = parseInt(data.total_pe_oi || 0);
+            const totCe = parseInt(data.total_ce_oi || 0);
+            
+            document.getElementById('dashPcrValue').textContent = pcr.toFixed(2);
+            document.getElementById('dashTotalPeOiDisplay').textContent = totPe > 0 ? `${(totPe / 100000).toFixed(1)}L` : '0';
+            document.getElementById('dashTotalCeOiDisplay').textContent = totCe > 0 ? `${(totCe / 100000).toFixed(1)}L` : '0';
+
+            const pcrBadge = document.getElementById('dashPcrSentimentBadge');
+            const navPcrBadge = document.getElementById('dashPcrBadge');
+            if (navPcrBadge) navPcrBadge.textContent = `PCR ${pcr.toFixed(2)}`;
+
+            if (pcrBadge) {
+                pcrBadge.textContent = data.sentiment_code || 'NEUTRAL';
+                if (data.sentiment_code === 'BULLISH' || data.sentiment_code === 'MILD_BULLISH') {
+                    pcrBadge.style.background = '#dcfce7';
+                    pcrBadge.style.color = '#166534';
+                    pcrBadge.style.borderColor = '#bbf7d0';
+                } else if (data.sentiment_code === 'BEARISH' || data.sentiment_code === 'MILD_BEARISH') {
+                    pcrBadge.style.background = '#fee2e2';
+                    pcrBadge.style.color = '#991b1b';
+                    pcrBadge.style.borderColor = '#fecaca';
+                } else {
+                    pcrBadge.style.background = '#dbeafe';
+                    pcrBadge.style.color = '#1e40af';
+                    pcrBadge.style.borderColor = '#bfdbfe';
+                }
+            }
+
+            // 5. Shift Tracker Card
+            const ceShift = data.ce_shift;
+            const peShift = data.pe_shift;
+            const shiftSummaryEl = document.getElementById('dashShiftSummary');
+            const shiftBadgeEl = document.getElementById('dashShiftStatusBadge');
+            const lastShiftTimeEl = document.getElementById('dashLastShiftTime');
+            const shiftTagEl = document.getElementById('dashShiftDirectionTag');
+
+            if (ceShift || peShift) {
+                let shiftText = '';
+                if (ceShift && peShift) {
+                    shiftText = `🔴 CE: ${ceShift.from_strike} → ${ceShift.to_strike} (${ceShift.direction} ${ceShift.diff_pts > 0 ? '+' : ''}${ceShift.diff_pts} pts)<br>🟢 PE: ${peShift.from_strike} → ${peShift.to_strike} (${peShift.direction} ${peShift.diff_pts > 0 ? '+' : ''}${peShift.diff_pts} pts)`;
+                } else if (ceShift) {
+                    const arrow = ceShift.direction === 'UP' ? '🔺' : '🔻';
+                    shiftText = `${arrow} <b>Resistance Shifted ${ceShift.direction}</b> from <b>${ceShift.from_strike}</b> to <b>${ceShift.to_strike}</b> (${ceShift.diff_pts > 0 ? '+' : ''}${ceShift.diff_pts} pts) @ ${ceShift.time}`;
+                } else {
+                    const arrow = peShift.direction === 'UP' ? '🔺' : '🔻';
+                    shiftText = `${arrow} <b>Support Shifted ${peShift.direction}</b> from <b>${peShift.from_strike}</b> to <b>${peShift.to_strike}</b> (${peShift.diff_pts > 0 ? '+' : ''}${peShift.diff_pts} pts) @ ${peShift.time}`;
+                }
+
+                shiftSummaryEl.innerHTML = shiftText;
+                shiftBadgeEl.textContent = 'SHIFT DETECTED';
+                shiftBadgeEl.style.background = '#fef3c7';
+                shiftBadgeEl.style.color = '#b45309';
+                shiftBadgeEl.style.borderColor = '#fde68a';
+
+                const latestShift = ceShift || peShift;
+                lastShiftTimeEl.textContent = `Shifted @ ${latestShift.time}`;
+                shiftTagEl.textContent = latestShift.direction === 'UP' ? 'Bullish Shift ↗️' : 'Bearish Shift ↘️';
+                shiftTagEl.style.color = latestShift.direction === 'UP' ? '#166534' : '#991b1b';
+            } else {
+                shiftSummaryEl.innerHTML = `<span style="color: var(--text-muted);">Max OI is firmly anchored at <b>${ceStrike} CE</b> &amp; <b>${peStrike} PE</b>. No shift detected.</span>`;
+                shiftBadgeEl.textContent = 'STABLE BASE';
+                shiftBadgeEl.style.background = '#f1f5f9';
+                shiftBadgeEl.style.color = '#475569';
+                shiftBadgeEl.style.borderColor = '#e2e8f0';
+                lastShiftTimeEl.textContent = `Checked: ${data.last_updated ? data.last_updated.split(' ')[1] : 'Just now'}`;
+                shiftTagEl.textContent = 'No Shift';
+                shiftTagEl.style.color = 'var(--text-muted)';
+            }
+
+            // 6. Shift History Log List
+            const historyContainer = document.getElementById('dashShiftHistoryList');
+            const shifts = data.shifts_history || [];
+            if (shifts.length > 0) {
+                historyContainer.innerHTML = shifts.map(sh => {
+                    const isCe = sh.type === 'CE_RESISTANCE_SHIFT' || sh.type?.includes('CE');
+                    const color = isCe ? '#991b1b' : '#166534';
+                    const bg = isCe ? '#fef2f2' : '#f0fdf4';
+                    const border = isCe ? '#fecaca' : '#bbf7d0';
+                    const arrow = sh.direction === 'UP' ? '🔺' : '🔻';
+                    return `
+                    <div style="background: ${bg}; border: 1px solid ${border}; border-radius: 6px; padding: 8px 12px; font-size: 11px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px;">
+                            <span style="font-weight: 800; color: ${color};">${arrow} ${isCe ? 'Call (CE) Resistance' : 'Put (PE) Support'} Shifted ${sh.direction}</span>
+                            <span style="font-family: monospace; color: var(--text-muted); font-size: 10px;">${sh.date || ''} ${sh.time || ''}</span>
+                        </div>
+                        <div style="color: var(--text-primary);">
+                            <b>${sh.from_strike}</b> ➔ <b style="color: ${color};">${sh.to_strike}</b> (${sh.diff_pts > 0 ? '+' : ''}${sh.diff_pts} pts)
+                        </div>
+                        <div style="font-size: 10px; color: var(--text-secondary); margin-top: 2px;">
+                            ${sh.interpretation || ''}
+                        </div>
+                    </div>`;
+                }).join('');
+            } else {
+                historyContainer.innerHTML = `
+                    <div style="text-align: center; color: var(--text-muted); font-size: 11px; padding: 24px;">
+                        ✅ No strike shifts recorded yet for this session.
+                    </div>`;
+            }
+
+            // 7. Top 5 Strikes Quick List
+            const topCeContainer = document.getElementById('dashTopCeList');
+            const topPeContainer = document.getElementById('dashTopPeList');
+            const topCe = data.top_ce_strikes || [];
+            const topPe = data.top_pe_strikes || [];
+
+            topCeContainer.innerHTML = topCe.map((s, i) => `
+                <div style="display: flex; justify-content: space-between; padding: 3px 6px; background: ${i === 0 ? '#fee2e2' : '#f8fafc'}; border-radius: 4px; border: 1px solid ${i === 0 ? '#fca5a5' : '#e2e8f0'};">
+                    <span style="font-weight: 800; color: #991b1b;">#${i+1} ${s.strike} CE</span>
+                    <span>${(s.ce_oi / 100000).toFixed(2)}L <span style="color: var(--text-muted); font-size: 10px;">(₹${s.ce_ltp.toFixed(1)})</span></span>
+                </div>
+            `).join('');
+
+            topPeContainer.innerHTML = topPe.map((s, i) => `
+                <div style="display: flex; justify-content: space-between; padding: 3px 6px; background: ${i === 0 ? '#dcfce7' : '#f8fafc'}; border-radius: 4px; border: 1px solid ${i === 0 ? '#86efac' : '#e2e8f0'};">
+                    <span style="font-weight: 800; color: #166534;">#${i+1} ${s.strike} PE</span>
+                    <span>${(s.pe_oi / 100000).toFixed(2)}L <span style="color: var(--text-muted); font-size: 10px;">(₹${s.pe_ltp.toFixed(1)})</span></span>
+                </div>
+            `).join('');
+
+            // 8. Open Interest Dual Bar Chart & Table
+            const tableBody = document.getElementById('dashOiTableBody');
+            const strikes = data.strikes_table || [];
+
+            if (strikes.length === 0) {
+                tableBody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: var(--text-muted); padding: 20px;">No strike data found.</td></tr>`;
+                return;
+            }
+
+            // Find maximum OI across all strikes for proportional bar widths
+            const maxOverallOi = Math.max(...strikes.map(s => Math.max(s.ce_oi || 0, s.pe_oi || 0)), 1);
+
+            tableBody.innerHTML = strikes.map(s => {
+                const isMaxCe = s.strike === maxCe.strike;
+                const isMaxPe = s.strike === maxPe.strike;
+                const isAtmMagnitude = spotPrice > 0 && Math.abs(s.strike - spotPrice) <= 50;
+
+                const ceBarPct = Math.min(100, Math.round((s.ce_oi / maxOverallOi) * 100));
+                const peBarPct = Math.min(100, Math.round((s.pe_oi / maxOverallOi) * 100));
+
+                const rowBg = isAtmMagnitude ? '#fefce8' : (isMaxCe && isMaxPe ? '#f3e8ff' : (isMaxCe ? '#fff5f5' : (isMaxPe ? '#f0fdf4' : 'transparent')));
+
+                return `
+                <tr style="background: ${rowBg}; border-bottom: 1px solid var(--border-color);">
+                    <!-- CE OI Bar + Value (Align Right) -->
+                    <td style="text-align: right; padding: 6px 10px; position: relative;">
+                        <div style="position: absolute; right: 0; top: 15%; bottom: 15%; width: ${ceBarPct}%; background: rgba(239, 68, 68, 0.22); border-radius: 3px 0 0 3px; z-index: 1;"></div>
+                        <div style="position: relative; z-index: 2; font-family: 'JetBrains Mono', monospace; font-weight: ${isMaxCe ? '900' : '600'}; color: ${isMaxCe ? '#991b1b' : 'inherit'};">
+                            ${isMaxCe ? '🔴 ' : ''}${(s.ce_oi / 100000).toFixed(2)}L
+                        </div>
+                    </td>
+
+                    <!-- CE LTP -->
+                    <td style="text-align: right; font-family: monospace; color: var(--text-secondary); padding: 6px 8px;">
+                        ₹${s.ce_ltp > 0 ? s.ce_ltp.toFixed(1) : '--'}
+                    </td>
+
+                    <!-- Strike (Center) -->
+                    <td style="text-align: center; font-weight: 900; font-family: 'JetBrains Mono', monospace; font-size: 12px; background: ${isAtmMagnitude ? '#fde047' : '#f8fafc'}; color: ${isAtmMagnitude ? '#713f12' : 'var(--text-primary)'}; padding: 6px 4px; border-left: 1px solid var(--border-color); border-right: 1px solid var(--border-color);">
+                        ${s.strike}
+                        ${isAtmMagnitude ? '<span style="font-size: 9px; font-weight: 800; display: block; color: #854d0e;">ATM</span>' : ''}
+                    </td>
+
+                    <!-- PE LTP -->
+                    <td style="text-align: left; font-family: monospace; color: var(--text-secondary); padding: 6px 8px;">
+                        ₹${s.pe_ltp > 0 ? s.pe_ltp.toFixed(1) : '--'}
+                    </td>
+
+                    <!-- PE OI Bar + Value (Align Left) -->
+                    <td style="text-align: left; padding: 6px 10px; position: relative;">
+                        <div style="position: absolute; left: 0; top: 15%; bottom: 15%; width: ${peBarPct}%; background: rgba(34, 197, 94, 0.22); border-radius: 0 3px 3px 0; z-index: 1;"></div>
+                        <div style="position: relative; z-index: 2; font-family: 'JetBrains Mono', monospace; font-weight: ${isMaxPe ? '900' : '600'}; color: ${isMaxPe ? '#166534' : 'inherit'};">
+                            ${(s.pe_oi / 100000).toFixed(2)}L${isMaxPe ? ' 🟢' : ''}
+                        </div>
+                    </td>
+                </tr>`;
+            }).join('');
+        }
+
+        // ═══════════════════════════════════════════════════════════════
         // VIEW MANAGEMENT
         // ═══════════════════════════════════════════════════════════════
 
@@ -4176,11 +4649,17 @@
             document.getElementById('loginView').style.display = 'none';
             document.getElementById('consoleView').style.display = 'block';
             document.getElementById('btnLogout').style.display = 'inline-flex';
+            
+            // Switch to DASHBOARD (Tab 0) by default upon login
+            switchMainTab('tabDashboard');
+
             loadExpiries();
             loadLotSizes().then(() => {
                 onPosIndexChange();
                 onStraddleIndexChange();
             });
+            onDashIndexChange();
+            onDashIntervalChange();
             fetchAndRenderStrategies();
             fetchPosStrangleStatus(true);
             fetchStraddleStatus(true);
@@ -4213,7 +4692,9 @@
             }
 
             // Immediately refresh strategies and state for the active tab
-            if (tabId === 'tabConfigLogs') {
+            if (tabId === 'tabDashboard') {
+                fetchDashboardOiAnalysis();
+            } else if (tabId === 'tabConfigLogs') {
                 fetchAndRenderStrategies();
             } else if (tabId === 'tabPosStrangle') {
                 fetchPosStrangleStatus(true);

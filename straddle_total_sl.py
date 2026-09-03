@@ -1620,9 +1620,12 @@ def place_straddle_adjustment_order(strat, leg_id, sym, opt_type, strike, action
     entry_txn = kite.TRANSACTION_TYPE_SELL if action_upper == "SELL" else kite.TRANSACTION_TYPE_BUY
     pos_tag = f"{strat.get('run_tag', 'std')}_{tag_suffix}"[:20]
 
-    # Fetch live quote for best bid / LTP
+    # Fetch live quote for best bid / ask / LTP
     best_bid_price = 0.0
     best_bid_qty = 0
+    best_ask_price = 0.0
+    best_ask_qty = 0
+    last_ltp = 0.0
     try:
         quote_res = kite.quote([f"{exchange}:{sym}"])
         inst_quote = quote_res.get(f"{exchange}:{sym}", {})
@@ -1632,6 +1635,10 @@ def place_straddle_adjustment_order(strat, leg_id, sym, opt_type, strike, action
         if depth_bids and depth_bids[0].get("price", 0) > 0:
             best_bid_price = float(depth_bids[0]["price"])
             best_bid_qty = int(depth_bids[0].get("quantity", 0))
+        depth_asks = inst_quote.get("depth", {}).get("sell", [])
+        if depth_asks and depth_asks[0].get("price", 0) > 0:
+            best_ask_price = float(depth_asks[0]["price"])
+            best_ask_qty = int(depth_asks[0].get("quantity", 0))
     except Exception as e:
         logger.warning(f"Error fetching quote for adjustment {sym}: {e}")
         try:
@@ -1643,14 +1650,13 @@ def place_straddle_adjustment_order(strat, leg_id, sym, opt_type, strike, action
     if last_ltp <= 0:
         last_ltp = 100.0
 
-    base_price = best_ask_price if (action_upper == "SELL" and best_ask_price > 0) else (best_bid_price if best_bid_price > 0 else float(last_ltp))
-
     # Calculate initial SL trigger price
     sl_type_upper = str(sl_type or "PERCENT").upper()
     sl_val = float(sl_value or 30.0)
 
     if action_upper == "SELL":
-        entry_trigger = None
+        # For SELL order: price is (current price / bid - 1%) to ensure immediate fill
+        base_price = best_bid_price if best_bid_price > 0 else float(last_ltp)
         order_price = round((base_price * 0.99) * 20) / 20
         order_type_val = kite.ORDER_TYPE_LIMIT
         if sl_type_upper == "PERCENT":
@@ -1658,7 +1664,8 @@ def place_straddle_adjustment_order(strat, leg_id, sym, opt_type, strike, action
         else:
             sl_price = round(last_ltp + sl_val, 2)
     else:
-        entry_trigger = None
+        # For BUY order: price is (current price / ask + 1%) to ensure immediate fill
+        base_price = best_ask_price if best_ask_price > 0 else float(last_ltp)
         order_price = round((base_price * 1.01) * 20) / 20
         order_type_val = kite.ORDER_TYPE_LIMIT
         if sl_type_upper == "PERCENT":
@@ -1666,7 +1673,7 @@ def place_straddle_adjustment_order(strat, leg_id, sym, opt_type, strike, action
         else:
             sl_price = round(max(0.05, last_ltp - sl_val), 2)
 
-    log_straddle(f"[{sname}] 🚀 Executing Adjustment Trade '{leg_id}': {action_upper} {sym} (Strike {strike}) Qty:{qty} @ Limit ₹{order_price:.2f}" + (f", Trigger: ₹{entry_trigger:.2f} (Best Bid: ₹{best_bid_price:.2f} [Qty: {best_bid_qty}])" if entry_trigger else "") + f" | Initial SL: ₹{sl_price:.2f} ({sl_val} {sl_type_upper}) | TSL: {'ON' if enable_tsl else 'OFF'}")
+    log_straddle(f"[{sname}] 🚀 Executing Adjustment Trade '{leg_id}': {action_upper} {sym} (Strike {strike}) Qty:{qty} @ Limit ₹{order_price:.2f} (LTP: ₹{last_ltp:.2f}, Bid: ₹{best_bid_price:.2f}, Ask: ₹{best_ask_price:.2f}) | Initial SL: ₹{sl_price:.2f} ({sl_val} {sl_type_upper}) | TSL: {'ON' if enable_tsl else 'OFF'}")
 
     try:
         place_kwargs = {
@@ -1680,8 +1687,6 @@ def place_straddle_adjustment_order(strat, leg_id, sym, opt_type, strike, action
             "price": float(order_price),
             "tag": pos_tag
         }
-        if entry_trigger:
-            place_kwargs["trigger_price"] = float(entry_trigger)
 
         order_id = kite.place_order(**place_kwargs)
         log_straddle(f"[{sname}] Adjustment {action_upper} {sym} Placed. Order ID: {order_id}")
