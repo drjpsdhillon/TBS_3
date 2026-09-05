@@ -48,6 +48,15 @@ DEFAULT_POS_LOT_SIZES = {
     "BANKEX": 15
 }
 
+def is_market_open():
+    """Returns True only during active trading hours on trading days (Monday to Friday, 09:15 to 15:30)."""
+    now = datetime.now()
+    # 0 = Monday, 4 = Friday, 5 = Saturday, 6 = Sunday
+    if now.weekday() >= 5:
+        return False
+    now_time = now.strftime("%H:%M:%S")
+    return "09:15:00" <= now_time <= "15:30:00"
+
 def get_pos_lot_size(index_name):
     """Retrieve lot size from persistent broker cache file or defaults."""
     if not index_name:
@@ -1650,6 +1659,9 @@ def monitor_positional_strategies_cycle():
     today_str = now.strftime("%Y-%m-%d")
     now_time = now.strftime("%H:%M:%S")
 
+    # If market is closed (weekend, holiday, or before 09:15 / after 15:30), only update status if awaiting
+    market_open = is_market_open()
+
     # Fetch order book for status checks
     try:
         account_orders = kite.orders()
@@ -1664,6 +1676,12 @@ def monitor_positional_strategies_cycle():
         entry_t = s.get("entry_time", "15:00:00")
         exit_t = s.get("exit_time", "15:15:00")
         morning_sl_t = s.get("morning_sl_time", "09:17:00")
+
+        # Skip executing trades if market is closed
+        if not market_open:
+            if not orders_placed:
+                s["status"] = "Market Closed (Awaiting Trading Session)"
+            continue
 
         # -------------------------------------------------------------
         # 1. TIMED EXECUTION: Initial entry placement if NOT placed yet

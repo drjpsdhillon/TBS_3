@@ -54,6 +54,15 @@ DEFAULT_STRADDLE_LOT_SIZES = {
     "BANKEX": 15
 }
 
+def is_market_open():
+    """Returns True only during active equity trading hours on trading days (Monday to Friday, 09:15 to 15:30)."""
+    now = datetime.now()
+    # 0 = Monday, 4 = Friday, 5 = Saturday, 6 = Sunday
+    if now.weekday() >= 5:
+        return False
+    now_time = now.strftime("%H:%M:%S")
+    return "09:15:00" <= now_time <= "15:30:00"
+
 def get_straddle_lot_size(index_name):
     """Retrieve lot size from persistent broker cache file or defaults."""
     if not index_name:
@@ -2017,6 +2026,7 @@ def monitor_straddle_strategies_cycle():
     now = datetime.now()
     today_str = now.strftime("%Y-%m-%d")
     now_time = now.strftime("%H:%M:%S")
+    market_open = is_market_open()
 
     # 1. Timed & Triggered Entry Check
     for s in active_strats:
@@ -2031,6 +2041,9 @@ def monitor_straddle_strategies_cycle():
         entry_action = str(s.get("entry_action") or "SELL").upper()
 
         if not orders_placed:
+            if not market_open:
+                s["status"] = "Market Closed (Awaiting Trading Session)"
+                continue
             # For new entry, check if today is beyond the exit window on target expiry day
             days_left_entry = get_straddle_days_to_expiry(s)
             exit_days_thresh = int(s.get("exit_days_to_expiry", 0) or 0)
@@ -2260,7 +2273,7 @@ def monitor_straddle_strategies_cycle():
             # --- B. Process Multi-Adjustment Engines (Decay, Spot Distance, Custom Extra Legs) ---
             adj_pnl = 0.0
             adj = s.get("adjustments", {})
-            if adj.get("enabled"):
+            if adj.get("enabled") and market_open:
                 mode = adj.get("mode", "ALL")
                 auto_cfg = adj.get("auto_config", {})
                 dist_cfg = adj.get("spot_distance_config", {})

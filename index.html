@@ -3214,6 +3214,57 @@
                     </div>
                 </div>
 
+                <!-- Strategy Filter Toolbar (Straddle/Strangle, Instrument NIFTY/BANKNIFTY, Expiry) -->
+                <div class="card" style="margin-bottom: 16px; padding: 12px 16px; background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%); border: 1px solid #cbd5e1; border-left: 4px solid #4338ca;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span style="font-size: 16px;">🔍</span>
+                            <span style="font-size: 12px; font-weight: 800; color: #1e293b; text-transform: uppercase; letter-spacing: 0.5px;">Filter Strategies:</span>
+                            <span id="straddleFilterCountBadge" style="font-size: 11px; font-weight: 800; background: #e0e7ff; color: #4338ca; padding: 2px 8px; border-radius: 12px;">All</span>
+                        </div>
+
+                        <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                            <!-- 1. Type Filter: All / Straddle / Strangle / Single Leg -->
+                            <div style="display: flex; align-items: center; gap: 6px;">
+                                <label style="font-size: 11px; font-weight: 800; color: var(--text-secondary); text-transform: uppercase;">Type:</label>
+                                <select id="straddleFilterType" onchange="applyStraddleFilters()" style="padding: 5px 10px; font-size: 12px; font-weight: 700; border-radius: var(--radius-sm); border: 1px solid var(--border-color); background: #ffffff; color: var(--text-primary);">
+                                    <option value="ALL">All Types (Straddle &amp; Strangle)</option>
+                                    <option value="STRADDLE">⚡ Straddle Only</option>
+                                    <option value="STRANGLE">🧭 Strangle Only</option>
+                                    <option value="INDIVIDUAL_LEG">🎯 Single Leg Only (CE/PE)</option>
+                                </select>
+                            </div>
+
+                            <!-- 2. Instrument Filter: All / NIFTY / BANKNIFTY / FINNIFTY / SENSEX etc. -->
+                            <div style="display: flex; align-items: center; gap: 6px;">
+                                <label style="font-size: 11px; font-weight: 800; color: var(--text-secondary); text-transform: uppercase;">Instrument:</label>
+                                <select id="straddleFilterInstrument" onchange="applyStraddleFilters()" style="padding: 5px 10px; font-size: 12px; font-weight: 700; border-radius: var(--radius-sm); border: 1px solid var(--border-color); background: #ffffff; color: var(--text-primary);">
+                                    <option value="ALL">All Instruments</option>
+                                    <option value="NIFTY">NIFTY</option>
+                                    <option value="BANKNIFTY">BANKNIFTY</option>
+                                    <option value="FINNIFTY">FINNIFTY</option>
+                                    <option value="MIDCPNIFTY">MIDCPNIFTY</option>
+                                    <option value="SENSEX">SENSEX</option>
+                                    <option value="BANKEX">BANKEX</option>
+                                </select>
+                            </div>
+
+                            <!-- 3. Expiry Filter: All / Dynamic list of expiries in strategies -->
+                            <div style="display: flex; align-items: center; gap: 6px;">
+                                <label style="font-size: 11px; font-weight: 800; color: var(--text-secondary); text-transform: uppercase;">Expiry:</label>
+                                <select id="straddleFilterExpiry" onchange="applyStraddleFilters()" style="padding: 5px 10px; font-size: 12px; font-weight: 700; border-radius: var(--radius-sm); border: 1px solid var(--border-color); background: #ffffff; color: var(--text-primary);">
+                                    <option value="ALL">All Expiries</option>
+                                </select>
+                            </div>
+
+                            <!-- Reset Filters Button -->
+                            <button type="button" onclick="resetStraddleFilters()" class="btn-secondary" style="padding: 5px 10px; font-size: 11px; font-weight: 700; border-radius: var(--radius-sm);">
+                                🔄 Reset Filters
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Straddle Instrument Groups Container -->
                 <div id="straddleInstrumentGroupsContainer" style="margin-bottom: 24px;">
                     <!-- Rendered dynamically grouped by instrument (NIFTY, BANKNIFTY, etc.) -->
@@ -6296,6 +6347,10 @@
                         ? `<span style="background: #fef3c7; color: #92400e; border: 1px solid #fde68a; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 4px;">🎯 TSL: ${s.tsl_points || 10} pts</span>`
                         : '';
 
+                    const intraLotSize = getBrokerLotSize(s.index_name || 'NIFTY');
+                    const intraTotalLots = Math.max(1, Math.round((s.quantity || intraLotSize) / intraLotSize));
+                    const intraLotBadge = `<span style="background: #f8fafc; color: #475569; border: 1px solid #cbd5e1; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 4px;" title="Strategy Lot Size">📦 ${s.quantity || intraLotSize} Qty (${intraTotalLots} Lot${intraTotalLots > 1 ? 's' : ''})</span>`;
+
                     return `
                     <div class="card strat-card" data-strat-id="${s.id}" data-group-id="${instrumentName}" style="border-top: 3px solid ${isActive ? 'var(--success)' : 'var(--border-color)'}; padding: 0;">
                         <!-- Collapsible Header Summary Strip -->
@@ -6305,6 +6360,7 @@
                                 <span style="font-size: 14px; font-weight: 800; color: var(--text-primary);">${s.name || 'Unnamed Strategy'}</span>
                                 <span style="background: var(--pastel-blue-bg); color: var(--pastel-blue-dark); border: 1px solid var(--pastel-blue-border); font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 4px;">${s.index_name}</span>
                                 <span style="background: #ffffff; color: var(--text-secondary); border: 1px solid var(--border-color); font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: 4px;">${s.strategy_type} (${s.product || 'MIS'})</span>
+                                ${intraLotBadge}
                                 ${actionBadge}
                                 ${reentryBadge}
                                 ${tslBadge}
@@ -6476,22 +6532,47 @@
         }
 
         // ═══════════════════════════════════════════════════════════════
-        // STRATEGY NAME AUTO-SUGGEST HELPERS (NFT for Nifty, BNK for BankNifty)
+        // STRATEGY NAME AUTO-SUGGEST HELPERS (NFT for Nifty, BNF for BankNifty, SNS for Sensex)
         // ═══════════════════════════════════════════════════════════════
 
         const INSTRUMENT_PREFIX_MAP = {
             'NIFTY': 'NFT',
-            'BANKNIFTY': 'BNK',
-            'FINNIFTY': 'FIN',
+            'BANKNIFTY': 'BNF',
+            'SENSEX': 'SNS',
+            'FINNIFTY': 'FNF',
             'MIDCPNIFTY': 'MID',
-            'SENSEX': 'SNX',
-            'BANKEX': 'BKX'
+            'BANKEX': 'BNX'
         };
 
         function getInstrumentPrefix(idx) {
             if (!idx) return 'NFT';
             const upper = String(idx).trim().toUpperCase();
-            return INSTRUMENT_PREFIX_MAP[upper] || upper.substring(0, 3);
+            if (INSTRUMENT_PREFIX_MAP[upper]) return INSTRUMENT_PREFIX_MAP[upper];
+            if (upper.includes('BANKNIFTY') || upper.includes('BNF')) return 'BNF';
+            if (upper.includes('SENSEX') || upper.includes('SNS')) return 'SNS';
+            if (upper.includes('FIN')) return 'FNF';
+            if (upper.includes('MID')) return 'MID';
+            if (upper.includes('BANKEX')) return 'BNX';
+            return upper.substring(0, 3);
+        }
+
+        function getExpiryMonth3Letter(expiryVal, indexName = 'NIFTY') {
+            if (!expiryVal || expiryVal === 'CURRENT' || expiryVal === 'CURRENT_MONTH') {
+                return new Date().toLocaleString('en-US', { month: 'short' }).toUpperCase();
+            }
+            if (expiryVal === 'NEXT' || expiryVal === 'NEXT_MONTH') {
+                const nextM = new Date();
+                nextM.setMonth(nextM.getMonth() + 1);
+                return nextM.toLocaleString('en-US', { month: 'short' }).toUpperCase();
+            }
+            // If date format: YYYY-MM-DD or DD-MMM-YYYY
+            const parsed = new Date(expiryVal);
+            if (!isNaN(parsed.getTime())) {
+                return parsed.toLocaleString('en-US', { month: 'short' }).toUpperCase();
+            }
+            const match = String(expiryVal).match(/[a-zA-Z]{3}/);
+            if (match) return match[0].toUpperCase();
+            return new Date().toLocaleString('en-US', { month: 'short' }).toUpperCase();
         }
 
         function formatTimeForName(timeStr) {
@@ -6504,7 +6585,7 @@
             if (!val) return true;
             const v = val.trim();
             if (v.startsWith('Strategy') || v.startsWith('Positional') || v.startsWith('Straddle')) return true;
-            const prefixes = ['NFT', 'BNK', 'FIN', 'MID', 'SNX', 'BKX', 'NIFTY', 'BANKNIFTY', 'Nifty', 'BankNifty'];
+            const prefixes = ['NFT', 'BNF', 'BNK', 'SNS', 'FNF', 'FIN', 'MID', 'SNX', 'BNX', 'BKX', 'NIFTY', 'BANKNIFTY', 'Nifty', 'BankNifty'];
             return prefixes.some(p => v.startsWith(p));
         }
 
@@ -6529,27 +6610,74 @@
             if (force || !currentVal || isAutoPattern(currentVal)) {
                 const idx = document.getElementById('posIndexName').value || 'NIFTY';
                 const prefix = getInstrumentPrefix(idx);
+                const expVal = document.getElementById('posExpirySelect')?.value || 'CURRENT';
+                const monthCode = getExpiryMonth3Letter(expVal, idx);
                 const cePrem = document.getElementById('posCePremium') ? (document.getElementById('posCePremium').value || '80') : '80';
-                nameInput.value = `${prefix}_${cePrem}_Pos`;
+                nameInput.value = `${prefix} ${monthCode} STRNGL ${cePrem}`;
             }
         }
 
         function autoSuggestStraddleName(force = false) {
             const nameInput = document.getElementById('straddleStratName');
             if (!nameInput) return;
-            const currentVal = nameInput.value.trim();
-            if (force || !currentVal || isAutoPattern(currentVal)) {
-                const idx = document.getElementById('straddleIndexName').value || 'NIFTY';
-                const prefix = getInstrumentPrefix(idx);
-                const mode = document.getElementById('straddleStrikeMode') ? document.getElementById('straddleStrikeMode').value : 'ATM';
+            const isEditing = Boolean(document.getElementById('straddleStratId').value);
+            if (isEditing && !force) return;
+
+            const idx = (document.getElementById('straddleIndexName').value || 'NIFTY').trim();
+            const prefix = getInstrumentPrefix(idx);
+            const stratType = document.getElementById('straddleStratType').value;
+            const legSel = document.getElementById('straddleLegSelection').value;
+            const strikeMode = document.getElementById('straddleStrikeMode').value;
+            const manualStrike = document.getElementById('straddleManualStrike').value.trim();
+            const strikeMult = document.getElementById('straddleStrikeMultiple').value.trim();
+            const expVal = document.getElementById('straddleExpirySelect')?.value || 'CURRENT_MONTH';
+            const monthCode = getExpiryMonth3Letter(expVal, idx);
+
+            let suggested = '';
+            let autoGrp = 'Straddle';
+
+            if (stratType === 'INDIVIDUAL_LEG') {
+                const optType = legSel === 'PE_ONLY' ? 'PE' : 'CE';
+                autoGrp = legSel === 'PE_ONLY' ? 'PE_Only' : 'CE_Only';
                 let strikeTag = 'ATM';
-                if (mode === 'ROUND_OFF') {
-                    strikeTag = document.getElementById('straddleStrikeMultiple') ? (document.getElementById('straddleStrikeMultiple').value || '500') : '500';
-                } else if (mode === 'MANUAL') {
-                    strikeTag = document.getElementById('straddleManualStrike') ? (document.getElementById('straddleManualStrike').value || 'Manual') : 'Manual';
+                if (strikeMode === 'MANUAL' && manualStrike) {
+                    strikeTag = manualStrike;
+                } else if (strikeMode === 'ROUND_OFF' && strikeMult) {
+                    strikeTag = `Round ${strikeMult}`;
                 }
-                nameInput.value = `${prefix}_${strikeTag}_Straddle_Pos`;
+                suggested = `${prefix} ${monthCode} ${optType} ${strikeTag}`;
+            } else if (stratType === 'STRANGLE') {
+                autoGrp = 'Strangle';
+                const ceStrk = document.getElementById('straddleCeStrike').value.trim();
+                const peStrk = document.getElementById('straddlePeStrike').value.trim();
+                if (strikeMode === 'MANUAL' && ceStrk && peStrk) {
+                    suggested = `${prefix} ${monthCode} STRNGL ${ceStrk}CE ${peStrk}PE`;
+                } else if (strikeMode === 'PREMIUM') {
+                    const cePrem = document.getElementById('straddleCeTargetPrem')?.value.trim() || '80';
+                    const pePrem = document.getElementById('straddlePeTargetPrem')?.value.trim() || '80';
+                    if (cePrem === pePrem) {
+                        suggested = `${prefix} ${monthCode} STRNGL ${cePrem}`;
+                    } else {
+                        suggested = `${prefix} ${monthCode} STRNGL ${cePrem}CE ${pePrem}PE`;
+                    }
+                } else {
+                    suggested = `${prefix} ${monthCode} STRNGL OTM`;
+                }
+            } else {
+                // STRADDLE
+                autoGrp = 'Straddle';
+                let strikeTag = 'ATM';
+                if (strikeMode === 'MANUAL' && manualStrike) {
+                    strikeTag = manualStrike;
+                } else if (strikeMode === 'ROUND_OFF' && strikeMult) {
+                    strikeTag = `Round ${strikeMult}`;
+                }
+                suggested = `${prefix} ${monthCode} STRDL ${strikeTag} (CE+PE)`;
             }
+
+            nameInput.value = suggested;
+            const grpInput = document.getElementById('straddleGroupName');
+            if (grpInput) grpInput.value = autoGrp;
         }
 
         function toggleIntraTslInput() {
@@ -6950,6 +7078,10 @@
                         ? `<span style="background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 4px;">🟢 Position ON (Holding)</span>`
                         : (isActive ? `<span style="background: #fef9c3; color: #854d0e; border: 1px solid #fef08a; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 4px;">⏳ Awaiting Entry (${s.entry_time || '15:00:00'})</span>` : '');
 
+                    const posLotSize = getBrokerLotSize(s.index_name || 'NIFTY');
+                    const posTotalLots = Math.max(1, Math.round((s.quantity || posLotSize) / posLotSize));
+                    const posLotBadge = `<span style="background: #f8fafc; color: #475569; border: 1px solid #cbd5e1; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 4px;" title="Strategy Lot Size">📦 ${s.quantity || posLotSize} Qty (${posTotalLots} Lot${posTotalLots > 1 ? 's' : ''})</span>`;
+
                     return `
                     <div class="card strat-card" data-strat-id="${s.id}" data-group-id="${instrumentName}" style="border-top: 3px solid ${isActive ? 'var(--success)' : 'var(--border-color)'}; padding: 0;">
                         <!-- Collapsible Header Summary Strip -->
@@ -6959,6 +7091,7 @@
                                 <span style="font-size: 14px; font-weight: 800; color: var(--text-primary);">${s.name || 'Positional Strangle'}</span>
                                 <span style="background: var(--pastel-blue-bg); color: var(--pastel-blue-dark); border: 1px solid var(--pastel-blue-border); font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 4px;">${s.index_name}</span>
                                 <span style="background: #ffffff; color: var(--text-secondary); border: 1px solid var(--border-color); font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: 4px;">${s.product || 'NRML'}</span>
+                                ${posLotBadge}
                                 ${actionBadge}
                                 ${positionBadge}
                                 ${maxReentry > 0 ? `<span style="background: #ede9fe; color: #6d28d9; border: 1px solid #ddd6fe; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 4px;">🔄 Re-entry: ${maxReentry}x</span>` : ''}
@@ -7116,6 +7249,10 @@
                 const snapped = Math.max(lot, Math.round(current / lot) * lot);
                 e.target.value = snapped;
             });
+        }
+
+        if (document.getElementById('posExpirySelect')) {
+            document.getElementById('posExpirySelect').addEventListener('change', () => autoSuggestPosName());
         }
 
         if (document.getElementById('posStartTime')) {
@@ -7721,6 +7858,63 @@
             }
         }
 
+        let straddleFilterState = {
+            type: 'ALL',
+            instrument: 'ALL',
+            expiry: 'ALL'
+        };
+
+        function updateStraddleExpiryFilterOptions(strategies) {
+            const expSelect = document.getElementById('straddleFilterExpiry');
+            if (!expSelect) return;
+            const currentSelected = expSelect.value || 'ALL';
+            
+            // Collect unique expiries
+            const expiriesSet = new Set();
+            (strategies || []).forEach(s => {
+                const exp = s.expiry || s.resolved_expiry;
+                if (exp && exp !== 'CURRENT' && exp !== 'NEXT') {
+                    expiriesSet.add(exp);
+                }
+            });
+
+            const sortedExpiries = Array.from(expiriesSet).sort();
+            let optionsHtml = `<option value="ALL">All Expiries</option>`;
+            sortedExpiries.forEach(exp => {
+                optionsHtml += `<option value="${exp}" ${exp === currentSelected ? 'selected' : ''}>${exp}</option>`;
+            });
+
+            expSelect.innerHTML = optionsHtml;
+        }
+
+        function applyStraddleFilters() {
+            const typeFilter = document.getElementById('straddleFilterType')?.value || 'ALL';
+            const instFilter = document.getElementById('straddleFilterInstrument')?.value || 'ALL';
+            const expFilter = document.getElementById('straddleFilterExpiry')?.value || 'ALL';
+
+            straddleFilterState = {
+                type: typeFilter,
+                instrument: instFilter,
+                expiry: expFilter
+            };
+
+            renderStraddleInstrumentGroups(loadedStraddleStrategies);
+        }
+
+        function resetStraddleFilters() {
+            if (document.getElementById('straddleFilterType')) document.getElementById('straddleFilterType').value = 'ALL';
+            if (document.getElementById('straddleFilterInstrument')) document.getElementById('straddleFilterInstrument').value = 'ALL';
+            if (document.getElementById('straddleFilterExpiry')) document.getElementById('straddleFilterExpiry').value = 'ALL';
+
+            straddleFilterState = {
+                type: 'ALL',
+                instrument: 'ALL',
+                expiry: 'ALL'
+            };
+
+            renderStraddleInstrumentGroups(loadedStraddleStrategies);
+        }
+
         function renderStraddleInstrumentGroups(strategies) {
             const container = document.getElementById('straddleInstrumentGroupsContainer');
 
@@ -7739,13 +7933,66 @@
                 return;
             }
 
+            // Sync dynamic expiry filter options from loaded strategies
+            updateStraddleExpiryFilterOptions(strategies);
+
+            // Apply active filters
+            const typeFilter = straddleFilterState.type || 'ALL';
+            const instFilter = straddleFilterState.instrument || 'ALL';
+            const expFilter = straddleFilterState.expiry || 'ALL';
+
+            const filteredStrategies = strategies.filter(s => {
+                // 1. Type Filter (STRADDLE, STRANGLE, INDIVIDUAL_LEG)
+                if (typeFilter !== 'ALL') {
+                    const stype = (s.strategy_type || 'STRADDLE').toUpperCase();
+                    if (typeFilter === 'STRADDLE' && stype !== 'STRADDLE') return false;
+                    if (typeFilter === 'STRANGLE' && stype !== 'STRANGLE') return false;
+                    if (typeFilter === 'INDIVIDUAL_LEG' && stype !== 'INDIVIDUAL_LEG') return false;
+                }
+
+                // 2. Instrument Filter (NIFTY, BANKNIFTY, FINNIFTY, SENSEX, etc.)
+                if (instFilter !== 'ALL') {
+                    const sInst = (s.index_name || '').toUpperCase();
+                    if (sInst !== instFilter.toUpperCase()) return false;
+                }
+
+                // 3. Expiry Filter
+                if (expFilter !== 'ALL') {
+                    const sExp = s.expiry || s.resolved_expiry;
+                    if (sExp !== expFilter) return false;
+                }
+
+                return true;
+            });
+
+            // Update Filter Badge
+            const filterBadge = document.getElementById('straddleFilterCountBadge');
+            if (filterBadge) {
+                const isFiltered = (typeFilter !== 'ALL' || instFilter !== 'ALL' || expFilter !== 'ALL');
+                filterBadge.textContent = isFiltered ? `${filteredStrategies.length} of ${strategies.length}` : `All (${strategies.length})`;
+                filterBadge.style.background = isFiltered ? '#fef3c7' : '#e0e7ff';
+                filterBadge.style.color = isFiltered ? '#b45309' : '#4338ca';
+            }
+
+            if (filteredStrategies.length === 0) {
+                container.innerHTML = `
+                    <div class="card" style="text-align: center; padding: 36px; color: var(--text-muted); background: #ffffff; border: 1px dashed var(--border-color); border-radius: 8px;">
+                        <p style="font-size: 15px; font-weight: 700; color: var(--text-primary); margin-bottom: 6px;">🔍 No strategies match your filter criteria</p>
+                        <p style="font-size: 12px; margin-bottom: 16px;">Try adjusting the Type, Instrument, or Expiry dropdown filters above.</p>
+                        <button onclick="resetStraddleFilters()" class="btn-secondary" style="width: auto; padding: 6px 16px; margin: 0 auto;">
+                            🔄 Reset Filters
+                        </button>
+                    </div>`;
+                return;
+            }
+
             const toggles = getStraddleGreekToggles();
 
-            // Automatic Grouping: Straddle / Strangle / CE_Only / PE_Only (or custom if specified)
+            // Automatic Grouping on Filtered Strategies: Straddle / Strangle / CE_Only / PE_Only
             const groups = {};
             const groupOrder = ['Straddle', 'Strangle', 'CE_Only', 'PE_Only'];
 
-            strategies.forEach(s => {
+            filteredStrategies.forEach(s => {
                 const grp = getAutomaticStraddleGroupName(s);
                 if (!groups[grp]) groups[grp] = [];
                 groups[grp].push(s);
@@ -8130,6 +8377,10 @@
                         `;
                     }
 
+                    const lotSize = getBrokerLotSize(s.index_name || 'NIFTY');
+                    const totalLots = Math.max(1, Math.round((s.quantity || lotSize) / lotSize));
+                    const lotBadge = `<span style="background: #f8fafc; color: #475569; border: 1px solid #cbd5e1; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 4px;" title="Strategy Lot Size">📦 ${s.quantity || lotSize} Qty (${totalLots} Lot${totalLots > 1 ? 's' : ''})</span>`;
+
                     return `
                     <div class="card strat-card" data-strat-id="${s.id}" data-group-id="${groupTitle}" style="border-top: 3px solid ${isActive ? 'var(--success)' : 'var(--border-color)'}; padding: 0;">
                         <!-- Collapsible Header Summary Strip -->
@@ -8140,6 +8391,7 @@
                                 <span style="background: var(--pastel-blue-bg); color: var(--pastel-blue-dark); border: 1px solid var(--pastel-blue-border); font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 4px;">${s.index_name}</span>
                                 ${s.underlying_name ? `<span style="background: #fefce8; color: #854d0e; border: 1px solid #fef08a; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 4px;" title="ATM calculated from ${s.underlying_name}">📊 ${s.underlying_name} ${s.underlying_ltp ? `(₹${parseFloat(s.underlying_ltp).toFixed(1)})` : ''}</span>` : ''}
                                 <span style="background: #ffffff; color: var(--text-secondary); border: 1px solid var(--border-color); font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: 4px;">${s.product || 'NRML'}</span>
+                                ${lotBadge}
                                 ${typeBadge}
                                 ${actionBadge}
                                 ${positionBadge}
@@ -8258,61 +8510,6 @@
             }
         }
 
-        function autoSuggestStraddleName(force = false) {
-            const nameInput = document.getElementById('straddleStratName');
-            if (!nameInput) return;
-            const isEditing = Boolean(document.getElementById('straddleStratId').value);
-            if (isEditing && !force) return;
-
-            const idx = (document.getElementById('straddleIndexName').value || 'NIFTY').trim();
-            // capitalize index nicely (e.g. Nifty / Banknifty)
-            const idxFormatted = idx.charAt(0).toUpperCase() + idx.slice(1).toLowerCase();
-            const stratType = document.getElementById('straddleStratType').value;
-            const legSel = document.getElementById('straddleLegSelection').value;
-            const strikeMode = document.getElementById('straddleStrikeMode').value;
-            const manualStrike = document.getElementById('straddleManualStrike').value.trim();
-            const strikeMult = document.getElementById('straddleStrikeMultiple').value.trim();
-
-            let suggested = '';
-            let autoGrp = 'Straddle';
-
-            if (stratType === 'INDIVIDUAL_LEG') {
-                const optType = legSel === 'PE_ONLY' ? 'PE' : 'CE';
-                autoGrp = legSel === 'PE_ONLY' ? 'PE_Only' : 'CE_Only';
-                let strikeTag = 'ATM';
-                if (strikeMode === 'MANUAL' && manualStrike) {
-                    strikeTag = manualStrike;
-                } else if (strikeMode === 'ROUND_OFF' && strikeMult) {
-                    strikeTag = `Round_${strikeMult}`;
-                }
-                suggested = `${idxFormatted}_${strikeTag}_${optType}_only`;
-            } else if (stratType === 'STRANGLE') {
-                autoGrp = 'Strangle';
-                const ceStrk = document.getElementById('straddleCeStrike').value.trim();
-                const peStrk = document.getElementById('straddlePeStrike').value.trim();
-                if (strikeMode === 'MANUAL' && ceStrk && peStrk) {
-                    suggested = `${idxFormatted}_Strangle_${ceStrk}CE_${peStrk}PE`;
-                } else if (strikeMode === 'PREMIUM') {
-                    suggested = `${idxFormatted}_Strangle_Prem`;
-                } else {
-                    suggested = `${idxFormatted}_Strangle_OTM`;
-                }
-            } else {
-                // STRADDLE
-                autoGrp = 'Straddle';
-                let strikeTag = 'ATM';
-                if (strikeMode === 'MANUAL' && manualStrike) {
-                    strikeTag = manualStrike;
-                } else if (strikeMode === 'ROUND_OFF' && strikeMult) {
-                    strikeTag = `Round_${strikeMult}`;
-                }
-                suggested = `${idxFormatted}_${strikeTag}_Straddle_Total_SL`;
-            }
-
-            nameInput.value = suggested;
-            const grpInput = document.getElementById('straddleGroupName');
-            if (grpInput) grpInput.value = autoGrp;
-        }
 
         function onStraddleStrikeModeChange() {
             const stratType = document.getElementById('straddleStratType').value;
@@ -8864,6 +9061,12 @@
         if (document.getElementById('straddleIndexName')) {
             document.getElementById('straddleIndexName').addEventListener('change', () => autoSuggestStraddleName());
         }
+        if (document.getElementById('straddleExpirySelect')) {
+            document.getElementById('straddleExpirySelect').addEventListener('change', () => autoSuggestStraddleName());
+        }
+        if (document.getElementById('straddleStratType')) {
+            document.getElementById('straddleStratType').addEventListener('change', () => autoSuggestStraddleName());
+        }
         if (document.getElementById('straddleLegSelection')) {
             document.getElementById('straddleLegSelection').addEventListener('change', () => autoSuggestStraddleName());
         }
@@ -8883,6 +9086,12 @@
         }
         if (document.getElementById('straddlePeStrike')) {
             document.getElementById('straddlePeStrike').addEventListener('input', () => autoSuggestStraddleName());
+        }
+        if (document.getElementById('straddleCeTargetPrem')) {
+            document.getElementById('straddleCeTargetPrem').addEventListener('input', () => autoSuggestStraddleName());
+        }
+        if (document.getElementById('straddlePeTargetPrem')) {
+            document.getElementById('straddlePeTargetPrem').addEventListener('input', () => autoSuggestStraddleName());
         }
 
         async function fetchStraddlePnlSummary() {
