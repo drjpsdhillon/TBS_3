@@ -1399,18 +1399,18 @@
                                 </select>
                             </div>
 
-                            <!-- Dashboard Auto-Refresh Toggle -->
+                            <!-- Dashboard Auto-Refresh Toggle (Default: OFF) -->
                             <div style="display: flex; align-items: center; gap: 8px; background: #f8fafc; border: 1px solid var(--border-color); padding: 4px 10px; border-radius: var(--radius-sm);">
                                 <label class="switch" style="margin-bottom: 0; transform: scale(0.85);">
-                                    <input type="checkbox" id="dashAutoRefreshToggle" checked onchange="toggleDashAutoRefresh(this.checked)">
+                                    <input type="checkbox" id="dashAutoRefreshToggle" onchange="toggleDashAutoRefresh(this.checked)">
                                     <span class="slider round"></span>
                                 </label>
-                                <span id="dashAutoRefreshLabel" style="font-size: 11px; font-weight: 800; color: #16a34a;">AUTO REFRESH: ON</span>
+                                <span id="dashAutoRefreshLabel" style="font-size: 11px; font-weight: 800; color: #94a3b8;">AUTO REFRESH: OFF</span>
                             </div>
 
                             <div style="display: flex; align-items: center; gap: 6px;">
                                 <label style="font-size: 11px; font-weight: 800; color: var(--text-secondary); text-transform: uppercase;">Interval:</label>
-                                <select id="dashRefreshIntervalSelect" onchange="onDashIntervalChange()" style="padding: 6px 10px; font-size: 12px; font-weight: 700; border-radius: var(--radius-sm); border: 1px solid var(--border-color); background: #ffffff;">
+                                <select id="dashRefreshIntervalSelect" disabled style="padding: 6px 10px; font-size: 12px; font-weight: 700; border-radius: var(--radius-sm); border: 1px solid var(--border-color); background: #ffffff; opacity: 0.5;" onchange="onDashIntervalChange()">
                                     <option value="5000">5 Seconds</option>
                                     <option value="10000" selected>10 Seconds</option>
                                     <option value="15000">15 Seconds</option>
@@ -1502,25 +1502,47 @@
                             <div class="card-title" style="font-size: 14px;">🚨 OI Strike Shift Log</div>
                             <span style="font-size: 11px; color: var(--text-secondary);">Live Tracking</span>
                         </div>
-                        <div id="dashShiftHistoryList" style="max-height: 280px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px;">
-                            <div style="text-align: center; color: var(--text-muted); font-size: 12px; padding: 24px;">
+                        <div id="dashShiftHistoryList" style="max-height: 220px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px;">
+                            <div style="text-align: center; color: var(--text-muted); font-size: 12px; padding: 20px;">
                                 Monitoring active for Resistance &amp; Support strike movements...
                             </div>
                         </div>
 
-                        <!-- Top 5 Resistance & Support Summary Table -->
-                        <div style="margin-top: 18px; border-top: 1px solid var(--border-color); padding-top: 14px;">
-                            <h4 style="font-size: 12px; font-weight: 800; color: var(--text-primary); margin-bottom: 10px; text-transform: uppercase;">Top 5 Active Strikes by OI</h4>
+                        <!-- Top 5 Strikes with Max Change in OI -->
+                        <div style="margin-top: 16px; border-top: 2px solid #e2e8f0; padding-top: 14px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                                <h4 style="font-size: 12px; font-weight: 900; color: #1e293b; margin: 0; text-transform: uppercase; letter-spacing: 0.5px;">🔥 Top 5 Strikes with Max Change in OI</h4>
+                                <span style="font-size: 10px; font-weight: 800; background: #e0e7ff; color: #4338ca; padding: 2px 6px; border-radius: 4px;">INTRADAY BUILDS</span>
+                            </div>
                             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
                                 <div>
-                                    <div style="font-size: 11px; font-weight: 800; color: #dc2626; margin-bottom: 6px;">🔴 Top Call (CE) Resistance</div>
-                                    <div id="dashTopCeList" style="font-size: 11px; font-family: monospace; display: flex; flex-direction: column; gap: 4px;">
+                                    <div style="font-size: 11px; font-weight: 800; color: #dc2626; margin-bottom: 6px;">🔴 CE Max OI Change</div>
+                                    <div id="dashTopCeOiChangeList" style="font-size: 11px; font-family: monospace; display: flex; flex-direction: column; gap: 4px;">
                                         <!-- Rendered dynamically -->
                                     </div>
                                 </div>
                                 <div>
-                                    <div style="font-size: 11px; font-weight: 800; color: #16a34a; margin-bottom: 6px;">🟢 Top Put (PE) Support</div>
-                                    <div id="dashTopPeList" style="font-size: 11px; font-family: monospace; display: flex; flex-direction: column; gap: 4px;">
+                                    <div style="font-size: 11px; font-weight: 800; color: #16a34a; margin-bottom: 6px;">🟢 PE Max OI Change</div>
+                                    <div id="dashTopPeOiChangeList" style="font-size: 11px; font-family: monospace; display: flex; flex-direction: column; gap: 4px;">
+                                        <!-- Rendered dynamically -->
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Top 5 Total Active Strikes by OI -->
+                        <div style="margin-top: 16px; border-top: 1px dashed var(--border-color); padding-top: 12px;">
+                            <h4 style="font-size: 11px; font-weight: 800; color: var(--text-secondary); margin-bottom: 8px; text-transform: uppercase;">Top 5 Highest Total OI Strikes</h4>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                                <div>
+                                    <div style="font-size: 10px; font-weight: 800; color: #dc2626; margin-bottom: 4px;">🔴 CE Resistance Wall</div>
+                                    <div id="dashTopCeList" style="font-size: 10px; font-family: monospace; display: flex; flex-direction: column; gap: 3px;">
+                                        <!-- Rendered dynamically -->
+                                    </div>
+                                </div>
+                                <div>
+                                    <div style="font-size: 10px; font-weight: 800; color: #16a34a; margin-bottom: 4px;">🟢 PE Support Base</div>
+                                    <div id="dashTopPeList" style="font-size: 10px; font-family: monospace; display: flex; flex-direction: column; gap: 3px;">
                                         <!-- Rendered dynamically -->
                                     </div>
                                 </div>
@@ -4797,7 +4819,7 @@
                 clearInterval(dashOiIntervalTimer);
                 dashOiIntervalTimer = null;
             }
-            const isAutoOn = document.getElementById('dashAutoRefreshToggle')?.checked ?? true;
+            const isAutoOn = document.getElementById('dashAutoRefreshToggle')?.checked ?? false;
             if (!isAutoOn) return;
 
             const intervalMs = parseInt(document.getElementById('dashRefreshIntervalSelect')?.value || '10000');
@@ -4978,27 +5000,69 @@
                     </div>`;
             }
 
-            // 7. Top 5 Strikes Quick List
+            // 7. Top 5 Strikes with Max Change in OI
+            const topCeChangeContainer = document.getElementById('dashTopCeOiChangeList');
+            const topPeChangeContainer = document.getElementById('dashTopPeOiChangeList');
+            const topCeChange = data.top_ce_oi_change || [];
+            const topPeChange = data.top_pe_oi_change || [];
+
+            if (topCeChangeContainer) {
+                topCeChangeContainer.innerHTML = topCeChange.length > 0 ? topCeChange.map((s, i) => {
+                    const chg = s.ce_oi_change || 0;
+                    const chgSign = chg > 0 ? '+' : '';
+                    const chgLakhs = (chg / 100000).toFixed(2);
+                    return `
+                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 4px 6px; background: ${i === 0 ? '#fee2e2' : '#f8fafc'}; border-radius: 4px; border: 1px solid ${i === 0 ? '#fca5a5' : '#e2e8f0'};">
+                        <span style="font-weight: 800; color: #991b1b;">#${i+1} ${s.strike} CE</span>
+                        <div style="text-align: right;">
+                            <span style="font-weight: 800; color: ${chg >= 0 ? '#dc2626' : '#16a34a'};">${chgSign}${chgLakhs}L</span>
+                            <span style="color: var(--text-muted); font-size: 10px; display: block;">₹${s.ce_ltp.toFixed(1)}</span>
+                        </div>
+                    </div>`;
+                }).join('') : '<div style="color: var(--text-muted); font-size: 10px; padding: 4px;">No change data</div>';
+            }
+
+            if (topPeChangeContainer) {
+                topPeChangeContainer.innerHTML = topPeChange.length > 0 ? topPeChange.map((s, i) => {
+                    const chg = s.pe_oi_change || 0;
+                    const chgSign = chg > 0 ? '+' : '';
+                    const chgLakhs = (chg / 100000).toFixed(2);
+                    return `
+                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 4px 6px; background: ${i === 0 ? '#dcfce7' : '#f8fafc'}; border-radius: 4px; border: 1px solid ${i === 0 ? '#86efac' : '#e2e8f0'};">
+                        <span style="font-weight: 800; color: #166534;">#${i+1} ${s.strike} PE</span>
+                        <div style="text-align: right;">
+                            <span style="font-weight: 800; color: ${chg >= 0 ? '#16a34a' : '#dc2626'};">${chgSign}${chgLakhs}L</span>
+                            <span style="color: var(--text-muted); font-size: 10px; display: block;">₹${s.pe_ltp.toFixed(1)}</span>
+                        </div>
+                    </div>`;
+                }).join('') : '<div style="color: var(--text-muted); font-size: 10px; padding: 4px;">No change data</div>';
+            }
+
+            // 8. Top 5 Highest Total OI Strikes Quick List
             const topCeContainer = document.getElementById('dashTopCeList');
             const topPeContainer = document.getElementById('dashTopPeList');
             const topCe = data.top_ce_strikes || [];
             const topPe = data.top_pe_strikes || [];
 
-            topCeContainer.innerHTML = topCe.map((s, i) => `
-                <div style="display: flex; justify-content: space-between; padding: 3px 6px; background: ${i === 0 ? '#fee2e2' : '#f8fafc'}; border-radius: 4px; border: 1px solid ${i === 0 ? '#fca5a5' : '#e2e8f0'};">
-                    <span style="font-weight: 800; color: #991b1b;">#${i+1} ${s.strike} CE</span>
-                    <span>${(s.ce_oi / 100000).toFixed(2)}L <span style="color: var(--text-muted); font-size: 10px;">(₹${s.ce_ltp.toFixed(1)})</span></span>
-                </div>
-            `).join('');
+            if (topCeContainer) {
+                topCeContainer.innerHTML = topCe.map((s, i) => `
+                    <div style="display: flex; justify-content: space-between; padding: 3px 6px; background: ${i === 0 ? '#fee2e2' : '#f8fafc'}; border-radius: 4px; border: 1px solid ${i === 0 ? '#fca5a5' : '#e2e8f0'};">
+                        <span style="font-weight: 800; color: #991b1b;">#${i+1} ${s.strike} CE</span>
+                        <span>${(s.ce_oi / 100000).toFixed(2)}L <span style="color: var(--text-muted); font-size: 10px;">(₹${s.ce_ltp.toFixed(1)})</span></span>
+                    </div>
+                `).join('');
+            }
 
-            topPeContainer.innerHTML = topPe.map((s, i) => `
-                <div style="display: flex; justify-content: space-between; padding: 3px 6px; background: ${i === 0 ? '#dcfce7' : '#f8fafc'}; border-radius: 4px; border: 1px solid ${i === 0 ? '#86efac' : '#e2e8f0'};">
-                    <span style="font-weight: 800; color: #166534;">#${i+1} ${s.strike} PE</span>
-                    <span>${(s.pe_oi / 100000).toFixed(2)}L <span style="color: var(--text-muted); font-size: 10px;">(₹${s.pe_ltp.toFixed(1)})</span></span>
-                </div>
-            `).join('');
+            if (topPeContainer) {
+                topPeContainer.innerHTML = topPe.map((s, i) => `
+                    <div style="display: flex; justify-content: space-between; padding: 3px 6px; background: ${i === 0 ? '#dcfce7' : '#f8fafc'}; border-radius: 4px; border: 1px solid ${i === 0 ? '#86efac' : '#e2e8f0'};">
+                        <span style="font-weight: 800; color: #166534;">#${i+1} ${s.strike} PE</span>
+                        <span>${(s.pe_oi / 100000).toFixed(2)}L <span style="color: var(--text-muted); font-size: 10px;">(₹${s.pe_ltp.toFixed(1)})</span></span>
+                    </div>
+                `).join('');
+            }
 
-            // 8. Open Interest Dual Bar Chart & Table
+            // 9. Open Interest Dual Bar Chart & Table
             const tableBody = document.getElementById('dashOiTableBody');
             const strikes = data.strikes_table || [];
 

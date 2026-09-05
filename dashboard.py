@@ -226,14 +226,18 @@ def analyze_open_interest(kite, index_name="NIFTY", target_expiry=None, strike_r
         oi = int(q.get("oi", 0) or 0)
         ltp = float(q.get("last_price", 0.0) or 0.0)
         vol = int(q.get("volume", 0) or 0)
-        oi_high = int(q.get("oi_day_high", 0) or 0)
-        oi_low = int(q.get("oi_day_low", 0) or 0)
+        oi_day_high = int(q.get("oi_day_high", 0) or 0)
+        oi_day_low = int(q.get("oi_day_low", 0) or 0)
+        # Compute intraday OI change if available (oi - oi_day_low or day variation)
+        oi_change = int(q.get("oi_change", 0) or (oi - oi_day_low if oi_day_low > 0 else 0))
 
         if strike not in strikes_data:
             strikes_data[strike] = {
                 "strike": strike,
                 "ce_oi": 0, "ce_ltp": 0.0, "ce_vol": 0, "ce_sym": "--",
+                "ce_oi_change": 0, "ce_oi_day_high": 0, "ce_oi_day_low": 0,
                 "pe_oi": 0, "pe_ltp": 0.0, "pe_vol": 0, "pe_sym": "--",
+                "pe_oi_change": 0, "pe_oi_day_high": 0, "pe_oi_day_low": 0,
                 "diff_from_spot": round(strike - spot_price, 1) if spot_price > 0 else 0
             }
 
@@ -242,6 +246,9 @@ def analyze_open_interest(kite, index_name="NIFTY", target_expiry=None, strike_r
             strikes_data[strike]["ce_ltp"] = ltp
             strikes_data[strike]["ce_vol"] = vol
             strikes_data[strike]["ce_sym"] = info.get("tradingsymbol")
+            strikes_data[strike]["ce_oi_change"] = oi_change
+            strikes_data[strike]["ce_oi_day_high"] = oi_day_high
+            strikes_data[strike]["ce_oi_day_low"] = oi_day_low
             total_ce_oi += oi
 
             if oi > max_ce_oi:
@@ -250,11 +257,12 @@ def analyze_open_interest(kite, index_name="NIFTY", target_expiry=None, strike_r
                 max_ce_info = {
                     "strike": strike,
                     "oi": oi,
+                    "oi_change": oi_change,
                     "ltp": ltp,
                     "symbol": info.get("tradingsymbol"),
                     "volume": vol,
-                    "oi_high": oi_high,
-                    "oi_low": oi_low,
+                    "oi_high": oi_day_high,
+                    "oi_low": oi_day_low,
                     "diff_pts": round(strike - spot_price, 1) if spot_price > 0 else 0
                 }
         elif opt_type == "PE":
@@ -262,6 +270,9 @@ def analyze_open_interest(kite, index_name="NIFTY", target_expiry=None, strike_r
             strikes_data[strike]["pe_ltp"] = ltp
             strikes_data[strike]["pe_vol"] = vol
             strikes_data[strike]["pe_sym"] = info.get("tradingsymbol")
+            strikes_data[strike]["pe_oi_change"] = oi_change
+            strikes_data[strike]["pe_oi_day_high"] = oi_day_high
+            strikes_data[strike]["pe_oi_day_low"] = oi_day_low
             total_pe_oi += oi
 
             if oi > max_pe_oi:
@@ -270,11 +281,12 @@ def analyze_open_interest(kite, index_name="NIFTY", target_expiry=None, strike_r
                 max_pe_info = {
                     "strike": strike,
                     "oi": oi,
+                    "oi_change": oi_change,
                     "ltp": ltp,
                     "symbol": info.get("tradingsymbol"),
                     "volume": vol,
-                    "oi_high": oi_high,
-                    "oi_low": oi_low,
+                    "oi_high": oi_day_high,
+                    "oi_low": oi_day_low,
                     "diff_pts": round(strike - spot_price, 1) if spot_price > 0 else 0
                 }
 
@@ -299,9 +311,18 @@ def analyze_open_interest(kite, index_name="NIFTY", target_expiry=None, strike_r
     # Sorted strike table
     all_strikes_sorted = sorted(strikes_data.values(), key=lambda x: x["strike"])
 
-    # Extract Top 5 CE OI strikes & Top 5 PE OI strikes for breakdown cards
+    # Extract Top 5 CE OI strikes & Top 5 PE OI strikes for total OI breakdown
     top_ce_strikes = sorted(all_strikes_sorted, key=lambda x: x["ce_oi"], reverse=True)[:5]
     top_pe_strikes = sorted(all_strikes_sorted, key=lambda x: x["pe_oi"], reverse=True)[:5]
+
+    # Extract Top 5 strikes with Max Change in OI (Absolute & Positive shifts)
+    top_ce_oi_change = sorted(all_strikes_sorted, key=lambda x: abs(x.get("ce_oi_change", 0)), reverse=True)[:5]
+    top_pe_oi_change = sorted(all_strikes_sorted, key=lambda x: abs(x.get("pe_oi_change", 0)), reverse=True)[:5]
+    top_overall_oi_change = sorted(
+        all_strikes_sorted, 
+        key=lambda x: max(abs(x.get("ce_oi_change", 0)), abs(x.get("pe_oi_change", 0))), 
+        reverse=True
+    )[:5]
 
     # Strike Shift Detection & Tracking
     tracker_key = f"{index_upper}_{resolved_expiry}"
@@ -391,5 +412,8 @@ def analyze_open_interest(kite, index_name="NIFTY", target_expiry=None, strike_r
         "shifts_history": current_tracker.get("shifts_history", [])[:10],
         "top_ce_strikes": top_ce_strikes,
         "top_pe_strikes": top_pe_strikes,
+        "top_ce_oi_change": top_ce_oi_change,
+        "top_pe_oi_change": top_pe_oi_change,
+        "top_overall_oi_change": top_overall_oi_change,
         "strikes_table": all_strikes_sorted
     }
