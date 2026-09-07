@@ -8935,6 +8935,34 @@
                 return true;
             });
 
+            // Sort: In-Action (active / green background) on TOP, Idle/Inactive below. Within each status group, NIFTY on top, BANKNIFTY below
+            const getStraddleIndexOrder = (idx) => {
+                const upper = (idx || '').toUpperCase();
+                if (upper.includes('NIFTY') && !upper.includes('BANK')) return 1;
+                if (upper.includes('BANK')) return 2;
+                if (upper.includes('FIN')) return 3;
+                if (upper.includes('MIDCP') || upper.includes('MID')) return 4;
+                if (upper.includes('SENSEX')) return 5;
+                return 10;
+            };
+
+            filteredStrategies.sort((a, b) => {
+                // 1. Active (In Action / Green) on top, Idle/Inactive below
+                const aActive = a.active ? 1 : 0;
+                const bActive = b.active ? 1 : 0;
+                if (aActive !== bActive) {
+                    return bActive - aActive; // Active (1) first
+                }
+                // 2. Index priority: NIFTY on top (1), BANKNIFTY below (2), etc.
+                const aIdx = getStraddleIndexOrder(a.index_name);
+                const bIdx = getStraddleIndexOrder(b.index_name);
+                if (aIdx !== bIdx) {
+                    return aIdx - bIdx;
+                }
+                // 3. Alphabetical fallback
+                return (a.name || '').localeCompare(b.name || '');
+            });
+
             if (filteredStrategies.length === 0) {
                 lastStraddleRenderSignature = '';
                 container.innerHTML = `
