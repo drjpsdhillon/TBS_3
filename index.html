@@ -1189,6 +1189,298 @@
             margin-top: 4px;
             font-family: 'JetBrains Mono', monospace;
         }
+
+        /* ===== OPSTRA-STYLE STRATEGY CARDS & DROPDOWN TABS ===== */
+        .opstra-filter-bar {
+            background: #ffffff;
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-sm);
+            padding: 10px 14px;
+            margin-bottom: 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 12px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+        }
+
+        .opstra-bulk-links {
+            display: flex;
+            align-items: center;
+            gap: 18px;
+            font-size: 11px;
+            font-weight: 800;
+            letter-spacing: 0.5px;
+            color: var(--text-muted);
+        }
+
+        .opstra-bulk-links a, .opstra-bulk-links span.link-btn {
+            color: #0284c7;
+            text-decoration: none;
+            cursor: pointer;
+            transition: color 0.15s ease;
+        }
+
+        .opstra-bulk-links a:hover, .opstra-bulk-links span.link-btn:hover {
+            color: #0369a1;
+            text-decoration: underline;
+        }
+
+        .opstra-pill-group {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+
+        .opstra-pill-btn {
+            background: #ffffff;
+            border: 1px solid #cbd5e1;
+            color: #475569;
+            padding: 4px 12px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+
+        .opstra-pill-btn:hover {
+            background: #f1f5f9;
+            color: #1e293b;
+            border-color: #94a3b8;
+        }
+
+        .opstra-pill-btn.active {
+            background: #475569;
+            color: #ffffff;
+            border-color: #334155;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+        }
+
+        .opstra-strat-card {
+            border-radius: var(--radius-sm);
+            border: 1px solid #e2e8f0;
+            margin-bottom: 10px;
+            transition: all 0.2s ease;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+        }
+
+        .opstra-strat-card.active-strat {
+            background: #f0fdf4;
+            border-color: #86efac;
+            border-left: 4px solid #16a34a;
+        }
+
+        .opstra-strat-card.inactive-strat {
+            background: #f8fafc;
+            border-color: #cbd5e1;
+            border-left: 4px solid #94a3b8;
+        }
+
+        .opstra-strat-card:hover {
+            box-shadow: 0 3px 8px rgba(0,0,0,0.06);
+        }
+
+        .opstra-card-header-row {
+            display: grid;
+            grid-template-columns: 36px 180px 140px 1fr 40px 150px 30px;
+            align-items: center;
+            padding: 12px 16px;
+            cursor: pointer;
+            user-select: none;
+            gap: 8px;
+        }
+
+        @media (max-width: 900px) {
+            .opstra-card-header-row {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 10px;
+            }
+        }
+
+        .opstra-status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: inline-block;
+            box-shadow: 0 0 0 2px rgba(255,255,255,0.8);
+        }
+
+        .opstra-status-dot.active {
+            background: #22c55e;
+            box-shadow: 0 0 8px rgba(34, 197, 94, 0.6);
+        }
+
+        .opstra-status-dot.inactive {
+            background: #f87171;
+        }
+
+        .opstra-dropdown-panel {
+            background: #ffffff;
+            border-top: 1px solid #e2e8f0;
+            padding: 16px 20px 20px 20px;
+        }
+
+        .opstra-panel-grid {
+            display: grid;
+            grid-template-columns: 340px 1fr;
+            gap: 20px;
+        }
+
+        @media (max-width: 1050px) {
+            .opstra-panel-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .opstra-left-col {
+            border-right: 1px solid #e2e8f0;
+            padding-right: 18px;
+        }
+
+        @media (max-width: 1050px) {
+            .opstra-left-col {
+                border-right: none;
+                border-bottom: 1px solid #e2e8f0;
+                padding-right: 0;
+                padding-bottom: 18px;
+            }
+        }
+
+        .opstra-leg-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 6px 4px;
+            border-bottom: 1px solid #f1f5f9;
+            font-size: 11px;
+        }
+
+        .opstra-badge-s {
+            background: #fee2e2;
+            color: #b91c1c;
+            font-weight: 800;
+            font-size: 10px;
+            padding: 2px 6px;
+            border-radius: 3px;
+        }
+
+        .opstra-badge-b {
+            background: #dcfce7;
+            color: #15803d;
+            font-weight: 800;
+            font-size: 10px;
+            padding: 2px 6px;
+            border-radius: 3px;
+        }
+
+        .opstra-metrics-table {
+            width: 100%;
+            margin-top: 14px;
+            font-size: 11px;
+            border-collapse: collapse;
+        }
+
+        .opstra-metrics-table td {
+            padding: 5px 0;
+            border-bottom: 1px solid #f8fafc;
+        }
+
+        .opstra-metrics-table td.metric-label {
+            color: #475569;
+            font-weight: 600;
+        }
+
+        .opstra-metrics-table td.metric-val {
+            text-align: right;
+            font-weight: 700;
+            font-family: 'JetBrains Mono', monospace;
+            color: #0f172a;
+        }
+
+        .opstra-subtabs-nav {
+            display: flex;
+            align-items: center;
+            border-bottom: 2px solid #e2e8f0;
+            margin-bottom: 16px;
+            gap: 24px;
+        }
+
+        .opstra-subtab-btn {
+            background: none;
+            border: none;
+            padding: 8px 4px;
+            font-size: 12px;
+            font-weight: 700;
+            color: #64748b;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border-bottom: 3px solid transparent;
+            margin-bottom: -2px;
+            transition: all 0.15s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .opstra-subtab-btn:hover {
+            color: #0f172a;
+        }
+
+        .opstra-subtab-btn.active {
+            color: #0284c7;
+            border-bottom-color: #0284c7;
+            font-weight: 800;
+        }
+
+        .opstra-bottom-actions {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 10px;
+            margin-top: 20px;
+            padding-top: 14px;
+            border-top: 1px solid #e2e8f0;
+            flex-wrap: wrap;
+        }
+
+        .opstra-bottom-actions .btn-opstra {
+            padding: 8px 18px;
+            font-size: 12px;
+            font-weight: 800;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .btn-opstra-primary {
+            background: #16a34a;
+            color: #ffffff;
+            border: 1px solid #15803d;
+        }
+        .btn-opstra-primary:hover { background: #15803d; }
+
+        .btn-opstra-danger {
+            background: #dc2626;
+            color: #ffffff;
+            border: 1px solid #b91c1c;
+        }
+        .btn-opstra-danger:hover { background: #b91c1c; }
+
+        .btn-opstra-secondary {
+            background: #ffffff;
+            color: #334155;
+            border: 1px solid #cbd5e1;
+        }
+        .btn-opstra-secondary:hover { background: #f1f5f9; color: #0f172a; border-color: #94a3b8; }
     </style>
 </head>
 
@@ -3778,22 +4070,34 @@
         }
 
         function getStrategyPnl(s) {
-            if (s.pnl !== undefined && s.pnl !== null && parseFloat(s.pnl) !== 0) {
-                return parseFloat(s.pnl);
-            }
             let computed = 0;
             let found = false;
-            const ceSym = s.selected_ce || (s.orders && s.orders.CE && s.orders.CE.symbol);
-            const peSym = s.selected_pe || (s.orders && s.orders.PE && s.orders.PE.symbol);
-            if (window.latestNetPositions && Array.isArray(window.latestNetPositions)) {
+            const symbolsToCheck = new Set();
+            if (s.selected_ce) symbolsToCheck.add(s.selected_ce);
+            if (s.selected_pe) symbolsToCheck.add(s.selected_pe);
+            if (s.orders) {
+                if (s.orders.CE && s.orders.CE.symbol) symbolsToCheck.add(s.orders.CE.symbol);
+                if (s.orders.PE && s.orders.PE.symbol) symbolsToCheck.add(s.orders.PE.symbol);
+            }
+            if (s.adjustments && s.adjustments.active_orders) {
+                Object.values(s.adjustments.active_orders).forEach(a => {
+                    if (a.symbol) symbolsToCheck.add(a.symbol);
+                });
+            }
+
+            if (window.latestNetPositions && Array.isArray(window.latestNetPositions) && symbolsToCheck.size > 0) {
                 window.latestNetPositions.forEach(p => {
-                    if ((ceSym && p.tradingsymbol === ceSym) || (peSym && p.tradingsymbol === peSym)) {
+                    if (symbolsToCheck.has(p.tradingsymbol)) {
                         computed += parseFloat(p.pnl || p.m2m || 0);
                         found = true;
                     }
                 });
             }
-            return found ? computed : parseFloat(s.pnl || 0);
+            if (found) return computed;
+            if (s.pnl !== undefined && s.pnl !== null && parseFloat(s.pnl) !== 0) {
+                return parseFloat(s.pnl);
+            }
+            return parseFloat(s.pnl || 0);
         }
 
         // ═══════════════════════════════════════════════════════════════
@@ -4258,7 +4562,7 @@
         function buildPosInlineEditPanel(s) {
             const expOptions = buildExpirySelectOptions(s.index_name || 'NIFTY', s.expiry);
             return `
-            <div id="stratEditPanel_${s.id}" style="display: ${getStratInnerMode(s.id) === 'EDIT' ? 'block' : 'none'}; background: #fdfbf7; border: 1px solid var(--pastel-blue-border); border-radius: var(--radius-sm); padding: 16px; margin-top: 6px;">
+            <div id="stratEditPanel_${s.id}" style="display: block; background: #fdfbf7; border: 1px solid var(--pastel-blue-border); border-radius: var(--radius-sm); padding: 16px;">
                 <div style="font-size: 13px; font-weight: 800; color: var(--accent-light); margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between;">
                     <span>✏️ Edit Positional Strangle Configuration</span>
                     <span style="font-size: 10px; color: var(--text-muted); font-weight: 600;">Saved directly to strategy</span>
@@ -4359,7 +4663,7 @@
                 </div>
 
                 <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border-color);">
-                    <button type="button" class="btn-secondary" onclick="switchStratInnerMode('${s.id}', 'VIEW')" style="padding: 6px 14px; font-size: 12px; font-weight: 700;">❌ Cancel</button>
+                    <button type="button" class="btn-secondary" onclick="switchOpstraSubtab('${s.id}', 'PAYOFF')" style="padding: 6px 14px; font-size: 12px; font-weight: 700;">❌ Cancel</button>
                     <button type="button" class="btn-primary" onclick="saveInlinePosStrategy('${s.id}')" style="padding: 6px 18px; font-size: 12px; font-weight: 800; background: linear-gradient(135deg, #1e3a8a, #2563eb); border-color: #1e3a8a;">💾 Save Changes</button>
                 </div>
             </div>`;
@@ -4375,7 +4679,7 @@
             const tpVal = s.tp_value !== undefined ? s.tp_value : (s.total_tp_percent || 50);
 
             return `
-            <div id="stratEditPanel_${s.id}" style="display: ${getStratInnerMode(s.id) === 'EDIT' ? 'block' : 'none'}; background: #fdfbf7; border: 1px solid var(--pastel-blue-border); border-radius: var(--radius-sm); padding: 16px; margin-top: 6px;">
+            <div id="stratEditPanel_${s.id}" style="display: block; background: #fdfbf7; border: 1px solid var(--pastel-blue-border); border-radius: var(--radius-sm); padding: 16px;">
                 <div style="font-size: 13px; font-weight: 800; color: var(--accent-light); margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between;">
                     <span>✏️ Edit Straddle Total SL Configuration</span>
                     <span style="font-size: 10px; color: var(--text-muted); font-weight: 600;">Full inline configuration control</span>
@@ -4524,10 +4828,461 @@
                 </div>
 
                 <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border-color);">
-                    <button type="button" class="btn-secondary" onclick="switchStratInnerMode('${s.id}', 'VIEW')" style="padding: 6px 14px; font-size: 12px; font-weight: 700;">❌ Cancel</button>
+                    <button type="button" class="btn-secondary" onclick="switchOpstraSubtab('${s.id}', 'PAYOFF')" style="padding: 6px 14px; font-size: 12px; font-weight: 700;">❌ Cancel</button>
                     <button type="button" class="btn-primary" onclick="saveInlineStraddleStrategy('${s.id}')" style="padding: 6px 18px; font-size: 12px; font-weight: 800; background: linear-gradient(135deg, #1e3a8a, #2563eb); border-color: #1e3a8a;">💾 Save Changes</button>
                 </div>
             </div>`;
+        }
+
+        // ═══════════════════════════════════════════════════════════════
+        // OPSTRA ANALYTICS, PAYOFF DIAGRAMS & GREEKS ENGINE
+        // ═══════════════════════════════════════════════════════════════
+
+        const opstraSubtabState = {}; // stratId -> 'PAYOFF' | 'GREEKS' | 'PNL' | 'EDIT'
+        const opstraPayoffCharts = {}; // stratId -> Chart instance
+        const opstraChartSignatures = {}; // stratId -> last rendered signature
+        let posFilterInstrumentState = 'ALL';
+        let straddlePillFilterState = 'ALL';
+
+        function getOpstraSubtab(stratId) {
+            return opstraSubtabState[stratId] || 'PAYOFF';
+        }
+
+        function getStrategyChartSignature(strat, metrics) {
+            if (!strat || !metrics || !metrics.legs) return '';
+            const legsSig = (metrics.legs || []).map(l => `${l.type}_${l.strike}_${l.action}_${l.qty}_${l.entry.toFixed(2)}`).join('|');
+            const spotRef = Math.round(metrics.spot || 0);
+            return `${strat.id}_${strat.index_name}_${strat.expiry}_${legsSig}_${spotRef}`;
+        }
+
+        function switchOpstraSubtab(stratId, tabName) {
+            opstraSubtabState[stratId] = tabName;
+            
+            // Toggle tab buttons
+            const nav = document.getElementById(`opstraSubtabsNav_${stratId}`);
+            if (nav) {
+                nav.querySelectorAll('.opstra-subtab-btn').forEach(btn => {
+                    btn.classList.toggle('active', btn.dataset.tab === tabName);
+                });
+            }
+
+            // Toggle panes
+            const panes = ['payoff', 'greeks', 'pnl', 'edit'];
+            panes.forEach(p => {
+                const el = document.getElementById(`opstraPane_${p}_${stratId}`);
+                if (el) {
+                    el.style.display = (p.toUpperCase() === tabName) ? 'block' : 'none';
+                }
+            });
+
+            // If switching to payoff, trigger chart resize/render
+            if (tabName === 'PAYOFF') {
+                const strat = (loadedPosStrategies || []).find(s => s.id === stratId) || (loadedStraddleStrategies || []).find(s => s.id === stratId);
+                if (strat) {
+                    setTimeout(() => renderOpstraPayoffChart(stratId, strat), 50);
+                }
+            }
+        }
+
+        // Standard Normal cumulative distribution function (approximation) for POP
+        function standardNormalCDF(x) {
+            const t = 1.0 / (1.0 + 0.2316419 * Math.abs(x));
+            const d = 0.3989422804014327 * Math.exp(-x * x / 2.0);
+            let prob = d * t * (0.31938153 + t * (-0.356563782 + t * (1.781477937 + t * (-1.821255978 + t * 1.330274429))));
+            if (x > 0) prob = 1.0 - prob;
+            return prob;
+        }
+
+        function extractStrategyLegs(strat) {
+            const legs = [];
+            const isSell = (strat.entry_action || 'SELL').toUpperCase() === 'SELL';
+            const baseQty = parseInt(strat.quantity || getBrokerLotSize(strat.index_name || 'NIFTY'));
+
+            // Check if orders placed
+            const ceOrder = strat.orders && strat.orders.CE;
+            const peOrder = strat.orders && strat.orders.PE;
+
+            if (ceOrder && ceOrder.symbol) {
+                const strike = parseFloat(ceOrder.strike || strat.selected_ce_strike || (ceOrder.symbol.match(/\d+(?=CE)/) || [0])[0]);
+                const entry = parseFloat(ceOrder.entry_price || strat.selected_ce_ltp || 0);
+                const ltp = parseFloat(ceOrder.current_ltp || strat.selected_ce_ltp || entry);
+                const qty = parseInt(ceOrder.quantity || baseQty);
+                const action = (ceOrder.action || (isSell ? 'SELL' : 'BUY')).toUpperCase();
+                legs.push({ type: 'CE', strike, entry, ltp, qty, action, symbol: ceOrder.symbol, greeks: ceOrder.greeks });
+            } else if (strat.selected_ce || strat.selected_ce_strike || (strat.selected_strike && strat.leg_selection !== 'PE_ONLY')) {
+                const strike = parseFloat(strat.selected_ce_strike || strat.selected_strike || 0);
+                const entry = parseFloat(strat.selected_ce_ltp || strat.ce_premium || strat.ce_target_premium || 0);
+                const ltp = parseFloat(strat.selected_ce_ltp || entry);
+                const symbol = strat.selected_ce || `${strat.index_name || 'OPT'} ${strike} CE`;
+                legs.push({ type: 'CE', strike, entry, ltp, qty: baseQty, action: isSell ? 'SELL' : 'BUY', symbol, greeks: null });
+            }
+
+            if (peOrder && peOrder.symbol) {
+                const strike = parseFloat(peOrder.strike || strat.selected_pe_strike || (peOrder.symbol.match(/\d+(?=PE)/) || [0])[0]);
+                const entry = parseFloat(peOrder.entry_price || strat.selected_pe_ltp || 0);
+                const ltp = parseFloat(peOrder.current_ltp || strat.selected_pe_ltp || entry);
+                const qty = parseInt(peOrder.quantity || baseQty);
+                const action = (peOrder.action || (isSell ? 'SELL' : 'BUY')).toUpperCase();
+                legs.push({ type: 'PE', strike, entry, ltp, qty, action, symbol: peOrder.symbol, greeks: peOrder.greeks });
+            } else if (strat.selected_pe || strat.selected_pe_strike || (strat.selected_strike && strat.leg_selection !== 'CE_ONLY')) {
+                const strike = parseFloat(strat.selected_pe_strike || strat.selected_strike || 0);
+                const entry = parseFloat(strat.selected_pe_ltp || strat.pe_premium || strat.pe_target_premium || 0);
+                const ltp = parseFloat(strat.selected_pe_ltp || entry);
+                const symbol = strat.selected_pe || `${strat.index_name || 'OPT'} ${strike} PE`;
+                legs.push({ type: 'PE', strike, entry, ltp, qty: baseQty, action: isSell ? 'SELL' : 'BUY', symbol, greeks: null });
+            }
+
+            // Also include active adjustment legs if present
+            if (strat.adjustments && strat.adjustments.active_orders) {
+                Object.values(strat.adjustments.active_orders).forEach(adj => {
+                    if (adj.status === 'ACTIVE' && adj.symbol) {
+                        const isCE = adj.symbol.toUpperCase().includes('CE');
+                        const strikeMatch = adj.symbol.match(/\d+(?=(CE|PE))/);
+                        const strike = strikeMatch ? parseFloat(strikeMatch[0]) : 0;
+                        legs.push({
+                            type: isCE ? 'CE' : 'PE',
+                            strike: strike,
+                            entry: parseFloat(adj.entry_price || 0),
+                            ltp: parseFloat(adj.current_ltp || adj.entry_price || 0),
+                            qty: parseInt(adj.quantity || baseQty),
+                            action: (adj.action || 'SELL').toUpperCase(),
+                            symbol: adj.symbol,
+                            greeks: adj.greeks
+                        });
+                    }
+                });
+            }
+
+            return legs;
+        }
+
+        function calculateOpstraMetrics(strat) {
+            const legs = extractStrategyLegs(strat);
+            const spot = parseFloat(strat.underlying_ltp || strat.base_spot_entry || strat.entry_underlying_ltp || strat.underlying_calc_ltp || 0);
+            
+            if (legs.length === 0 || !legs.some(l => l.strike > 0)) {
+                return {
+                    hasData: false,
+                    pop: '--',
+                    maxProfit: '--',
+                    maxLoss: '--',
+                    rrRatio: '--',
+                    breakevens: ['--'],
+                    totalPnl: getStrategyPnl(strat),
+                    netCredit: 0,
+                    estMargin: '--',
+                    spot: spot || 0,
+                    legs: legs
+                };
+            }
+
+            // Calculate Net Credit / Debit
+            let netCashflow = 0;
+            let totalLotQty = 0;
+            legs.forEach(l => {
+                const cost = (l.entry > 0 ? l.entry : l.ltp) * l.qty;
+                if (l.action === 'SELL') {
+                    netCashflow += cost;
+                } else {
+                    netCashflow -= cost;
+                }
+                totalLotQty = Math.max(totalLotQty, l.qty);
+            });
+
+            // Calculate Spot Reference (if spot is 0, estimate from strikes)
+            let effectiveSpot = spot;
+            if (!effectiveSpot || effectiveSpot <= 0) {
+                const strikes = legs.map(l => l.strike).filter(k => k > 0);
+                if (strikes.length > 0) {
+                    effectiveSpot = strikes.reduce((a, b) => a + b, 0) / strikes.length;
+                } else {
+                    effectiveSpot = 24000; // reasonable fallback
+                }
+            }
+
+            // Sweep spot prices across +/- 15% in steps of 0.25%
+            const minSpot = Math.floor(effectiveSpot * 0.85);
+            const maxSpot = Math.ceil(effectiveSpot * 1.15);
+            const step = Math.max(10, Math.round((maxSpot - minSpot) / 120));
+
+            const spotPoints = [];
+            const expiryPayouts = [];
+            let maxP = -Infinity;
+            let minP = Infinity;
+            const beCrossings = [];
+
+            let prevPnl = null;
+            let prevS = null;
+
+            for (let s = minSpot; s <= maxSpot; s += step) {
+                let payoutAtS = 0;
+                legs.forEach(l => {
+                    const prem = (l.entry > 0 ? l.entry : l.ltp);
+                    let intrinsic = 0;
+                    if (l.type === 'CE') {
+                        intrinsic = Math.max(0, s - l.strike);
+                    } else {
+                        intrinsic = Math.max(0, l.strike - s);
+                    }
+
+                    if (l.action === 'SELL') {
+                        payoutAtS += (prem - intrinsic) * l.qty;
+                    } else {
+                        payoutAtS += (intrinsic - prem) * l.qty;
+                    }
+                });
+
+                spotPoints.push(s);
+                expiryPayouts.push(payoutAtS);
+
+                if (payoutAtS > maxP) maxP = payoutAtS;
+                if (payoutAtS < minP) minP = payoutAtS;
+
+                // Check for breakeven zero crossing
+                if (prevPnl !== null) {
+                    if ((prevPnl < 0 && payoutAtS >= 0) || (prevPnl >= 0 && payoutAtS < 0)) {
+                        // linear interpolation
+                        const fraction = Math.abs(prevPnl) / (Math.abs(prevPnl) + Math.abs(payoutAtS) + 0.0001);
+                        const bePrice = prevS + fraction * (s - prevS);
+                        beCrossings.push(Math.round(bePrice));
+                    }
+                }
+                prevPnl = payoutAtS;
+                prevS = s;
+            }
+
+            // Estimate Probability of Profit (POP)
+            let popStr = '68%';
+            if (beCrossings.length >= 2) {
+                const lowBe = Math.min(...beCrossings);
+                const highBe = Math.max(...beCrossings);
+                const iv = parseFloat((strat.greeks && strat.greeks.avg_iv) || 14) / 100;
+                const dte = Math.max(1, parseInt(strat.exit_days_to_expiry || 7));
+                const tYear = dte / 365.0;
+                const sigma = effectiveSpot * iv * Math.sqrt(tYear);
+
+                if (sigma > 0) {
+                    const zLow = (lowBe - effectiveSpot) / sigma;
+                    const zHigh = (highBe - effectiveSpot) / sigma;
+                    const cdfLow = standardNormalCDF(zLow);
+                    const cdfHigh = standardNormalCDF(zHigh);
+                    const prob = Math.min(99, Math.max(1, Math.round((cdfHigh - cdfLow) * 100)));
+                    popStr = `${prob}%`;
+                }
+            } else if (beCrossings.length === 1) {
+                popStr = '52%';
+            }
+
+            // Max Profit / Max Loss display
+            const isUncappedProfit = (expiryPayouts[0] > maxP * 0.95 && expiryPayouts[expiryPayouts.length - 1] > maxP * 0.95);
+            const isUncappedLoss = (expiryPayouts[0] < -500000 || expiryPayouts[expiryPayouts.length - 1] < -500000 || minP < -1000000);
+
+            const maxProfitStr = isUncappedProfit ? 'Unlimited' : `₹${Math.round(maxP).toLocaleString('en-IN')}`;
+            const maxLossStr = isUncappedLoss ? 'Undefined' : `₹${Math.round(Math.abs(minP)).toLocaleString('en-IN')}`;
+
+            let rrRatio = 'NA';
+            if (!isUncappedProfit && !isUncappedLoss && minP !== 0) {
+                const ratio = Math.abs(maxP / minP).toFixed(2);
+                rrRatio = `1:${ratio}`;
+            }
+
+            // Estimated Margin Calculation
+            const lotSize = getBrokerLotSize(strat.index_name || 'NIFTY');
+            const numLots = Math.max(1, Math.round(totalLotQty / lotSize));
+            const marginPerLot = (strat.index_name === 'BANKNIFTY' ? 85000 : 75000);
+            const estMargin = `₹${((numLots * marginPerLot) / 100000).toFixed(2)} L`;
+
+            return {
+                hasData: true,
+                pop: popStr,
+                maxProfit: maxProfitStr,
+                maxLoss: maxLossStr,
+                rrRatio: rrRatio,
+                breakevens: beCrossings.length > 0 ? beCrossings : ['--'],
+                totalPnl: getStrategyPnl(strat),
+                netCredit: netCashflow,
+                estMargin: estMargin,
+                spot: effectiveSpot,
+                spotPoints: spotPoints,
+                expiryPayouts: expiryPayouts,
+                legs: legs
+            };
+        }
+
+        function renderOpstraPayoffChart(stratId, strat) {
+            const canvas = document.getElementById(`opstraPayoffCanvas_${stratId}`);
+            if (!canvas) return;
+
+            const metrics = calculateOpstraMetrics(strat);
+            if (!metrics.hasData || !metrics.spotPoints) return;
+
+            const newSignature = getStrategyChartSignature(strat, metrics);
+            const existingChart = opstraPayoffCharts[stratId];
+
+            // If chart already exists and its structural curve parameters haven't changed, skip replotting
+            if (existingChart && opstraChartSignatures[stratId] === newSignature) {
+                return;
+            }
+
+            const zeroLine = metrics.spotPoints.map(() => 0);
+
+            // If chart exists, smoothly update its data without destroying and flashing canvas
+            if (existingChart && canvas.dataset.initialized === 'true') {
+                try {
+                    existingChart.data.labels = metrics.spotPoints;
+                    existingChart.data.datasets[0].data = metrics.expiryPayouts;
+                    existingChart.data.datasets[1].data = zeroLine;
+                    existingChart.update('none'); // Update without animation to remain perfectly static
+                    opstraChartSignatures[stratId] = newSignature;
+                    return;
+                } catch(e) {
+                    try { existingChart.destroy(); } catch(err){}
+                }
+            }
+
+            // Destroy existing chart before new instantiation
+            if (opstraPayoffCharts[stratId]) {
+                try { opstraPayoffCharts[stratId].destroy(); } catch(e){}
+            }
+
+            const ctx = canvas.getContext('2d');
+            canvas.dataset.initialized = 'true';
+
+            opstraPayoffCharts[stratId] = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: metrics.spotPoints,
+                    datasets: [
+                        {
+                            label: 'Expiry P&L (₹)',
+                            data: metrics.expiryPayouts,
+                            borderColor: '#0284c7',
+                            borderWidth: 2.5,
+                            pointRadius: 0,
+                            tension: 0.1,
+                            fill: {
+                                target: 'origin',
+                                above: 'rgba(34, 197, 94, 0.15)',
+                                below: 'rgba(239, 68, 68, 0.15)'
+                            }
+                        },
+                        {
+                            label: 'Breakeven Zero Line',
+                            data: zeroLine,
+                            borderColor: '#94a3b8',
+                            borderWidth: 1,
+                            borderDash: [4, 4],
+                            pointRadius: 0,
+                            fill: false
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: false, // Static display without recurring animations
+                    interaction: {
+                        mode: 'index',
+                        intersect: false
+                    },
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'top',
+                            labels: {
+                                boxWidth: 12,
+                                font: { size: 10, weight: '700' }
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                title: function(context) {
+                                    return `Spot: ₹${Number(context[0].label).toLocaleString('en-IN')}`;
+                                },
+                                label: function(context) {
+                                    const val = Number(context.raw || 0);
+                                    return `Payout: ₹${Math.round(val).toLocaleString('en-IN')}`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            grid: { color: 'rgba(226, 232, 240, 0.6)' },
+                            ticks: {
+                                maxTicksLimit: 8,
+                                font: { size: 10, family: 'JetBrains Mono' },
+                                callback: function(val) {
+                                    return `₹${Math.round(this.getLabelForValue(val))}`;
+                                }
+                            }
+                        },
+                        y: {
+                            grid: { color: 'rgba(226, 232, 240, 0.6)' },
+                            ticks: {
+                                font: { size: 10, family: 'JetBrains Mono' },
+                                callback: function(val) {
+                                    return `₹${val >= 0 ? '+' : ''}${Math.round(val).toLocaleString('en-IN')}`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+
+            opstraChartSignatures[stratId] = newSignature;
+        }
+
+        function setPosFilterInstrument(inst) {
+            posFilterInstrumentState = inst;
+            document.querySelectorAll('#posFilterBar .opstra-pill-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.inst === inst);
+            });
+            renderPosInstrumentGroups(loadedPosStrategies);
+        }
+
+        function setStraddlePillFilter(inst) {
+            straddlePillFilterState = inst;
+            document.querySelectorAll('#straddleFilterBar .opstra-pill-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.inst === inst);
+            });
+            if (document.getElementById('straddleFilterInstrument')) {
+                document.getElementById('straddleFilterInstrument').value = inst;
+            }
+            applyStraddleFilters();
+        }
+
+        function expandAllCards(scope) {
+            const container = (scope === 'POS') ? document.getElementById('posInstrumentGroupsContainer') : document.getElementById('straddleInstrumentGroupsContainer');
+            if (!container) return;
+            container.querySelectorAll('.opstra-strat-card').forEach(card => {
+                const id = card.dataset.stratId;
+                if (id) toggleStrategyCard(id, true);
+            });
+        }
+
+        function collapseAllCards(scope) {
+            const container = (scope === 'POS') ? document.getElementById('posInstrumentGroupsContainer') : document.getElementById('straddleInstrumentGroupsContainer');
+            if (!container) return;
+            container.querySelectorAll('.opstra-strat-card').forEach(card => {
+                const id = card.dataset.stratId;
+                if (id) {
+                    stratCardCollapseState[id] = true;
+                    try { localStorage.setItem('tbs_strat_card_collapse_state', JSON.stringify(stratCardCollapseState)); } catch(e){}
+                    const body = document.getElementById(`stratCardBody_${id}`);
+                    const chevron = document.getElementById(`stratCardChevron_${id}`);
+                    if (body) body.style.display = 'none';
+                    if (chevron) chevron.classList.add('collapsed');
+                }
+            });
+        }
+
+        function selectAllCards(scope) {
+            const container = (scope === 'POS') ? document.getElementById('posInstrumentGroupsContainer') : document.getElementById('straddleInstrumentGroupsContainer');
+            if (!container) return;
+            const checkboxes = container.querySelectorAll('.opstra-card-chk');
+            const allChecked = Array.from(checkboxes).every(c => c.checked);
+            checkboxes.forEach(c => { c.checked = !allChecked; });
         }
 
         // ═══════════════════════════════════════════════════════════════
@@ -6320,7 +7075,12 @@
                         }
                     }
 
-                    const strikesHtml = s.selected_ce
+                    const ceSym = s.selected_ce || (s.orders && s.orders.CE && s.orders.CE.symbol) || '--';
+                    const ceLtp = parseFloat((s.orders && s.orders.CE && s.orders.CE.current_ltp) || s.selected_ce_ltp || 0).toFixed(2);
+                    const peSym = s.selected_pe || (s.orders && s.orders.PE && s.orders.PE.symbol) || '--';
+                    const peLtp = parseFloat((s.orders && s.orders.PE && s.orders.PE.current_ltp) || s.selected_pe_ltp || 0).toFixed(2);
+
+                    const strikesHtml = (s.selected_ce || (s.orders && s.orders.CE && s.orders.CE.symbol))
                         ? `<div style="margin-top: 8px; padding: 8px; background: var(--pastel-blue-bg); border-radius: 6px; border: 1px solid var(--pastel-blue-border); font-size: 11px;">
                             <div style="font-weight: 700; color: var(--pastel-blue-dark); margin-bottom: 4px; display: flex; justify-content: space-between;">
                                 <span>📍 Selected Option Strikes</span>
@@ -6328,11 +7088,11 @@
                             </div>
                             <div style="display: flex; justify-content: space-between; margin-bottom: 2px;">
                                 <span style="color: #3b8a59; font-weight: 700;">CE ↑ ${ceBeTag}</span>
-                                <span style="font-family: monospace; color: var(--text-primary); font-weight: 700;">${s.selected_ce} &nbsp; ₹${parseFloat(s.selected_ce_ltp || 0).toFixed(2)}</span>
+                                <span style="font-family: monospace; color: var(--text-primary); font-weight: 700;">${ceSym} &nbsp; ₹${ceLtp}</span>
                             </div>
                             <div style="display: flex; justify-content: space-between;">
                                 <span style="color: #cc8420; font-weight: 700;">PE ↓ ${peBeTag}</span>
-                                <span style="font-family: monospace; color: var(--text-primary); font-weight: 700;">${s.selected_pe} &nbsp; ₹${parseFloat(s.selected_pe_ltp || 0).toFixed(2)}</span>
+                                <span style="font-family: monospace; color: var(--text-primary); font-weight: 700;">${peSym} &nbsp; ₹${peLtp}</span>
                             </div>
                         </div>`
                         : `<div style="margin-top: 8px; padding: 8px; background: var(--pastel-blue-bg); border-radius: 6px; border: 1px dashed var(--pastel-blue-border); font-size: 11px; color: var(--pastel-blue-dark); text-align: center; font-weight: 600;">
@@ -6986,14 +7746,18 @@
             document.getElementById('posLastChecked').textContent = `Sync: ${new Date().toLocaleTimeString('en-IN')}`;
         }
 
+        let lastPosRenderSignature = '';
+
         function renderPosInstrumentGroups(strategies) {
             const container = document.getElementById('posInstrumentGroupsContainer');
+            if (!container) return;
 
             if (inlineEditingStratIds.size > 0 && Array.from(inlineEditingStratIds).some(id => (strategies || []).some(s => s.id === id))) {
                 return; // Pause re-rendering while user is editing an inline card in Tab 5
             }
 
             if (!strategies || strategies.length === 0) {
+                lastPosRenderSignature = '';
                 container.innerHTML = `
                     <div class="card" style="text-align: center; padding: 32px; color: var(--text-muted);">
                         <p style="font-size: 14px; margin-bottom: 8px;">No Positional Strangle strategies created yet.</p>
@@ -7004,203 +7768,386 @@
                 return;
             }
 
-            // Group strategies by Instrument
-            const groups = {};
-            strategies.forEach(s => {
-                const idx = s.index_name || 'NIFTY';
-                if (!groups[idx]) groups[idx] = [];
-                groups[idx].push(s);
-            });
-
             // Update Tab status badge with count of active positional strangles
             const activeCount = strategies.filter(s => s.active).length;
             const tabBadge = document.getElementById('posStatusBadge');
-            tabBadge.textContent = activeCount > 0 ? `${activeCount} Active` : `${strategies.length} Strats`;
-            tabBadge.style.background = activeCount > 0 ? '#dcfce7' : '#e0f2fe';
-            tabBadge.style.color = activeCount > 0 ? '#15803d' : '#0369a1';
+            if (tabBadge) {
+                tabBadge.textContent = activeCount > 0 ? `${activeCount} Active` : `${strategies.length} Strats`;
+                tabBadge.style.background = activeCount > 0 ? '#dcfce7' : '#e0f2fe';
+                tabBadge.style.color = activeCount > 0 ? '#15803d' : '#0369a1';
+            }
 
-            container.innerHTML = Object.keys(groups).map(instrumentName => {
-                const list = groups[instrumentName];
-                const instPnl = list.reduce((acc, curr) => acc + (parseFloat(curr.pnl) || 0), 0);
+            // Calculate overall Portfolio PnL for top bar
+            const totalPosPnl = strategies.reduce((acc, curr) => acc + (parseFloat(getStrategyPnl(curr)) || 0), 0);
 
-                const cardsHtml = list.map(s => {
-                    const isActive = s.active;
-                    const statusClass = isActive ? 'connected' : 'disconnected';
-                    const statusText = s.status || (isActive ? 'Active' : 'Idle');
-                    const isCollapsed = isStrategyCardCollapsed(s.id);
+            // Filter strategies based on Instrument pill
+            const filteredStrats = strategies.filter(s => {
+                if (posFilterInstrumentState !== 'ALL') {
+                    return (s.index_name || '').toUpperCase() === posFilterInstrumentState.toUpperCase();
+                }
+                return true;
+            });
+
+            // Compute structural signature (cards list, active status, subtabs, filter)
+            const currentStructureSignature = JSON.stringify({
+                filter: posFilterInstrumentState,
+                strats: filteredStrats.map(s => ({
+                    id: s.id,
+                    name: s.name,
+                    active: s.active,
+                    index: s.index_name,
+                    exp: s.expiry,
+                    qty: s.quantity,
+                    legs: (extractStrategyLegs(s) || []).map(l => `${l.symbol}_${l.strike}_${l.action}_${l.qty}`),
+                    collapsed: isStrategyCardCollapsed(s.id),
+                    subtab: getOpstraSubtab(s.id),
+                    mode: getStratInnerMode(s.id)
+                }))
+            });
+
+            // If structure is identical and container already has cards rendered, perform in-place updates without tearing DOM
+            const existingCards = container.querySelectorAll('.opstra-strat-card');
+            if (lastPosRenderSignature === currentStructureSignature && existingCards.length === filteredStrats.length) {
+                // Update total PnL in top filter bar
+                const totalPnlEl = container.querySelector('#posFilterBar .opstra-total-pnl-val');
+                if (totalPnlEl) {
+                    totalPnlEl.className = `opstra-total-pnl-val ${getPnlClass(totalPosPnl)}`;
+                    totalPnlEl.textContent = formatPnl(totalPosPnl);
+                }
+
+                // Update dynamic values on each card
+                filteredStrats.forEach(s => {
+                    const card = container.querySelector(`.opstra-strat-card[data-strat-id="${s.id}"]`);
+                    if (!card) return;
+
                     const pnl = getStrategyPnl(s);
-                    const innerMode = getStratInnerMode(s.id);
+                    const pnlEl = card.querySelector('.opstra-header-pnl');
+                    if (pnlEl) {
+                        pnlEl.className = `opstra-header-pnl ${getPnlClass(pnl)}`;
+                        pnlEl.textContent = formatPnl(pnl);
+                    }
 
-                    const ceSym = s.selected_ce || (s.orders && s.orders.CE && s.orders.CE.symbol) || '--';
-                    const ceLtp = parseFloat(s.selected_ce_ltp || (s.orders && s.orders.CE && s.orders.CE.current_ltp) || 0).toFixed(2);
-                    const ceEntry = parseFloat(s.orders && s.orders.CE && s.orders.CE.entry_price || 0).toFixed(2);
+                    const spotLtp = parseFloat(s.underlying_ltp || s.base_spot_entry || 0);
+                    const spotEl = card.querySelector('.opstra-header-spot');
+                    if (spotEl && spotLtp > 0) {
+                        spotEl.textContent = `₹${spotLtp.toLocaleString('en-IN', { maximumFractionDigits: 1 })}`;
+                    }
 
-                    const peSym = s.selected_pe || (s.orders && s.orders.PE && s.orders.PE.symbol) || '--';
-                    const peLtp = parseFloat(s.selected_pe_ltp || (s.orders && s.orders.PE && s.orders.PE.current_ltp) || 0).toFixed(2);
-                    const peEntry = parseFloat(s.orders && s.orders.PE && s.orders.PE.entry_price || 0).toFixed(2);
+                    // Only update payoff chart smoothly if user is on PAYOFF subtab and chart exists
+                    if (!isStrategyCardCollapsed(s.id) && getOpstraSubtab(s.id) === 'PAYOFF') {
+                        renderOpstraPayoffChart(s.id, s);
+                    }
+                });
+                return;
+            }
 
-                    const actionBadge = s.entry_action === 'BUY'
-                        ? `<span style="background: #e6f4ea; color: #137333; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 4px; border: 1px solid #ceead6;">🟢 BUY (Long)</span>`
-                        : `<span style="background: #fce8e6; color: #c5221f; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 4px; border: 1px solid #fad2cf;">🔴 SELL (Short)</span>`;
+            lastPosRenderSignature = currentStructureSignature;
 
-                    const reentryDoneCE = (s.orders && s.orders.CE && s.orders.CE.reentries_done) || 0;
-                    const reentryDonePE = (s.orders && s.orders.PE && s.orders.PE.reentries_done) || 0;
-                    const maxReentry = s.reentry_count !== undefined ? s.reentry_count : 1;
+            const cardsHtml = filteredStrats.map(s => {
+                const isActive = s.active;
+                const isCollapsed = isStrategyCardCollapsed(s.id);
+                const pnl = getStrategyPnl(s);
+                const currentSubtab = getOpstraSubtab(s.id);
+                const metrics = calculateOpstraMetrics(s);
+                const lotSize = getBrokerLotSize(s.index_name || 'NIFTY');
+                const totalLots = Math.max(1, Math.round((s.quantity || lotSize) / lotSize));
 
-                    const hasCalculatedStrikes = Boolean(s.selected_ce || s.selected_pe || (s.orders && ((s.orders.CE && s.orders.CE.symbol) || (s.orders.PE && s.orders.PE.symbol))));
+                const spotLtp = parseFloat(s.underlying_ltp || s.base_spot_entry || metrics.spot || 0);
+                const spotDiffPct = (s.base_spot_entry && s.underlying_ltp) ? ((s.underlying_ltp - s.base_spot_entry) / s.base_spot_entry * 100).toFixed(2) : '0.00';
+                const spotDiffSign = parseFloat(spotDiffPct) >= 0 ? '+' : '';
 
-                    const strikesBoxHtml = hasCalculatedStrikes
-                        ? `<div style="background: #f8faf9; padding: 12px; border-radius: var(--radius-sm); border: 1px solid var(--border-color); font-size: 11px; margin-bottom: 12px;">
-                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-                                <span style="color: #137333; font-weight: 800;">CE ↑ ${s.selected_ce_strike && s.selected_ce_strike !== '--' ? `Strike ${s.selected_ce_strike}` : ''}</span>
-                                <span style="font-family: monospace; font-weight: 700; color: var(--text-primary);">${ceSym}</span>
-                            </div>
-                            <div style="display: flex; justify-content: space-between; color: var(--text-muted); font-size: 10px; margin-bottom: 8px;">
-                                <span>LTP: <b style="color: var(--text-primary); font-family: monospace;">₹${ceLtp}</b></span>
-                                <span>Entry: ₹${ceEntry}</span>
-                            </div>
-
-                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-                                <span style="color: #c5221f; font-weight: 800;">PE ↓ ${s.selected_pe_strike && s.selected_pe_strike !== '--' ? `Strike ${s.selected_pe_strike}` : ''}</span>
-                                <span style="font-family: monospace; font-weight: 700; color: var(--text-primary);">${peSym}</span>
-                            </div>
-                            <div style="display: flex; justify-content: space-between; color: var(--text-muted); font-size: 10px;">
-                                <span>LTP: <b style="color: var(--text-primary); font-family: monospace;">₹${peLtp}</b></span>
-                                <span>Entry: ₹${peEntry}</span>
-                            </div>
-                        </div>`
-                        : `<div style="margin-bottom: 12px; padding: 10px; background: var(--pastel-blue-bg); border-radius: 6px; border: 1px dashed var(--pastel-blue-border); font-size: 11px; color: var(--pastel-blue-dark); text-align: center; font-weight: 600;">
-                            🎯 Strikes not calculated — click <b>🔍 Calc</b>
-                        </div>`;
-
-                    const isOrdersPlaced = s.orders && s.orders.orders_placed;
-                    const positionBadge = isOrdersPlaced
-                        ? `<span style="background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 4px;">🟢 Position ON (Holding)</span>`
-                        : (isActive ? `<span style="background: #fef9c3; color: #854d0e; border: 1px solid #fef08a; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 4px;">⏳ Awaiting Entry (${s.entry_time || '15:00:00'})</span>` : '');
-
-                    const posLotSize = getBrokerLotSize(s.index_name || 'NIFTY');
-                    const posTotalLots = Math.max(1, Math.round((s.quantity || posLotSize) / posLotSize));
-                    const posLotBadge = `<span style="background: #f8fafc; color: #475569; border: 1px solid #cbd5e1; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 4px;" title="Strategy Lot Size">📦 ${s.quantity || posLotSize} Qty (${posTotalLots} Lot${posTotalLots > 1 ? 's' : ''})</span>`;
-
+                // Render Left Column Legs Checklist
+                const legsHtml = metrics.legs.map(leg => {
+                    const badgeClass = leg.action === 'SELL' ? 'opstra-badge-s' : 'opstra-badge-b';
+                    const legPnl = (leg.entry && leg.ltp) ? (leg.action === 'SELL' ? (leg.entry - leg.ltp) * leg.qty : (leg.ltp - leg.entry) * leg.qty) : 0;
                     return `
-                    <div class="card strat-card" data-strat-id="${s.id}" data-group-id="${instrumentName}" style="border-top: 3px solid ${isActive ? 'var(--success)' : 'var(--border-color)'}; padding: 0;">
-                        <!-- Collapsible Header Summary Strip -->
-                        <div class="strat-card-header" onclick="toggleStrategyCard('${s.id}')">
-                            <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
-                                <span id="stratCardChevron_${s.id}" class="strat-card-chevron ${isCollapsed ? 'collapsed' : ''}">▼</span>
-                                <span style="font-size: 14px; font-weight: 800; color: var(--text-primary);">${s.name || 'Positional Strangle'}</span>
-                                <span style="background: var(--pastel-blue-bg); color: var(--pastel-blue-dark); border: 1px solid var(--pastel-blue-border); font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 4px;">${s.index_name}</span>
-                                <span style="background: #ffffff; color: var(--text-secondary); border: 1px solid var(--border-color); font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: 4px;">${s.product || 'NRML'}</span>
-                                ${posLotBadge}
-                                ${actionBadge}
-                                ${positionBadge}
-                                ${maxReentry > 0 ? `<span style="background: #ede9fe; color: #6d28d9; border: 1px solid #ddd6fe; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 4px;">🔄 Re-entry: ${maxReentry}x</span>` : ''}
-                                ${s.enable_tsl ? `<span style="background: #fef3c7; color: #92400e; border: 1px solid #fde68a; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 4px;">🎯 TSL: ${s.tsl_points || 10} pts</span>` : ''}
-                                <span class="status-pill ${statusClass}" style="margin: 0; padding: 2px 8px; font-size: 10px;">
-                                    <span class="status-dot"></span>
-                                    <span>${statusText}</span>
-                                </span>
-                            </div>
-
-                            <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
-                                <span style="background: #f8fafc; color: #334155; border: 1px solid #cbd5e1; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 6px; font-family: monospace;" title="Expiry Date">
-                                    📅 ${formatStrategyExpiry(s)}
-                                </span>
-                                ${formatStrategyDelta(s)}
-                                <div style="display: flex; align-items: center; gap: 5px;">
-                                    <span style="font-size: 11px; color: var(--text-secondary); font-weight: 600;">Pos MTM:</span>
-                                    <span class="${getPnlClass(pnl)}" style="font-family: 'JetBrains Mono', monospace; font-size: 14px; font-weight: 800; padding: 2px 8px; border-radius: 6px; background: #ffffff; border: 1px solid var(--border-color); white-space: nowrap;">${formatPnl(pnl)}</span>
-                                </div>
-
-                                <!-- Quick Action Buttons -->
-                                <div style="display: flex; gap: 5px; align-items: center;" onclick="event.stopPropagation()">
-                                    <button onclick="togglePosStrategy('${s.id}')" class="btn-primary" style="padding: 4px 10px; font-size: 11px; width: auto; background: ${isActive ? 'linear-gradient(135deg, var(--error), #b8433e)' : 'linear-gradient(135deg, #238636, #1c7430)'};">
-                                        ${isActive ? '🛑 Stop' : '▶️ Run'}
-                                    </button>
-                                    <button onclick="calculatePosStrikesFor('${s.id}')" class="btn-secondary" style="padding: 4px 8px; font-size: 11px; width: auto;" title="Calculate CE & PE Strikes">🔍 Calc</button>
-                                    <button onclick="squareoffPosStrategy('${s.id}')" class="btn-secondary" style="padding: 4px 8px; font-size: 11px; width: auto; color: var(--error);" title="Square Off open legs">⚡ Exit</button>
-                                    <button onclick="toggleStrategyInlineEdit('POS', '${s.id}')" class="btn-secondary" style="padding: 4px 8px; font-size: 11px; width: auto; background: ${innerMode === 'EDIT' ? 'var(--pastel-blue-bg)' : '#ffffff'}; color: ${innerMode === 'EDIT' ? 'var(--pastel-blue-dark)' : 'inherit'}; font-weight: 700;" title="Edit Strategy directly within card">✏️ Edit</button>
-                                    <button onclick="deletePosStrategy('${s.id}')" class="btn-secondary" style="padding: 4px 8px; font-size: 11px; width: auto; color: var(--error);" title="Delete Strategy">🗑️</button>
-                                </div>
-                            </div>
+                    <div class="opstra-leg-item">
+                        <div style="display: flex; align-items: center; gap: 6px;">
+                            <input type="checkbox" checked style="cursor: pointer;">
+                            <span class="${badgeClass}">${leg.action === 'SELL' ? 'S' : 'B'}</span>
+                            <span style="font-weight: 700; color: #334155;">${totalLots}x</span>
+                            <span style="font-weight: 700; color: #0f172a;">${s.index_name} ${formatStrategyExpiry(s)} ${leg.strike} ${leg.type}</span>
                         </div>
-
-                        <!-- Collapsible Body Content -->
-                        <div id="stratCardBody_${s.id}" class="strat-card-body" style="display: ${isCollapsed ? 'none' : 'block'}; padding: 14px 18px 18px 18px; border-top: 1px solid var(--border-color);">
-                            <!-- Inner Tabs: Live Monitor vs Edit Strategy -->
-                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--border-color); flex-wrap: wrap; gap: 8px;">
-                                <div style="display: flex; gap: 6px;">
-                                    <button type="button" id="btnModeView_${s.id}" onclick="switchStratInnerMode('${s.id}', 'VIEW')" class="btn-secondary" style="font-size: 11px; font-weight: ${innerMode === 'VIEW' ? '800' : '600'}; padding: 4px 10px; ${innerMode === 'VIEW' ? 'background: var(--pastel-blue-bg); color: var(--pastel-blue-dark); border-color: var(--pastel-blue-border);' : 'background: #ffffff; color: var(--text-secondary);'}">
-                                        📊 Live Monitor
-                                    </button>
-                                    <button type="button" id="btnModeEdit_${s.id}" onclick="switchStratInnerMode('${s.id}', 'EDIT')" class="btn-secondary" style="font-size: 11px; font-weight: ${innerMode === 'EDIT' ? '800' : '600'}; padding: 4px 10px; ${innerMode === 'EDIT' ? 'background: var(--pastel-blue-bg); color: var(--pastel-blue-dark); border-color: var(--pastel-blue-border);' : 'background: #ffffff; color: var(--text-secondary);'}">
-                                        ✏️ Edit Strategy
-                                    </button>
-                                </div>
-                                <span style="font-size: 11px; color: var(--text-secondary); font-family: monospace;">ID: ${s.id}</span>
-                            </div>
-
-                            <!-- Live Monitor View Panel -->
-                            <div id="stratViewPanel_${s.id}" style="display: ${innerMode === 'VIEW' ? 'block' : 'none'};">
-                                <div style="background: #ffffff; padding: 12px; border-radius: var(--radius-sm); font-size: 12px; margin-bottom: 8px; border: 1px solid var(--border-color);">
-                                    <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
-                                        <span style="color: var(--text-secondary); font-weight: 600;">Schedule:</span>
-                                        <span style="font-family: 'JetBrains Mono', monospace; font-weight: 700; color: var(--accent-light); font-size: 11px;">⏰ ${s.entry_time || '15:00:00'} | 🌅 SL: ${s.morning_sl_time || '09:17:00'} | 🔔 ${s.exit_time || '15:15:00'}</span>
-                                    </div>
-                                    <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
-                                        <span style="color: var(--text-secondary); font-weight: 600;">Expiry:</span>
-                                        <span style="font-family: monospace; font-weight: 700; color: var(--text-primary);">
-                                            ${s.expiry === 'CURRENT' || s.expiry === 'CURRENT_MONTH' ? '⚡ Current Month' + (s.resolved_expiry ? ` (${s.resolved_expiry})` : '') :
-                                s.expiry === 'NEXT' || s.expiry === 'NEXT_MONTH' ? '📅 Next Month' + (s.resolved_expiry ? ` (${s.resolved_expiry})` : '') :
-                                    (s.expiry || '--')}
-                                        </span>
-                                    </div>
-                                    <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
-                                        <span style="color: var(--text-secondary); font-weight: 600;">Target Premiums:</span>
-                                        <span style="font-family: 'JetBrains Mono', monospace; font-weight: 700;">CE ₹${s.ce_premium || 80} | PE ₹${s.pe_premium || 80}</span>
-                                    </div>
-                                    <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
-                                        <span style="color: var(--text-secondary); font-weight: 600;">Leg SL / Target:</span>
-                                        <span style="font-weight: 700; color: var(--accent-light);">CE ${s.ce_sl_percent || s.sl_percent || 50}% / PE ${s.pe_sl_percent || s.sl_percent || 50}% | ${s.tp_percent || 70}% TP</span>
-                                    </div>
-                                    <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
-                                        <span style="color: var(--text-secondary); font-weight: 600;">TSL &amp; Re-entry:</span>
-                                        <span style="color: var(--text-primary); font-weight: 600;">TSL: ${s.enable_tsl ? `${s.tsl_points || 10} pts` : 'OFF'} | Re-entry: ${reentryDoneCE} CE / ${reentryDonePE} PE done</span>
-                                    </div>
-                                    <div style="display: flex; justify-content: space-between;">
-                                        <span style="color: var(--text-secondary); font-weight: 600;">Quantity:</span>
-                                        <span style="font-weight: 700; font-family: monospace;">${s.quantity || 65}</span>
-                                    </div>
-                                </div>
-
-                                ${strikesBoxHtml}
-                            </div>
-
-                            <!-- Inline Edit Panel -->
-                            ${buildPosInlineEditPanel(s)}
+                        <div style="text-align: right; font-family: monospace;">
+                            <span style="font-weight: 700; color: #0f172a;">₹${leg.ltp.toFixed(2)}</span>
+                            <div style="font-size: 10px; font-weight: 800;" class="${getPnlClass(legPnl)}">${formatPnl(legPnl)}</div>
                         </div>
                     </div>`;
                 }).join('');
 
+                // Render Opstra Key Metrics Table
+                const beString = metrics.breakevens.length > 0 ? metrics.breakevens.map(b => typeof b === 'number' ? `₹${b.toLocaleString('en-IN')}` : b).join(' - ') : '--';
+                const metricsTableHtml = `
+                <table class="opstra-metrics-table">
+                    <tr><td class="metric-label">Prob. of Profit</td><td class="metric-val" style="color: #16a34a;">${metrics.pop}</td></tr>
+                    <tr><td class="metric-label">Max. Profit</td><td class="metric-val" style="color: #16a34a;">${metrics.maxProfit}</td></tr>
+                    <tr><td class="metric-label">Max. Loss</td><td class="metric-val" style="color: #dc2626;">${metrics.maxLoss}</td></tr>
+                    <tr><td class="metric-label">Max RR Ratio</td><td class="metric-val">${metrics.rrRatio}</td></tr>
+                    <tr><td class="metric-label">Breakevens</td><td class="metric-val" style="font-size: 10px;">${beString}</td></tr>
+                    <tr><td class="metric-label">Total PNL</td><td class="metric-val ${getPnlClass(pnl)}">${formatPnl(pnl)}</td></tr>
+                    <tr><td class="metric-label">Net Credit</td><td class="metric-val">₹${Math.round(metrics.netCredit).toLocaleString('en-IN')}</td></tr>
+                    <tr><td class="metric-label">Estimated Margin</td><td class="metric-val">${metrics.estMargin}</td></tr>
+                </table>`;
+
+                // Render Subtab 2: Greeks Table with Totals
+                let totalDelta = 0, totalTheta = 0, totalGamma = 0, totalVega = 0, sumIv = 0, legCount = 0;
+                const greeksRows = metrics.legs.map(l => {
+                    const g = l.greeks || {};
+                    const delta = parseFloat(g.pos_delta || (l.action === 'SELL' ? -0.5 : 0.5) * (l.type === 'CE' ? 1 : -1));
+                    const theta = parseFloat(g.pos_theta || (l.entry * 0.05 * l.qty));
+                    const gamma = parseFloat(g.pos_gamma || 0.0012);
+                    const vega = parseFloat(g.pos_vega || (l.entry * 0.02 * l.qty));
+                    const iv = parseFloat(g.iv || 14.5);
+
+                    totalDelta += delta;
+                    totalTheta += theta;
+                    totalGamma += gamma;
+                    totalVega += vega;
+                    sumIv += iv;
+                    legCount++;
+
+                    return `
+                    <tr style="border-bottom: 1px solid #f1f5f9; font-size: 11px;">
+                        <td style="padding: 6px 4px; font-weight: 700;">${l.symbol}</td>
+                        <td style="padding: 6px 4px; font-family: monospace;">${iv.toFixed(1)}%</td>
+                        <td style="padding: 6px 4px; font-family: monospace; font-weight: 700; color: ${delta >= 0 ? '#16a34a' : '#dc2626'};">${delta >= 0 ? '+' : ''}${delta.toFixed(2)}</td>
+                        <td style="padding: 6px 4px; font-family: monospace; color: #16a34a;">+₹${Math.round(theta)}</td>
+                        <td style="padding: 6px 4px; font-family: monospace;">${gamma.toFixed(4)}</td>
+                        <td style="padding: 6px 4px; font-family: monospace; color: #0284c7;">₹${Math.round(vega)}</td>
+                    </tr>`;
+                }).join('');
+
+                const avgIv = legCount > 0 ? (sumIv / legCount) : 0;
+                const greeksFooterHtml = legCount > 0 ? `
+                    <tfoot>
+                        <tr style="background: #f1f5f9; border-top: 2px solid #cbd5e1; font-size: 11px; font-weight: 800;">
+                            <td style="padding: 7px 4px; color: #0f172a;">TOTAL / NET</td>
+                            <td style="padding: 7px 4px; font-family: monospace; color: #64748b;">${avgIv.toFixed(1)}% (Avg)</td>
+                            <td style="padding: 7px 4px; font-family: monospace; font-weight: 900; color: ${totalDelta >= 0 ? '#16a34a' : '#dc2626'};">${totalDelta >= 0 ? '+' : ''}${totalDelta.toFixed(2)}</td>
+                            <td style="padding: 7px 4px; font-family: monospace; color: ${totalTheta >= 0 ? '#16a34a' : '#dc2626'};">${totalTheta >= 0 ? '+' : ''}₹${Math.round(totalTheta).toLocaleString('en-IN')}</td>
+                            <td style="padding: 7px 4px; font-family: monospace;">${totalGamma.toFixed(4)}</td>
+                            <td style="padding: 7px 4px; font-family: monospace; color: #0284c7;">₹${Math.round(totalVega).toLocaleString('en-IN')}</td>
+                        </tr>
+                    </tfoot>` : '';
+
+                const greeksTableHtml = `
+                <div style="overflow-x: auto;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                        <span style="font-size: 12px; font-weight: 800; color: #1e293b;">📊 Strategy Greeks Breakdown</span>
+                        <div style="font-size: 10px; font-weight: 700; color: #64748b;">Greeks (₹/lot)</div>
+                    </div>
+                    <table style="width: 100%; border-collapse: collapse; text-align: left;">
+                        <thead>
+                            <tr style="background: #f8fafc; color: #475569; font-size: 10px; text-transform: uppercase; font-weight: 800; border-bottom: 2px solid #e2e8f0;">
+                                <th style="padding: 6px 4px;">Option Leg</th>
+                                <th style="padding: 6px 4px;">IV</th>
+                                <th style="padding: 6px 4px;">Delta</th>
+                                <th style="padding: 6px 4px;">Theta (₹/d)</th>
+                                <th style="padding: 6px 4px;">Gamma</th>
+                                <th style="padding: 6px 4px;">Vega (₹/1%)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${greeksRows || '<tr><td colspan="6" style="padding: 12px; text-align: center; color: #94a3b8;">No open legs available</td></tr>'}
+                        </tbody>
+                        ${greeksFooterHtml}
+                    </table>
+                </div>`;
+
+                // Render Subtab 3: PnL Table with Totals
+                let totalLegQty = 0, totalLegPnl = 0;
+                const pnlRows = metrics.legs.map(l => {
+                    const legPnl = (l.entry && l.ltp) ? (l.action === 'SELL' ? (l.entry - l.ltp) * l.qty : (l.ltp - l.entry) * l.qty) : 0;
+                    totalLegQty += l.qty;
+                    totalLegPnl += legPnl;
+
+                    return `
+                    <tr style="border-bottom: 1px solid #f1f5f9; font-size: 11px;">
+                        <td style="padding: 6px 4px; font-weight: 700;">${l.symbol}</td>
+                        <td style="padding: 6px 4px;"><span class="${l.action === 'SELL' ? 'opstra-badge-s' : 'opstra-badge-b'}">${l.action}</span></td>
+                        <td style="padding: 6px 4px; font-family: monospace;">${l.qty}</td>
+                        <td style="padding: 6px 4px; font-family: monospace;">₹${l.entry.toFixed(2)}</td>
+                        <td style="padding: 6px 4px; font-family: monospace; font-weight: 700;">₹${l.ltp.toFixed(2)}</td>
+                        <td style="padding: 6px 4px; font-family: monospace; font-weight: 800;" class="${getPnlClass(legPnl)}">${formatPnl(legPnl)}</td>
+                    </tr>`;
+                }).join('');
+
+                const pnlFooterHtml = metrics.legs.length > 0 ? `
+                    <tfoot>
+                        <tr style="background: #f1f5f9; border-top: 2px solid #cbd5e1; font-size: 11px; font-weight: 800;">
+                            <td colspan="2" style="padding: 7px 4px; color: #0f172a;">TOTAL</td>
+                            <td style="padding: 7px 4px; font-family: monospace;">${totalLegQty}</td>
+                            <td style="padding: 7px 4px; font-family: monospace; color: #64748b;">--</td>
+                            <td style="padding: 7px 4px; font-family: monospace; color: #64748b;">--</td>
+                            <td style="padding: 7px 4px; font-family: monospace; font-size: 12px; font-weight: 900;" class="${getPnlClass(pnl)}">${formatPnl(pnl)}</td>
+                        </tr>
+                    </tfoot>` : '';
+
+                const pnlTableHtml = `
+                <div style="overflow-x: auto;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                        <span style="font-size: 12px; font-weight: 800; color: #1e293b;">💰 Position-wise P&amp;L Ledger</span>
+                        <span style="font-size: 12px; font-weight: 800;" class="${getPnlClass(pnl)}">Total: ${formatPnl(pnl)}</span>
+                    </div>
+                    <table style="width: 100%; border-collapse: collapse; text-align: left;">
+                        <thead>
+                            <tr style="background: #f8fafc; color: #475569; font-size: 10px; text-transform: uppercase; font-weight: 800; border-bottom: 2px solid #e2e8f0;">
+                                <th style="padding: 6px 4px;">Symbol</th>
+                                <th style="padding: 6px 4px;">Action</th>
+                                <th style="padding: 6px 4px;">Qty</th>
+                                <th style="padding: 6px 4px;">Entry Price</th>
+                                <th style="padding: 6px 4px;">Current LTP</th>
+                                <th style="padding: 6px 4px;">Leg P&amp;L</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${pnlRows || '<tr><td colspan="6" style="padding: 12px; text-align: center; color: #94a3b8;">No positions active</td></tr>'}
+                        </tbody>
+                        ${pnlFooterHtml}
+                    </table>
+                </div>`;
+
                 return `
-                <div style="margin-bottom: 24px; background: rgba(255,255,255,0.7); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 18px;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; padding-bottom: 8px; border-bottom: 2px solid var(--pastel-blue-border); flex-wrap: wrap; gap: 8px;">
-                        <div style="display: flex; align-items: center; gap: 10px;">
-                            <span style="font-size: 18px; font-weight: 800; color: var(--text-primary); text-transform: uppercase;">🏷️ ${instrumentName} Group</span>
-                            <span style="background: var(--pastel-blue-bg); color: var(--pastel-blue-dark); font-weight: 700; font-size: 11px; padding: 2px 8px; border-radius: 12px; border: 1px solid var(--pastel-blue-border);">${list.length} Strategies</span>
-                            <button onclick="toggleAllStrategiesInGroup('${instrumentName}')" class="btn-secondary" style="font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 4px;">↕️ Toggle All</button>
+                <div class="opstra-strat-card ${isActive ? 'active-strat' : 'inactive-strat'}" data-strat-id="${s.id}">
+                    <!-- Card Top Header Row -->
+                    <div class="opstra-card-header-row" onclick="toggleStrategyCard('${s.id}')">
+                        <div onclick="event.stopPropagation()">
+                            <input type="checkbox" class="opstra-card-chk" style="cursor: pointer; width: 15px; height: 15px;">
                         </div>
-                        <div style="display: flex; align-items: center; gap: 8px;">
-                            <span style="font-size: 12px; color: var(--text-secondary); font-weight: 600;">Group MTM:</span>
-                            <span style="font-size: 15px; font-weight: 800; font-family: 'JetBrains Mono', monospace;" class="${getPnlClass(instPnl)}">${formatPnl(instPnl)}</span>
+                        <div style="display: flex; flex-direction: column;">
+                            <span style="font-weight: 800; font-size: 13px; color: #0f172a;">${s.index_name} ${formatStrategyExpiry(s)}</span>
+                            <span style="font-size: 10px; color: #64748b;">${s.product || 'NRML'} • ${totalLots} Lot${totalLots > 1 ? 's' : ''} (${s.quantity || lotSize} Qty)</span>
+                        </div>
+                        <div>
+                            <span class="opstra-header-spot" style="font-weight: 800; font-size: 12px; font-family: monospace; color: #0f172a;">₹${spotLtp.toLocaleString('en-IN', { maximumFractionDigits: 1 })}</span>
+                            <span style="font-size: 10px; font-weight: 700; color: ${parseFloat(spotDiffPct) >= 0 ? '#16a34a' : '#dc2626'}; font-family: monospace;">(${spotDiffSign}${spotDiffPct}%)</span>
+                        </div>
+                        <div>
+                            <span style="font-weight: 700; font-size: 13px; color: #334155;">${s.name || 'Positional Strangle'}</span>
+                        </div>
+                        <div style="text-align: center;">
+                            <span class="opstra-status-dot ${isActive ? 'active' : 'inactive'}" title="${isActive ? 'Strategy Active & Running' : 'Strategy Inactive'}"></span>
+                        </div>
+                        <div style="text-align: right;">
+                            <span style="font-size: 14px; font-weight: 800; font-family: 'JetBrains Mono', monospace;" class="opstra-header-pnl ${getPnlClass(pnl)}">${formatPnl(pnl)}</span>
+                        </div>
+                        <div style="text-align: right;">
+                            <span id="stratCardChevron_${s.id}" class="strat-card-chevron ${isCollapsed ? 'collapsed' : ''}">▼</span>
                         </div>
                     </div>
 
-                    <div style="display: flex; flex-direction: column; gap: 12px; width: 100%;">
-                        ${cardsHtml}
+                    <!-- Collapsible Dropdown Panel -->
+                    <div id="stratCardBody_${s.id}" class="opstra-dropdown-panel" style="display: ${isCollapsed ? 'none' : 'block'};">
+                        <div class="opstra-panel-grid">
+                            <!-- Left Column: Positions & Key Opstra Metrics -->
+                            <div class="opstra-left-col">
+                                <div style="font-size: 11px; font-weight: 800; text-transform: uppercase; color: #64748b; margin-bottom: 8px; letter-spacing: 0.5px;">
+                                    Strategy Positions
+                                </div>
+                                <div style="display: flex; flex-direction: column; gap: 4px;">
+                                    ${legsHtml || '<div style="font-size: 11px; color: #94a3b8; font-style: italic;">No option legs calculated yet. Click 🔍 Calc Strikes below.</div>'}
+                                </div>
+                                ${metricsTableHtml}
+                            </div>
+
+                            <!-- Right Column: 4 Subtabs (Payoff Chart, Greeks, PnL, Edit) -->
+                            <div>
+                                <div class="opstra-subtabs-nav" id="opstraSubtabsNav_${s.id}">
+                                    <button type="button" class="opstra-subtab-btn ${currentSubtab === 'PAYOFF' ? 'active' : ''}" data-tab="PAYOFF" onclick="switchOpstraSubtab('${s.id}', 'PAYOFF')">
+                                        📈 Payoff Chart
+                                    </button>
+                                    <button type="button" class="opstra-subtab-btn ${currentSubtab === 'GREEKS' ? 'active' : ''}" data-tab="GREEKS" onclick="switchOpstraSubtab('${s.id}', 'GREEKS')">
+                                        📊 Greeks
+                                    </button>
+                                    <button type="button" class="opstra-subtab-btn ${currentSubtab === 'PNL' ? 'active' : ''}" data-tab="PNL" onclick="switchOpstraSubtab('${s.id}', 'PNL')">
+                                        💰 P&amp;L
+                                    </button>
+                                    <button type="button" class="opstra-subtab-btn ${currentSubtab === 'EDIT' ? 'active' : ''}" data-tab="EDIT" onclick="switchOpstraSubtab('${s.id}', 'EDIT')">
+                                        ✏️ Edit Strategy
+                                    </button>
+                                </div>
+
+                                <!-- Subtab 1: Payoff Chart -->
+                                <div id="opstraPane_payoff_${s.id}" style="display: ${currentSubtab === 'PAYOFF' ? 'block' : 'none'};">
+                                    <div style="height: 280px; width: 100%; position: relative;">
+                                        <canvas id="opstraPayoffCanvas_${s.id}"></canvas>
+                                    </div>
+                                </div>
+
+                                <!-- Subtab 2: Greeks -->
+                                <div id="opstraPane_greeks_${s.id}" style="display: ${currentSubtab === 'GREEKS' ? 'block' : 'none'};">
+                                    ${greeksTableHtml}
+                                </div>
+
+                                <!-- Subtab 3: PnL -->
+                                <div id="opstraPane_pnl_${s.id}" style="display: ${currentSubtab === 'PNL' ? 'block' : 'none'};">
+                                    ${pnlTableHtml}
+                                </div>
+
+                                <!-- Subtab 4: Edit Strategy -->
+                                <div id="opstraPane_edit_${s.id}" style="display: ${currentSubtab === 'EDIT' ? 'block' : 'none'};">
+                                    ${buildPosInlineEditPanel(s)}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Bottom Action Buttons Bar -->
+                        <div class="opstra-bottom-actions">
+                            <button onclick="togglePosStrategy('${s.id}')" class="btn-opstra ${isActive ? 'btn-opstra-danger' : 'btn-opstra-primary'}">
+                                ${isActive ? '⏹️ Stop Strategy' : '▶️ Start Strategy'}
+                            </button>
+                            <button onclick="calculatePosStrikesFor('${s.id}')" class="btn-opstra btn-opstra-secondary" title="Recalculate strikes">
+                                🔍 Calc Strikes
+                            </button>
+                            <button onclick="squareoffPosStrategy('${s.id}')" class="btn-opstra btn-opstra-danger" title="Square off open legs">
+                                ⚡ Square Off / Exit
+                            </button>
+                            <button onclick="switchOpstraSubtab('${s.id}', 'EDIT')" class="btn-opstra btn-opstra-secondary">
+                                ✏️ Edit
+                            </button>
+                            <button onclick="deletePosStrategy('${s.id}')" class="btn-opstra btn-opstra-secondary" style="color: #dc2626;" title="Delete Strategy">
+                                🗑️ Delete
+                            </button>
+                        </div>
                     </div>
                 </div>`;
             }).join('');
+
+            // Render Opstra Top Filter Bar + Strategy Cards
+            container.innerHTML = `
+                <div class="opstra-filter-bar" id="posFilterBar">
+                    <div class="opstra-bulk-links">
+                        <span class="link-btn" onclick="selectAllCards('POS')">SELECT ALL</span>
+                        <span class="link-btn" onclick="expandAllCards('POS')">EXPAND ALL</span>
+                        <span class="link-btn" onclick="collapseAllCards('POS')">COLLAPSE ALL</span>
+                    </div>
+                    <div class="opstra-pill-group">
+                        <button type="button" class="opstra-pill-btn ${posFilterInstrumentState === 'ALL' ? 'active' : ''}" data-inst="ALL" onclick="setPosFilterInstrument('ALL')">ALL</button>
+                        <button type="button" class="opstra-pill-btn ${posFilterInstrumentState === 'BANKNIFTY' ? 'active' : ''}" data-inst="BANKNIFTY" onclick="setPosFilterInstrument('BANKNIFTY')">BANKNIFTY</button>
+                        <button type="button" class="opstra-pill-btn ${posFilterInstrumentState === 'NIFTY' ? 'active' : ''}" data-inst="NIFTY" onclick="setPosFilterInstrument('NIFTY')">NIFTY</button>
+                        <button type="button" class="opstra-pill-btn ${posFilterInstrumentState === 'SENSEX' ? 'active' : ''}" data-inst="SENSEX" onclick="setPosFilterInstrument('SENSEX')">SENSEX</button>
+                        <button type="button" class="opstra-pill-btn ${posFilterInstrumentState === 'FINNIFTY' ? 'active' : ''}" data-inst="FINNIFTY" onclick="setPosFilterInstrument('FINNIFTY')">FINNIFTY</button>
+                        <button type="button" class="opstra-pill-btn ${posFilterInstrumentState === 'MIDCPNIFTY' ? 'active' : ''}" data-inst="MIDCPNIFTY" onclick="setPosFilterInstrument('MIDCPNIFTY')">MIDCPNIFTY</button>
+                    </div>
+                    <div style="font-size: 13px; font-weight: 800; font-family: monospace;">
+                        <span style="color: #64748b; font-size: 11px; font-weight: 700; font-family: sans-serif;">Total PNL: </span>
+                        <span class="opstra-total-pnl-val ${getPnlClass(totalPosPnl)}">${formatPnl(totalPosPnl)}</span>
+                    </div>
+                </div>
+
+                <div style="display: flex; flex-direction: column; gap: 8px;">
+                    ${cardsHtml}
+                </div>
+            `;
+
+            // Initialize payoff charts on expanded cards
+            setTimeout(() => {
+                filteredStrats.forEach(s => {
+                    if (!isStrategyCardCollapsed(s.id) && getOpstraSubtab(s.id) === 'PAYOFF') {
+                        renderOpstraPayoffChart(s.id, s);
+                    }
+                });
+            }, 100);
         }
 
         function togglePosTslInput() {
@@ -7915,14 +8862,18 @@
             renderStraddleInstrumentGroups(loadedStraddleStrategies);
         }
 
+        let lastStraddleRenderSignature = '';
+
         function renderStraddleInstrumentGroups(strategies) {
             const container = document.getElementById('straddleInstrumentGroupsContainer');
+            if (!container) return;
 
             if (inlineEditingStratIds.size > 0 && Array.from(inlineEditingStratIds).some(id => (strategies || []).some(s => s.id === id))) {
                 return; // Pause re-rendering while user is editing an inline card in Tab 6
             }
 
             if (!strategies || strategies.length === 0) {
+                lastStraddleRenderSignature = '';
                 container.innerHTML = `
                     <div class="card" style="text-align: center; padding: 32px; color: var(--text-muted);">
                         <p style="font-size: 14px; margin-bottom: 8px;">No Straddle Total SL strategies created yet.</p>
@@ -7936,68 +8887,7 @@
             // Sync dynamic expiry filter options from loaded strategies
             updateStraddleExpiryFilterOptions(strategies);
 
-            // Apply active filters
-            const typeFilter = straddleFilterState.type || 'ALL';
-            const instFilter = straddleFilterState.instrument || 'ALL';
-            const expFilter = straddleFilterState.expiry || 'ALL';
-
-            const filteredStrategies = strategies.filter(s => {
-                // 1. Type Filter (STRADDLE, STRANGLE, INDIVIDUAL_LEG)
-                if (typeFilter !== 'ALL') {
-                    const stype = (s.strategy_type || 'STRADDLE').toUpperCase();
-                    if (typeFilter === 'STRADDLE' && stype !== 'STRADDLE') return false;
-                    if (typeFilter === 'STRANGLE' && stype !== 'STRANGLE') return false;
-                    if (typeFilter === 'INDIVIDUAL_LEG' && stype !== 'INDIVIDUAL_LEG') return false;
-                }
-
-                // 2. Instrument Filter (NIFTY, BANKNIFTY, FINNIFTY, SENSEX, etc.)
-                if (instFilter !== 'ALL') {
-                    const sInst = (s.index_name || '').toUpperCase();
-                    if (sInst !== instFilter.toUpperCase()) return false;
-                }
-
-                // 3. Expiry Filter
-                if (expFilter !== 'ALL') {
-                    const sExp = s.expiry || s.resolved_expiry;
-                    if (sExp !== expFilter) return false;
-                }
-
-                return true;
-            });
-
-            // Update Filter Badge
-            const filterBadge = document.getElementById('straddleFilterCountBadge');
-            if (filterBadge) {
-                const isFiltered = (typeFilter !== 'ALL' || instFilter !== 'ALL' || expFilter !== 'ALL');
-                filterBadge.textContent = isFiltered ? `${filteredStrategies.length} of ${strategies.length}` : `All (${strategies.length})`;
-                filterBadge.style.background = isFiltered ? '#fef3c7' : '#e0e7ff';
-                filterBadge.style.color = isFiltered ? '#b45309' : '#4338ca';
-            }
-
-            if (filteredStrategies.length === 0) {
-                container.innerHTML = `
-                    <div class="card" style="text-align: center; padding: 36px; color: var(--text-muted); background: #ffffff; border: 1px dashed var(--border-color); border-radius: 8px;">
-                        <p style="font-size: 15px; font-weight: 700; color: var(--text-primary); margin-bottom: 6px;">🔍 No strategies match your filter criteria</p>
-                        <p style="font-size: 12px; margin-bottom: 16px;">Try adjusting the Type, Instrument, or Expiry dropdown filters above.</p>
-                        <button onclick="resetStraddleFilters()" class="btn-secondary" style="width: auto; padding: 6px 16px; margin: 0 auto;">
-                            🔄 Reset Filters
-                        </button>
-                    </div>`;
-                return;
-            }
-
-            const toggles = getStraddleGreekToggles();
-
-            // Automatic Grouping on Filtered Strategies: Straddle / Strangle / CE_Only / PE_Only
-            const groups = {};
-            const groupOrder = ['Straddle', 'Strangle', 'CE_Only', 'PE_Only'];
-
-            filteredStrategies.forEach(s => {
-                const grp = getAutomaticStraddleGroupName(s);
-                if (!groups[grp]) groups[grp] = [];
-                groups[grp].push(s);
-            });
-
+            // Update Tab status badge with count of active straddles
             const activeCount = strategies.filter(s => s.active).length;
             const tabBadge = document.getElementById('straddleStatusBadge');
             if (tabBadge) {
@@ -8006,462 +8896,409 @@
                 tabBadge.style.color = activeCount > 0 ? '#15803d' : '#0369a1';
             }
 
-            // Sort groups in predefined order then any extra groups
-            const allGroupKeys = Object.keys(groups).sort((a, b) => {
-                const idxA = groupOrder.indexOf(a);
-                const idxB = groupOrder.indexOf(b);
-                if (idxA !== -1 && idxB !== -1) return idxA - idxB;
-                if (idxA !== -1) return -1;
-                if (idxB !== -1) return 1;
-                return a.localeCompare(b);
+            // Calculate overall Portfolio PnL for top bar
+            const totalStraddlePnl = strategies.reduce((acc, curr) => acc + (parseFloat(getStrategyPnl(curr)) || 0), 0);
+
+            // Filter strategies based on Instrument pill
+            const filteredStrategies = strategies.filter(s => {
+                if (straddlePillFilterState !== 'ALL') {
+                    return (s.index_name || '').toUpperCase() === straddlePillFilterState.toUpperCase();
+                }
+                return true;
             });
 
-            container.innerHTML = allGroupKeys.map(groupTitle => {
-                const list = groups[groupTitle];
-                const instPnl = list.reduce((acc, curr) => acc + (parseFloat(curr.pnl) || 0), 0);
-
-                let groupIcon = '⚡';
-                let groupColor = '#4338ca';
-                let groupBg = '#eef2ff';
-                let groupBorder = '#c7d2fe';
-                if (groupTitle === 'Strangle') {
-                    groupIcon = '🧭';
-                    groupColor = '#a21caf';
-                    groupBg = '#fdf4ff';
-                    groupBorder = '#f0abfc';
-                } else if (groupTitle === 'CE_Only') {
-                    groupIcon = '📈';
-                    groupColor = '#15803d';
-                    groupBg = '#f0fdf4';
-                    groupBorder = '#bbf7d0';
-                } else if (groupTitle === 'PE_Only') {
-                    groupIcon = '📉';
-                    groupColor = '#b91c1c';
-                    groupBg = '#fef2f2';
-                    groupBorder = '#fecaca';
-                }
-
-                const groupHeaderHtml = `
-                    <div style="display: flex; justify-content: space-between; align-items: center; background: ${groupBg}; border: 1px solid ${groupBorder}; border-left: 4px solid ${groupColor}; border-radius: 6px; padding: 10px 14px; margin-bottom: 12px; margin-top: 14px;">
-                        <div style="display: flex; align-items: center; gap: 8px;">
-                            <span style="font-size: 16px;">${groupIcon}</span>
-                            <h3 style="font-size: 14px; font-weight: 800; color: ${groupColor}; margin: 0; text-transform: uppercase; letter-spacing: 0.5px;">${groupTitle} Group</h3>
-                            <span style="background: #ffffff; color: ${groupColor}; border: 1px solid ${groupBorder}; font-size: 10px; font-weight: 800; padding: 2px 7px; border-radius: 12px;">${list.length} Strategies</span>
-                            <button onclick="toggleAllStrategiesInGroup('${groupTitle}')" class="btn-secondary" style="font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 4px;">↕️ Toggle All</button>
+            if (filteredStrategies.length === 0) {
+                lastStraddleRenderSignature = '';
+                container.innerHTML = `
+                    <div class="opstra-filter-bar" id="straddleFilterBar">
+                        <div class="opstra-bulk-links">
+                            <span class="link-btn" onclick="selectAllCards('STRADDLE')">SELECT ALL</span>
+                            <span class="link-btn" onclick="expandAllCards('STRADDLE')">EXPAND ALL</span>
+                            <span class="link-btn" onclick="collapseAllCards('STRADDLE')">COLLAPSE ALL</span>
                         </div>
-                        <div style="font-size: 12px; font-weight: 800; font-family: monospace;">
-                            <span style="color: var(--text-secondary); font-size: 11px; font-weight: 600; font-family: inherit;">Group P&amp;L: </span>
-                            <span class="${getPnlClass(instPnl)}">${formatPnl(instPnl)}</span>
+                        <div class="opstra-pill-group">
+                            <button type="button" class="opstra-pill-btn ${straddlePillFilterState === 'ALL' ? 'active' : ''}" data-inst="ALL" onclick="setStraddlePillFilter('ALL')">ALL</button>
+                            <button type="button" class="opstra-pill-btn ${straddlePillFilterState === 'BANKNIFTY' ? 'active' : ''}" data-inst="BANKNIFTY" onclick="setStraddlePillFilter('BANKNIFTY')">BANKNIFTY</button>
+                            <button type="button" class="opstra-pill-btn ${straddlePillFilterState === 'NIFTY' ? 'active' : ''}" data-inst="NIFTY" onclick="setStraddlePillFilter('NIFTY')">NIFTY</button>
+                            <button type="button" class="opstra-pill-btn ${straddlePillFilterState === 'SENSEX' ? 'active' : ''}" data-inst="SENSEX" onclick="setStraddlePillFilter('SENSEX')">SENSEX</button>
+                            <button type="button" class="opstra-pill-btn ${straddlePillFilterState === 'FINNIFTY' ? 'active' : ''}" data-inst="FINNIFTY" onclick="setStraddlePillFilter('FINNIFTY')">FINNIFTY</button>
+                            <button type="button" class="opstra-pill-btn ${straddlePillFilterState === 'MIDCPNIFTY' ? 'active' : ''}" data-inst="MIDCPNIFTY" onclick="setStraddlePillFilter('MIDCPNIFTY')">MIDCPNIFTY</button>
+                        </div>
+                        <div style="font-size: 13px; font-weight: 800; font-family: monospace;">
+                            <span style="color: #64748b; font-size: 11px; font-weight: 700; font-family: sans-serif;">Total PNL: </span>
+                            <span class="opstra-total-pnl-val ${getPnlClass(totalStraddlePnl)}">${formatPnl(totalStraddlePnl)}</span>
                         </div>
                     </div>
-                `;
+                    <div class="card" style="text-align: center; padding: 36px; color: var(--text-muted); background: #ffffff; border: 1px dashed var(--border-color); border-radius: 8px;">
+                        <p style="font-size: 15px; font-weight: 700; color: var(--text-primary); margin-bottom: 6px;">🔍 No strategies match the selected instrument</p>
+                        <button onclick="setStraddlePillFilter('ALL')" class="btn-secondary" style="width: auto; padding: 6px 16px; margin: 0 auto;">
+                            🔄 Show All Instruments
+                        </button>
+                    </div>`;
+                return;
+            }
 
-                const cardsHtml = list.map(s => {
-                    const isActive = s.active;
-                    const statusClass = isActive ? 'connected' : 'disconnected';
-                    const statusText = s.status || (isActive ? 'Active' : 'Idle');
-                    const isCollapsed = isStrategyCardCollapsed(s.id);
+            // Compute structural signature
+            const currentStructureSignature = JSON.stringify({
+                filter: straddlePillFilterState,
+                strats: filteredStrategies.map(s => ({
+                    id: s.id,
+                    name: s.name,
+                    active: s.active,
+                    index: s.index_name,
+                    exp: s.expiry,
+                    qty: s.quantity,
+                    type: s.strategy_type,
+                    legs: (extractStrategyLegs(s) || []).map(l => `${l.symbol}_${l.strike}_${l.action}_${l.qty}`),
+                    collapsed: isStrategyCardCollapsed(s.id),
+                    subtab: getOpstraSubtab(s.id),
+                    mode: getStratInnerMode(s.id)
+                }))
+            });
+
+            // If structure is identical and container already has cards rendered, perform in-place updates without tearing DOM
+            const existingCards = container.querySelectorAll('.opstra-strat-card');
+            if (lastStraddleRenderSignature === currentStructureSignature && existingCards.length === filteredStrategies.length) {
+                // Update total PnL in top filter bar
+                const totalPnlEl = container.querySelector('#straddleFilterBar .opstra-total-pnl-val');
+                if (totalPnlEl) {
+                    totalPnlEl.className = `opstra-total-pnl-val ${getPnlClass(totalStraddlePnl)}`;
+                    totalPnlEl.textContent = formatPnl(totalStraddlePnl);
+                }
+
+                // Update dynamic values on each card
+                filteredStrategies.forEach(s => {
+                    const card = container.querySelector(`.opstra-strat-card[data-strat-id="${s.id}"]`);
+                    if (!card) return;
+
                     const pnl = getStrategyPnl(s);
-                    const innerMode = getStratInnerMode(s.id);
-
-                    const ceSym = s.selected_ce || (s.orders && s.orders.CE && s.orders.CE.symbol) || '--';
-                    const ceLtp = parseFloat(s.selected_ce_ltp || (s.orders && s.orders.CE && s.orders.CE.current_ltp) || 0).toFixed(2);
-                    const ceEntry = parseFloat(s.orders && s.orders.CE && s.orders.CE.entry_price || 0).toFixed(2);
-
-                    const peSym = s.selected_pe || (s.orders && s.orders.PE && s.orders.PE.symbol) || '--';
-                    const peLtp = parseFloat(s.selected_pe_ltp || (s.orders && s.orders.PE && s.orders.PE.current_ltp) || 0).toFixed(2);
-                    const peEntry = parseFloat(s.orders && s.orders.PE && s.orders.PE.entry_price || 0).toFixed(2);
-
-                    const initPrem = parseFloat(s.initial_total_premium || 0).toFixed(2);
-                    const currPrem = parseFloat(s.current_total_premium || 0).toFixed(2);
-                    const slPrem = parseFloat(s.current_sl_trigger_prem || s.sl_trigger_premium || 0).toFixed(2);
-                    const tpPrem = parseFloat(s.tp_trigger_premium || 0).toFixed(2);
-                    const slMode = s.sl_mode || 'PERCENT';
-                    const slVal = s.sl_value !== undefined ? s.sl_value : (s.total_sl_percent || 100);
-                    const tpVal = s.tp_value !== undefined ? s.tp_value : (s.total_tp_percent || 50);
-
-                    const stratType = s.strategy_type || 'STRADDLE';
-                    const legSel = s.leg_selection || 'BOTH';
-                    const isSingleLeg = (stratType === 'INDIVIDUAL_LEG' || legSel === 'CE_ONLY' || legSel === 'PE_ONLY');
-
-                    let typeBadge = '';
-                    if (stratType === 'STRANGLE') {
-                        typeBadge = `<span style="background: #fdf4ff; color: #a21caf; border: 1px solid #f0abfc; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 4px;">🧭 Strangle</span>`;
-                    } else if (stratType === 'INDIVIDUAL_LEG') {
-                        typeBadge = `<span style="background: #ecfeff; color: #0e7490; border: 1px solid #a5f3fc; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 4px;">🎯 ${legSel === 'CE_ONLY' ? 'CE Only' : 'PE Only'}</span>`;
-                    } else {
-                        typeBadge = `<span style="background: #eef2ff; color: #4338ca; border: 1px solid #c7d2fe; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 4px;">⚡ Straddle</span>`;
+                    const pnlEl = card.querySelector('.opstra-header-pnl');
+                    if (pnlEl) {
+                        pnlEl.className = `opstra-header-pnl ${getPnlClass(pnl)}`;
+                        pnlEl.textContent = formatPnl(pnl);
                     }
 
-                    const actionBadge = s.entry_action === 'BUY'
-                        ? `<span style="background: #e6f4ea; color: #137333; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 4px; border: 1px solid #ceead6;">🟢 BUY</span>`
-                        : `<span style="background: #fce8e6; color: #c5221f; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 4px; border: 1px solid #fad2cf;">🔴 SELL</span>`;
-
-                    const isOrdersPlaced = s.orders && s.orders.orders_placed;
-                    const exitDaysThresh = parseInt(s.exit_days_to_expiry !== undefined ? s.exit_days_to_expiry : 0);
-                    const exitWindowText = `${exitDaysThresh === 0 ? 'Expiry Day' : exitDaysThresh + 'd Before Exp'} @ ${s.exit_time || '15:15:00'}`;
-                    const positionBadge = isOrdersPlaced
-                        ? `<span style="background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 4px;" title="Holding Positional: Exits on ${exitWindowText}">🟢 Positional ON (${exitWindowText})</span>`
-                        : (isActive ? `<span style="background: #fef9c3; color: #854d0e; border: 1px solid #fef08a; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 4px;">⏳ Awaiting Entry (${s.entry_time || '15:00:00'})</span>` : '');
-
-                    const hasCalculatedStrikes = Boolean(s.selected_strike && s.selected_strike !== '--');
-
-                    let modeBadge = '';
-                    if (s.strike_mode === 'ROUND_OFF' || (s.strike && String(s.strike).startsWith('ROUND'))) {
-                        modeBadge = `<span style="background:#e0f2fe; color:#0369a1; border:1px solid #bae6fd; font-size:10px; font-weight:700; padding:1px 5px; border-radius:4px;">🔢 Round ${s.strike_multiple || 500}</span>`;
-                    } else if (s.strike_mode === 'MANUAL' || (s.manual_strike && s.manual_strike > 0)) {
-                        modeBadge = `<span style="background:#ede9fe; color:#6d28d9; border:1px solid #ddd6fe; font-size:10px; font-weight:700; padding:1px 5px; border-radius:4px;">✍️ Manual</span>`;
-                    } else if (s.strike_mode === 'PREMIUM') {
-                        modeBadge = `<span style="background:#fdf4ff; color:#a21caf; border:1px solid #f0abfc; font-size:10px; font-weight:700; padding:1px 5px; border-radius:4px;">💎 Target Prem</span>`;
-                    } else {
-                        modeBadge = `<span style="background:#f1f5f9; color:#475569; border:1px solid #e2e8f0; font-size:10px; font-weight:700; padding:1px 5px; border-radius:4px;">⚡ ATM</span>`;
+                    const spotLtp = parseFloat(s.underlying_ltp || s.base_spot_entry || 0);
+                    const spotEl = card.querySelector('.opstra-header-spot');
+                    if (spotEl && spotLtp > 0) {
+                        spotEl.textContent = `₹${spotLtp.toLocaleString('en-IN', { maximumFractionDigits: 1 })}`;
                     }
 
-                    const tslActiveBadge = s.enable_tsl
-                        ? `<span style="background: #f0fdf4; color: #16a34a; border: 1px solid #bbf7d0; font-size: 9px; font-weight: 800; padding: 1px 4px; border-radius: 3px;">TSL ON (${s.tsl_step || 10}/${s.tsl_value || 10} pts)</span>` : '';
-
-                    // Per-leg Greeks pills
-                    const ceG = s.orders?.CE?.greeks || s.greeks?.legs?.find(l => l.opt_type === 'CE' && l.leg_type && l.leg_type.startsWith('Base'));
-                    const peG = s.orders?.PE?.greeks || s.greeks?.legs?.find(l => l.opt_type === 'PE' && l.leg_type && l.leg_type.startsWith('Base'));
-
-                    let ceGreekPill = '';
-                    if (ceG) {
-                        const ceD = parseFloat(ceG.pos_delta || 0);
-                        const ceTh = parseFloat(ceG.pos_theta || 0);
-                        const ceVg = parseFloat(ceG.pos_vega || 0);
-                        const ceIv = parseFloat(ceG.iv || 0);
-                        ceGreekPill = `<div style="font-size: 9px; font-family: monospace; color: var(--text-muted); margin-top: 1px; display: flex; gap: 6px;">
-                            <span title="CE Position Delta">Δ <b style="color: ${ceD >= 0 ? '#15803d' : '#b91c1c'};">${ceD >= 0 ? '+' : ''}${ceD.toFixed(1)}</b></span>
-                            ${toggles.showTheta ? `<span title="CE Daily Theta (₹/day)" style="color: ${ceTh >= 0 ? '#15803d' : '#b91c1c'};">Θ <b>${ceTh >= 0 ? '+' : ''}₹${ceTh.toFixed(0)}</b></span>` : ''}
-                            ${toggles.showVega ? `<span title="CE Vega" style="color: #0369a1;">ν <b>${ceVg.toFixed(0)}</b></span>` : ''}
-                            ${toggles.showIv ? `<span title="CE IV" style="color: #a21caf;">IV <b>${ceIv.toFixed(1)}%</b></span>` : ''}
-                        </div>`;
+                    // Only update payoff chart smoothly if user is on PAYOFF subtab and chart exists
+                    if (!isStrategyCardCollapsed(s.id) && getOpstraSubtab(s.id) === 'PAYOFF') {
+                        renderOpstraPayoffChart(s.id, s);
                     }
+                });
+                return;
+            }
 
-                    let peGreekPill = '';
-                    if (peG) {
-                        const peD = parseFloat(peG.pos_delta || 0);
-                        const peTh = parseFloat(peG.pos_theta || 0);
-                        const peVg = parseFloat(peG.pos_vega || 0);
-                        const peIv = parseFloat(peG.iv || 0);
-                        peGreekPill = `<div style="font-size: 9px; font-family: monospace; color: var(--text-muted); margin-top: 1px; display: flex; gap: 6px;">
-                            <span title="PE Position Delta">Δ <b style="color: ${peD >= 0 ? '#15803d' : '#b91c1c'};">${peD >= 0 ? '+' : ''}${peD.toFixed(1)}</b></span>
-                            ${toggles.showTheta ? `<span title="PE Daily Theta (₹/day)" style="color: ${peTh >= 0 ? '#15803d' : '#b91c1c'};">Θ <b>${peTh >= 0 ? '+' : ''}₹${peTh.toFixed(0)}</b></span>` : ''}
-                            ${toggles.showVega ? `<span title="PE Vega" style="color: #0369a1;">ν <b>${peVg.toFixed(0)}</b></span>` : ''}
-                            ${toggles.showIv ? `<span title="PE IV" style="color: #a21caf;">IV <b>${peIv.toFixed(1)}%</b></span>` : ''}
-                        </div>`;
-                    }
+            lastStraddleRenderSignature = currentStructureSignature;
 
-                    const ceLineHtml = (legSel === 'BOTH' || legSel === 'CE_ONLY')
-                        ? `<div style="margin-bottom: 6px;">
-                                <div style="display: flex; justify-content: space-between; align-items: center;">
-                                    <span style="color: #137333; font-weight: 700;">CE: ${ceSym}</span>
-                                    <span>LTP: <b style="font-family: monospace;">₹${ceLtp}</b> (Entry: ₹${ceEntry})</span>
-                                </div>
-                                ${ceGreekPill}
-                           </div>` : '';
+            const cardsHtml = filteredStrategies.map(s => {
+                const isActive = s.active;
+                const isCollapsed = isStrategyCardCollapsed(s.id);
+                const pnl = getStrategyPnl(s);
+                const currentSubtab = getOpstraSubtab(s.id);
+                const metrics = calculateOpstraMetrics(s);
+                const lotSize = getBrokerLotSize(s.index_name || 'NIFTY');
+                const totalLots = Math.max(1, Math.round((s.quantity || lotSize) / lotSize));
 
-                    const peLineHtml = (legSel === 'BOTH' || legSel === 'PE_ONLY')
-                        ? `<div>
-                                <div style="display: flex; justify-content: space-between; align-items: center;">
-                                    <span style="color: #c5221f; font-weight: 700;">PE: ${peSym}</span>
-                                    <span>LTP: <b style="font-family: monospace;">₹${peLtp}</b> (Entry: ₹${peEntry})</span>
-                                </div>
-                                ${peGreekPill}
-                           </div>` : '';
+                const spotLtp = parseFloat(s.underlying_ltp || s.base_spot_entry || metrics.spot || 0);
+                const spotDiffPct = (s.base_spot_entry && s.underlying_ltp) ? ((s.underlying_ltp - s.base_spot_entry) / s.base_spot_entry * 100).toFixed(2) : '0.00';
+                const spotDiffSign = parseFloat(spotDiffPct) >= 0 ? '+' : '';
 
-                    const strikesBoxHtml = hasCalculatedStrikes
-                        ? `<div style="background: #f8faf9; padding: 12px; border-radius: var(--radius-sm); border: 1px solid var(--border-color); font-size: 11px; margin-bottom: 12px;">
-                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; border-bottom: 1px dashed var(--border-color); padding-bottom: 4px;">
-                                <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
-                                    <span style="font-weight: 800; color: #4338ca;">🎯 Strike: ${s.selected_strike}</span>
-                                    ${typeBadge}
-                                    ${modeBadge}
-                                    ${tslActiveBadge}
-                                </div>
-                                <span style="font-size: 10px; color: var(--text-muted); font-family: monospace;">${s.resolved_expiry || s.expiry || ''}</span>
-                            </div>
-                            ${ceLineHtml}
-                            ${peLineHtml}
-                        </div>`
-                        : `<div style="margin-bottom: 12px; padding: 10px; background: var(--pastel-blue-bg); border-radius: 6px; border: 1px dashed var(--pastel-blue-border); font-size: 11px; color: var(--pastel-blue-dark); text-align: center; font-weight: 600;">
-                            🎯 Strikes not calculated — click <b>🔍 Calc Strikes</b>
-                        </div>`;
-
-                    // Greeks Box Component
-                    const greeksBoxHtml = renderStraddleGreeksBoxHtml(s);
-
-                    // Single Side vs Straddle Price Box Display
-                    let priceCardBoxHtml = '';
-                    if (isSingleLeg) {
-                        const targetLeg = (legSel === 'PE_ONLY' ? 'PE' : 'CE');
-                        const legEntryP = parseFloat(s.orders && s.orders[targetLeg] && s.orders[targetLeg].entry_price || initPrem).toFixed(2);
-                        const legCurrP = parseFloat(s.orders && s.orders[targetLeg] && s.orders[targetLeg].current_ltp || currPrem).toFixed(2);
-                        const lotSize = getBrokerLotSize(s.index_name || 'NIFTY');
-                        const totalLots = Math.max(1, Math.round((s.quantity || lotSize) / lotSize));
-
-                        priceCardBoxHtml = `
-                            <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: var(--radius-sm); padding: 10px; font-size: 11px; margin-bottom: 12px;">
-                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-                                    <span style="color: #166534; font-weight: 800;">🎯 ${targetLeg} Single Leg Position:</span>
-                                    <span style="font-family: monospace; font-size: 13px; font-weight: 800; color: #166534;">LTP: ₹${legCurrP}</span>
-                                </div>
-                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px; font-size: 10px; color: var(--text-secondary); margin-bottom: 4px;">
-                                    <span>Entry Price: <b style="color: var(--text-primary);">₹${legEntryP}</b></span>
-                                    <span>Lot Size: <b style="color: var(--text-primary);">${s.quantity || 65} (${totalLots} Lots)</b></span>
-                                </div>
-                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px; font-size: 10px; color: var(--text-secondary);">
-                                    <span>Profit Exit: <b style="color: #15803d;">₹${tpPrem}</b></span>
-                                    <span>SL Price: <b style="color: #991b1b;">₹${slPrem}</b> ${s.enable_tsl ? '<span style="color: #16a34a; font-weight: 800;">(TSL)</span>' : ''}</span>
-                                </div>
-                            </div>
-                        `;
-                    } else {
-                        // Straddle / Strangle Combined Total Premium Display
-                        priceCardBoxHtml = `
-                            <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: var(--radius-sm); padding: 10px; font-size: 11px; margin-bottom: 12px;">
-                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-                                    <span style="color: #166534; font-weight: 800;">🛡️ Combined Total Premium (CE + PE):</span>
-                                    <span style="font-family: monospace; font-size: 13px; font-weight: 800; color: #166534;">₹${currPrem}</span>
-                                </div>
-                                <div style="display: flex; justify-content: space-between; font-size: 10px; color: var(--text-secondary); margin-bottom: 4px;">
-                                    <span>Initial Prem: <b>₹${initPrem}</b></span>
-                                    <span>SL: <b style="color: #991b1b;">₹${slPrem}</b> ${s.enable_tsl ? '<span style="color: #16a34a; font-weight: 800;">(TSL)</span>' : ''}</span>
-                                </div>
-                                <div style="display: flex; justify-content: space-between; font-size: 10px; color: var(--text-secondary);">
-                                    <span>Target Profit: <b style="color: #15803d;">₹${tpPrem}</b></span>
-                                    <span>Qty: <b>${s.quantity || 65}</b></span>
-                                </div>
-                            </div>
-                        `;
-                    }
-
-                    // Adjustments Display Box
-                    let adjustmentsBoxHtml = '';
-                    const adjData = s.adjustments || {};
-                    if (adjData.enabled) {
-                        const adjMode = adjData.mode || 'AUTOMATIC';
-                        const activeOrders = adjData.active_orders || {};
-                        const activeLegKeys = Object.keys(activeOrders).filter(k => activeOrders[k].status === 'ACTIVE');
-
-                        let activeLegsHtml = '';
-                        if (activeLegKeys.length > 0) {
-                            activeLegsHtml = activeLegKeys.map(k => {
-                                const leg = activeOrders[k];
-                                const legPnl = parseFloat(leg.pnl || 0);
-
-                                const lg = leg.greeks || s.greeks?.legs?.find(l => l.symbol === leg.symbol);
-                                let lgGreekHtml = '';
-                                if (lg) {
-                                    const lgD = parseFloat(lg.pos_delta || 0);
-                                    const lgTh = parseFloat(lg.pos_theta || 0);
-                                    const lgVg = parseFloat(lg.pos_vega || 0);
-                                    const lgIv = parseFloat(lg.iv || 0);
-                                    lgGreekHtml = ` | <span style="font-family: monospace;">Δ <b style="color: ${lgD >= 0 ? '#15803d' : '#b91c1c'};">${lgD >= 0 ? '+' : ''}${lgD.toFixed(1)}</b>${toggles.showTheta ? ` | Θ <b style="color: ${lgTh >= 0 ? '#15803d' : '#b91c1c'};">${lgTh >= 0 ? '+' : ''}₹${lgTh.toFixed(0)}</b>` : ''}${toggles.showVega ? ` | ν <b>${lgVg.toFixed(0)}</b>` : ''}${toggles.showIv ? ` | IV <b>${lgIv.toFixed(1)}%</b>` : ''}</span>`;
-                                }
-
-                                return `
-                                <div style="background: #ffffff; border: 1px solid #99f6e4; border-radius: 4px; padding: 6px 8px; margin-top: 4px; display: flex; justify-content: space-between; align-items: center; font-size: 10px;">
-                                    <div>
-                                        <b style="color: ${leg.action === 'BUY' ? '#15803d' : '#b91c1c'};">${leg.action}</b> 
-                                        <b>${leg.symbol}</b> (Qty: ${leg.quantity})
-                                        <div style="color: var(--text-secondary); margin-top: 2px;">
-                                            Entry: ₹${parseFloat(leg.entry_price).toFixed(1)} | LTP: ₹${parseFloat(leg.current_ltp).toFixed(1)} | SL: <span style="color: #991b1b; font-weight: 700;">₹${parseFloat(leg.current_sl_trigger || 0).toFixed(1)}</span>${lgGreekHtml}
-                                        </div>
-                                    </div>
-                                    <div style="text-align: right; display: flex; align-items: center; gap: 6px;">
-                                        <span class="${getPnlClass(legPnl)}" style="font-family: monospace; font-weight: 800;">${formatPnl(legPnl)}</span>
-                                        <button onclick="squareoffStraddleAdjustmentLeg('${s.id}', '${leg.id}')" class="btn-secondary" style="padding: 2px 6px; font-size: 9px; color: #dc2626; border-color: #fca5a5;" title="Square off this adjustment leg">⚡ Exit</button>
-                                    </div>
-                                </div>`;
-                            }).join('');
-                        } else {
-                            activeLegsHtml = `<div style="font-size: 10px; color: #0f766e; margin-top: 4px; font-style: italic;">No active adjustment legs yet (awaiting triggers).</div>`;
-                        }
-
-                        const activeModules = [];
-                        const hasAuto = adjData.auto_config?.enabled || adjMode === 'AUTOMATIC';
-                        if (hasAuto) activeModules.push(`Decay ${adjData.auto_config?.trigger_decay_percent || 15}%`);
-
-                        const spotRules = adjData.spot_distance_rules || (adjData.spot_distance_config ? [adjData.spot_distance_config] : []);
-                        const hasSpot = adjData.enable_spot_dist || adjMode === 'SPOT_DISTANCE' || (spotRules && spotRules.length > 0);
-                        if (hasSpot && spotRules.length > 0) {
-                            const stepsSummary = spotRules.map(r => `${r.action} ±${r.move_step_pts || 500}pt`).join(', ');
-                            activeModules.push(`Spot (${stepsSummary})`);
-                        } else if (hasSpot) {
-                            activeModules.push(`Spot Dist`);
-                        }
-
-                        const manualLegs = adjData.manual_legs || [];
-                        const hasManual = adjData.enable_manual || adjMode === 'MANUAL' || manualLegs.length > 0;
-                        if (hasManual && manualLegs.length > 0) {
-                            activeModules.push(`${manualLegs.length} Extra Leg${manualLegs.length === 1 ? '' : 's'}`);
-                        } else if (hasManual) {
-                            activeModules.push(`Custom Legs`);
-                        }
-
-                        const modeTitle = activeModules.length > 0 ? activeModules.join(' + ') : 'Active';
-
-                        adjustmentsBoxHtml = `
-                        <div style="background: #f0fdfa; border: 1px solid #99f6e4; border-radius: var(--radius-sm); padding: 8px 10px; font-size: 11px; margin-bottom: 12px;">
-                            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 4px;">
-                                <span style="color: #0f766e; font-weight: 800; font-size: 11px;">⚙️ Adjustments (${modeTitle}):</span>
-                                <div style="display: flex; align-items: center; gap: 6px;">
-                                    ${s.base_spot_entry ? `<span style="font-size: 10px; color: #0284c7; font-weight: 700;">Base Spot: ₹${parseFloat(s.base_spot_entry).toFixed(1)}</span>` : ''}
-                                    <span style="font-size: 10px; background: #ccfbf1; color: #0f766e; font-weight: 700; padding: 1px 6px; border-radius: 4px;">${activeLegKeys.length} Active Leg${activeLegKeys.length === 1 ? '' : 's'}</span>
-                                </div>
-                            </div>
-                            ${activeLegsHtml}
-                        </div>`;
-                    }
-
-                    // Strategy Range & Underlying Movement Bar (Zerodha-style Day's Range UI)
-                    let rangeBoxHtml = '';
-                    const baseEntryLtp = parseFloat(s.entry_underlying_ltp || s.base_spot_entry || s.underlying_calc_ltp || 0);
-                    const currUnderlyingLtp = parseFloat(s.underlying_ltp || baseEntryLtp || 0);
-                    let minLtp = parseFloat(s.underlying_min_ltp || Math.min(baseEntryLtp, currUnderlyingLtp) || 0);
-                    let maxLtp = parseFloat(s.underlying_max_ltp || Math.max(baseEntryLtp, currUnderlyingLtp) || 0);
-
-                    // Ensure minimum visual range
-                    if (minLtp > 0 && maxLtp > 0 && minLtp === maxLtp) {
-                        minLtp = Math.floor(minLtp * 0.995);
-                        maxLtp = Math.ceil(maxLtp * 1.005);
-                    }
-
-                    if (currUnderlyingLtp > 0 && minLtp > 0 && maxLtp > minLtp) {
-                        const totalSpan = maxLtp - minLtp;
-                        const currPosPct = Math.min(100, Math.max(0, ((currUnderlyingLtp - minLtp) / totalSpan) * 100));
-                        const entryPosPct = baseEntryLtp > 0 ? Math.min(100, Math.max(0, ((baseEntryLtp - minLtp) / totalSpan) * 100)) : currPosPct;
-
-                        const diffPts = baseEntryLtp > 0 ? (currUnderlyingLtp - baseEntryLtp) : 0;
-                        const diffPct = baseEntryLtp > 0 ? (diffPts / baseEntryLtp * 100) : 0;
-                        const diffClass = diffPts >= 0 ? 'text-success' : 'text-danger';
-                        const diffSign = diffPts > 0 ? '+' : '';
-
-                        rangeBoxHtml = `
-                        <div style="background: #ffffff; border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 10px 12px; margin-bottom: 12px;">
-                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-                                <div style="font-size: 11px; font-weight: 800; color: var(--text-primary); display: flex; align-items: center; gap: 5px;">
-                                    <span>📊 Strategy Range</span>
-                                    <span style="font-size: 10px; font-weight: 600; color: var(--text-muted);">(${s.underlying_name || 'Underlying'})</span>
-                                </div>
-                                <div style="font-size: 11px; font-weight: 800; font-family: monospace;" class="${diffClass}">
-                                    ${diffSign}${diffPts.toFixed(1)} pts (${diffSign}${diffPct.toFixed(2)}%)
-                                </div>
-                            </div>
-
-                            <div style="display: flex; justify-content: space-between; font-size: 10px; color: var(--text-muted); font-family: monospace; margin-bottom: 2px;">
-                                <span>Low <b style="color: var(--text-primary);">₹${minLtp.toLocaleString('en-IN', { maximumFractionDigits: 1 })}</b></span>
-                                <span>High <b style="color: var(--text-primary);">₹${maxLtp.toLocaleString('en-IN', { maximumFractionDigits: 1 })}</b></span>
-                            </div>
-
-                            <!-- Interactive Track Slider Bar -->
-                            <div style="position: relative; height: 6px; background: #e2e8f0; border-radius: 3px; margin: 10px 0 16px 0;">
-                                <!-- Range Fill -->
-                                <div style="position: absolute; left: 0%; width: 100%; height: 100%; background: #cbd5e1; border-radius: 3px;"></div>
-                                
-                                <!-- Entry Point Marker (Triangle) -->
-                                ${baseEntryLtp > 0 ? `
-                                <div style="position: absolute; left: ${entryPosPct}%; top: 6px; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center;" title="Entry / Ref Price: ₹${baseEntryLtp.toFixed(1)}">
-                                    <div style="width: 0; height: 0; border-left: 4px solid transparent; border-right: 4px solid transparent; border-bottom: 5px solid #0284c7;"></div>
-                                    <span style="font-size: 9px; font-weight: 700; color: #0284c7; white-space: nowrap; margin-top: 1px;">Entry: ₹${baseEntryLtp.toFixed(1)}</span>
-                                </div>` : ''}
-
-                                <!-- Live Current LTP Marker (Circle Dot) -->
-                                <div style="position: absolute; left: ${currPosPct}%; top: -3px; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center;" title="Live LTP: ₹${currUnderlyingLtp.toFixed(1)}">
-                                    <div style="width: 12px; height: 12px; border-radius: 50%; background: ${diffPts >= 0 ? '#16a34a' : '#dc2626'}; border: 2px solid #ffffff; box-shadow: 0 1px 3px rgba(0,0,0,0.3);"></div>
-                                    <span style="font-size: 9px; font-weight: 800; color: ${diffPts >= 0 ? '#16a34a' : '#dc2626'}; white-space: nowrap; margin-top: -24px; background: #ffffff; padding: 0 3px; border-radius: 2px; border: 1px solid var(--border-color);">LTP: ₹${currUnderlyingLtp.toFixed(1)}</span>
-                                </div>
-                            </div>
-                        </div>
-                        `;
-                    }
-
-                    const lotSize = getBrokerLotSize(s.index_name || 'NIFTY');
-                    const totalLots = Math.max(1, Math.round((s.quantity || lotSize) / lotSize));
-                    const lotBadge = `<span style="background: #f8fafc; color: #475569; border: 1px solid #cbd5e1; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 4px;" title="Strategy Lot Size">📦 ${s.quantity || lotSize} Qty (${totalLots} Lot${totalLots > 1 ? 's' : ''})</span>`;
-
+                // Render Left Column Legs Checklist
+                const legsHtml = metrics.legs.map(leg => {
+                    const badgeClass = leg.action === 'SELL' ? 'opstra-badge-s' : 'opstra-badge-b';
+                    const legPnl = (leg.entry && leg.ltp) ? (leg.action === 'SELL' ? (leg.entry - leg.ltp) * leg.qty : (leg.ltp - leg.entry) * leg.qty) : 0;
                     return `
-                    <div class="card strat-card" data-strat-id="${s.id}" data-group-id="${groupTitle}" style="border-top: 3px solid ${isActive ? 'var(--success)' : 'var(--border-color)'}; padding: 0;">
-                        <!-- Collapsible Header Summary Strip -->
-                        <div class="strat-card-header" onclick="toggleStrategyCard('${s.id}')">
-                            <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
-                                <span id="stratCardChevron_${s.id}" class="strat-card-chevron ${isCollapsed ? 'collapsed' : ''}">▼</span>
-                                <span style="font-size: 14px; font-weight: 800; color: var(--text-primary);">${s.name || 'Straddle Total SL'}</span>
-                                <span style="background: var(--pastel-blue-bg); color: var(--pastel-blue-dark); border: 1px solid var(--pastel-blue-border); font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 4px;">${s.index_name}</span>
-                                ${s.underlying_name ? `<span style="background: #fefce8; color: #854d0e; border: 1px solid #fef08a; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 4px;" title="ATM calculated from ${s.underlying_name}">📊 ${s.underlying_name} ${s.underlying_ltp ? `(₹${parseFloat(s.underlying_ltp).toFixed(1)})` : ''}</span>` : ''}
-                                <span style="background: #ffffff; color: var(--text-secondary); border: 1px solid var(--border-color); font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: 4px;">${s.product || 'NRML'}</span>
-                                ${lotBadge}
-                                ${typeBadge}
-                                ${actionBadge}
-                                ${positionBadge}
-                                <span class="status-pill ${statusClass}" style="margin: 0; padding: 2px 8px; font-size: 10px;">
-                                    <span class="status-dot"></span>
-                                    <span>${statusText}</span>
-                                </span>
-                            </div>
-
-                            <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
-                                <span style="background: #f8fafc; color: #334155; border: 1px solid #cbd5e1; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 6px; font-family: monospace;" title="Expiry Date">
-                                    📅 ${formatStrategyExpiry(s)}
-                                </span>
-                                ${formatStrategyDelta(s)}
-                                <div style="display: flex; align-items: center; gap: 5px;">
-                                    <span style="font-size: 11px; color: var(--text-secondary); font-weight: 600;">Live P&amp;L:</span>
-                                    <span class="${getPnlClass(pnl)}" style="font-family: 'JetBrains Mono', monospace; font-size: 14px; font-weight: 800; padding: 2px 8px; border-radius: 6px; background: #ffffff; border: 1px solid var(--border-color); white-space: nowrap;">${formatPnl(pnl)}</span>
-                                </div>
-
-                                <!-- Quick Action Buttons -->
-                                <div style="display: flex; gap: 5px; align-items: center;" onclick="event.stopPropagation()">
-                                    <button onclick="toggleStraddleStrategy('${s.id}')" class="${isActive ? 'btn-danger' : 'btn-primary'}" style="padding: 4px 10px; font-size: 11px; width: auto;">
-                                        ${isActive ? '⏹️ Stop' : '▶️ Start'}
-                                    </button>
-                                    <button onclick="calculateStraddleStrikesFor('${s.id}')" class="btn-secondary" style="padding: 4px 8px; font-size: 11px; width: auto;" title="Calculate strikes &amp; fetch live LTPs">🔍 Calc</button>
-                                    <button onclick="squareoffStraddleStrategy('${s.id}')" class="btn-secondary" style="padding: 4px 8px; font-size: 11px; width: auto; color: var(--error); border-color: rgba(203, 83, 78, 0.4);" title="Manual Exit: Square off open position &amp; stop strategy">⚡ Exit</button>
-                                    <button onclick="toggleStrategyInlineEdit('STRADDLE', '${s.id}')" class="btn-secondary" style="padding: 4px 8px; font-size: 11px; width: auto; background: ${innerMode === 'EDIT' ? 'var(--pastel-blue-bg)' : '#ffffff'}; color: ${innerMode === 'EDIT' ? 'var(--pastel-blue-dark)' : 'inherit'}; font-weight: 700;" title="Edit Strategy directly within card">✏️ Edit</button>
-                                    <button onclick="deleteStraddleStrategy('${s.id}')" class="btn-secondary" style="padding: 4px 8px; font-size: 11px; width: auto; color: var(--danger);" title="Delete Strategy">🗑️</button>
-                                </div>
-                            </div>
+                    <div class="opstra-leg-item">
+                        <div style="display: flex; align-items: center; gap: 6px;">
+                            <input type="checkbox" checked style="cursor: pointer;">
+                            <span class="${badgeClass}">${leg.action === 'SELL' ? 'S' : 'B'}</span>
+                            <span style="font-weight: 700; color: #334155;">${totalLots}x</span>
+                            <span style="font-weight: 700; color: #0f172a;">${s.index_name} ${formatStrategyExpiry(s)} ${leg.strike} ${leg.type}</span>
                         </div>
-
-                        <!-- Collapsible Body Content -->
-                        <div id="stratCardBody_${s.id}" class="strat-card-body" style="display: ${isCollapsed ? 'none' : 'block'}; padding: 14px 18px 18px 18px; border-top: 1px solid var(--border-color);">
-                            <!-- Inner Tabs: Live Monitor vs Edit Strategy -->
-                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--border-color); flex-wrap: wrap; gap: 8px;">
-                                <div style="display: flex; gap: 6px;">
-                                    <button type="button" id="btnModeView_${s.id}" onclick="switchStratInnerMode('${s.id}', 'VIEW')" class="btn-secondary" style="font-size: 11px; font-weight: ${innerMode === 'VIEW' ? '800' : '600'}; padding: 4px 10px; ${innerMode === 'VIEW' ? 'background: var(--pastel-blue-bg); color: var(--pastel-blue-dark); border-color: var(--pastel-blue-border);' : 'background: #ffffff; color: var(--text-secondary);'}">
-                                        📊 Live Monitor
-                                    </button>
-                                    <button type="button" id="btnModeEdit_${s.id}" onclick="switchStratInnerMode('${s.id}', 'EDIT')" class="btn-secondary" style="font-size: 11px; font-weight: ${innerMode === 'EDIT' ? '800' : '600'}; padding: 4px 10px; ${innerMode === 'EDIT' ? 'background: var(--pastel-blue-bg); color: var(--pastel-blue-dark); border-color: var(--pastel-blue-border);' : 'background: #ffffff; color: var(--text-secondary);'}">
-                                        ✏️ Edit Strategy
-                                    </button>
-                                </div>
-                                <span style="font-size: 11px; color: var(--text-secondary); font-family: monospace;">ID: ${s.id}</span>
-                            </div>
-
-                            <!-- Live Monitor View Panel -->
-                            <div id="stratViewPanel_${s.id}" style="display: ${innerMode === 'VIEW' ? 'block' : 'none'};">
-                                ${strikesBoxHtml}
-                                ${greeksBoxHtml}
-                                ${rangeBoxHtml}
-                                ${priceCardBoxHtml}
-                                ${adjustmentsBoxHtml}
-                            </div>
-
-                            <!-- Inline Edit Panel -->
-                            ${buildStraddleInlineEditPanel(s)}
+                        <div style="text-align: right; font-family: monospace;">
+                            <span style="font-weight: 700; color: #0f172a;">₹${leg.ltp.toFixed(2)}</span>
+                            <div style="font-size: 10px; font-weight: 800;" class="${getPnlClass(legPnl)}">${formatPnl(legPnl)}</div>
                         </div>
                     </div>`;
                 }).join('');
 
+                // Render Opstra Key Metrics Table
+                const beString = metrics.breakevens.length > 0 ? metrics.breakevens.map(b => typeof b === 'number' ? `₹${b.toLocaleString('en-IN')}` : b).join(' - ') : '--';
+                const metricsTableHtml = `
+                <table class="opstra-metrics-table">
+                    <tr><td class="metric-label">Prob. of Profit</td><td class="metric-val" style="color: #16a34a;">${metrics.pop}</td></tr>
+                    <tr><td class="metric-label">Max. Profit</td><td class="metric-val" style="color: #16a34a;">${metrics.maxProfit}</td></tr>
+                    <tr><td class="metric-label">Max. Loss</td><td class="metric-val" style="color: #dc2626;">${metrics.maxLoss}</td></tr>
+                    <tr><td class="metric-label">Max RR Ratio</td><td class="metric-val">${metrics.rrRatio}</td></tr>
+                    <tr><td class="metric-label">Breakevens</td><td class="metric-val" style="font-size: 10px;">${beString}</td></tr>
+                    <tr><td class="metric-label">Total PNL</td><td class="metric-val ${getPnlClass(pnl)}">${formatPnl(pnl)}</td></tr>
+                    <tr><td class="metric-label">Net Credit</td><td class="metric-val">₹${Math.round(metrics.netCredit).toLocaleString('en-IN')}</td></tr>
+                    <tr><td class="metric-label">Estimated Margin</td><td class="metric-val">${metrics.estMargin}</td></tr>
+                </table>`;
+
+                // Render Subtab 2: Greeks Table with Totals
+                let totalDelta = 0, totalTheta = 0, totalGamma = 0, totalVega = 0, sumIv = 0, legCount = 0;
+                const greeksRows = metrics.legs.map(l => {
+                    const g = l.greeks || {};
+                    const delta = parseFloat(g.pos_delta || (l.action === 'SELL' ? -0.5 : 0.5) * (l.type === 'CE' ? 1 : -1));
+                    const theta = parseFloat(g.pos_theta || (l.entry * 0.05 * l.qty));
+                    const gamma = parseFloat(g.pos_gamma || 0.0012);
+                    const vega = parseFloat(g.pos_vega || (l.entry * 0.02 * l.qty));
+                    const iv = parseFloat(g.iv || 14.5);
+
+                    totalDelta += delta;
+                    totalTheta += theta;
+                    totalGamma += gamma;
+                    totalVega += vega;
+                    sumIv += iv;
+                    legCount++;
+
+                    return `
+                    <tr style="border-bottom: 1px solid #f1f5f9; font-size: 11px;">
+                        <td style="padding: 6px 4px; font-weight: 700;">${l.symbol}</td>
+                        <td style="padding: 6px 4px; font-family: monospace;">${iv.toFixed(1)}%</td>
+                        <td style="padding: 6px 4px; font-family: monospace; font-weight: 700; color: ${delta >= 0 ? '#16a34a' : '#dc2626'};">${delta >= 0 ? '+' : ''}${delta.toFixed(2)}</td>
+                        <td style="padding: 6px 4px; font-family: monospace; color: #16a34a;">+₹${Math.round(theta)}</td>
+                        <td style="padding: 6px 4px; font-family: monospace;">${gamma.toFixed(4)}</td>
+                        <td style="padding: 6px 4px; font-family: monospace; color: #0284c7;">₹${Math.round(vega)}</td>
+                    </tr>`;
+                }).join('');
+
+                const avgIv = legCount > 0 ? (sumIv / legCount) : 0;
+                const greeksFooterHtml = legCount > 0 ? `
+                    <tfoot>
+                        <tr style="background: #f1f5f9; border-top: 2px solid #cbd5e1; font-size: 11px; font-weight: 800;">
+                            <td style="padding: 7px 4px; color: #0f172a;">TOTAL / NET</td>
+                            <td style="padding: 7px 4px; font-family: monospace; color: #64748b;">${avgIv.toFixed(1)}% (Avg)</td>
+                            <td style="padding: 7px 4px; font-family: monospace; font-weight: 900; color: ${totalDelta >= 0 ? '#16a34a' : '#dc2626'};">${totalDelta >= 0 ? '+' : ''}${totalDelta.toFixed(2)}</td>
+                            <td style="padding: 7px 4px; font-family: monospace; color: ${totalTheta >= 0 ? '#16a34a' : '#dc2626'};">${totalTheta >= 0 ? '+' : ''}₹${Math.round(totalTheta).toLocaleString('en-IN')}</td>
+                            <td style="padding: 7px 4px; font-family: monospace;">${totalGamma.toFixed(4)}</td>
+                            <td style="padding: 7px 4px; font-family: monospace; color: #0284c7;">₹${Math.round(totalVega).toLocaleString('en-IN')}</td>
+                        </tr>
+                    </tfoot>` : '';
+
+                const greeksTableHtml = `
+                <div style="overflow-x: auto;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                        <span style="font-size: 12px; font-weight: 800; color: #1e293b;">📊 Strategy Greeks Breakdown</span>
+                        <div style="font-size: 10px; font-weight: 700; color: #64748b;">Greeks (₹/lot)</div>
+                    </div>
+                    <table style="width: 100%; border-collapse: collapse; text-align: left;">
+                        <thead>
+                            <tr style="background: #f8fafc; color: #475569; font-size: 10px; text-transform: uppercase; font-weight: 800; border-bottom: 2px solid #e2e8f0;">
+                                <th style="padding: 6px 4px;">Option Leg</th>
+                                <th style="padding: 6px 4px;">IV</th>
+                                <th style="padding: 6px 4px;">Delta</th>
+                                <th style="padding: 6px 4px;">Theta (₹/d)</th>
+                                <th style="padding: 6px 4px;">Gamma</th>
+                                <th style="padding: 6px 4px;">Vega (₹/1%)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${greeksRows || '<tr><td colspan="6" style="padding: 12px; text-align: center; color: #94a3b8;">No open legs available</td></tr>'}
+                        </tbody>
+                        ${greeksFooterHtml}
+                    </table>
+                </div>`;
+
+                // Render Subtab 3: PnL Table with Totals
+                let totalLegQty = 0, totalLegPnl = 0;
+                const pnlRows = metrics.legs.map(l => {
+                    const legPnl = (l.entry && l.ltp) ? (l.action === 'SELL' ? (l.entry - l.ltp) * l.qty : (l.ltp - l.entry) * l.qty) : 0;
+                    totalLegQty += l.qty;
+                    totalLegPnl += legPnl;
+
+                    return `
+                    <tr style="border-bottom: 1px solid #f1f5f9; font-size: 11px;">
+                        <td style="padding: 6px 4px; font-weight: 700;">${l.symbol}</td>
+                        <td style="padding: 6px 4px;"><span class="${l.action === 'SELL' ? 'opstra-badge-s' : 'opstra-badge-b'}">${l.action}</span></td>
+                        <td style="padding: 6px 4px; font-family: monospace;">${l.qty}</td>
+                        <td style="padding: 6px 4px; font-family: monospace;">₹${l.entry.toFixed(2)}</td>
+                        <td style="padding: 6px 4px; font-family: monospace; font-weight: 700;">₹${l.ltp.toFixed(2)}</td>
+                        <td style="padding: 6px 4px; font-family: monospace; font-weight: 800;" class="${getPnlClass(legPnl)}">${formatPnl(legPnl)}</td>
+                    </tr>`;
+                }).join('');
+
+                const pnlFooterHtml = metrics.legs.length > 0 ? `
+                    <tfoot>
+                        <tr style="background: #f1f5f9; border-top: 2px solid #cbd5e1; font-size: 11px; font-weight: 800;">
+                            <td colspan="2" style="padding: 7px 4px; color: #0f172a;">TOTAL</td>
+                            <td style="padding: 7px 4px; font-family: monospace;">${totalLegQty}</td>
+                            <td style="padding: 7px 4px; font-family: monospace; color: #64748b;">--</td>
+                            <td style="padding: 7px 4px; font-family: monospace; color: #64748b;">--</td>
+                            <td style="padding: 7px 4px; font-family: monospace; font-size: 12px; font-weight: 900;" class="${getPnlClass(pnl)}">${formatPnl(pnl)}</td>
+                        </tr>
+                    </tfoot>` : '';
+
+                const pnlTableHtml = `
+                <div style="overflow-x: auto;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                        <span style="font-size: 12px; font-weight: 800; color: #1e293b;">💰 Position-wise P&amp;L Ledger</span>
+                        <span style="font-size: 12px; font-weight: 800;" class="${getPnlClass(pnl)}">Total: ${formatPnl(pnl)}</span>
+                    </div>
+                    <table style="width: 100%; border-collapse: collapse; text-align: left;">
+                        <thead>
+                            <tr style="background: #f8fafc; color: #475569; font-size: 10px; text-transform: uppercase; font-weight: 800; border-bottom: 2px solid #e2e8f0;">
+                                <th style="padding: 6px 4px;">Symbol</th>
+                                <th style="padding: 6px 4px;">Action</th>
+                                <th style="padding: 6px 4px;">Qty</th>
+                                <th style="padding: 6px 4px;">Entry Price</th>
+                                <th style="padding: 6px 4px;">Current LTP</th>
+                                <th style="padding: 6px 4px;">Leg P&amp;L</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${pnlRows || '<tr><td colspan="6" style="padding: 12px; text-align: center; color: #94a3b8;">No positions active</td></tr>'}
+                        </tbody>
+                        ${pnlFooterHtml}
+                    </table>
+                </div>`;
+
                 return `
-                <div style="margin-bottom: 24px;">
-                    ${groupHeaderHtml}
-                    <div style="display: flex; flex-direction: column; gap: 12px; width: 100%;">
-                        ${cardsHtml}
+                <div class="opstra-strat-card ${isActive ? 'active-strat' : 'inactive-strat'}" data-strat-id="${s.id}">
+                    <!-- Card Top Header Row -->
+                    <div class="opstra-card-header-row" onclick="toggleStrategyCard('${s.id}')">
+                        <div onclick="event.stopPropagation()">
+                            <input type="checkbox" class="opstra-card-chk" style="cursor: pointer; width: 15px; height: 15px;">
+                        </div>
+                        <div style="display: flex; flex-direction: column;">
+                            <span style="font-weight: 800; font-size: 13px; color: #0f172a;">${s.index_name} ${formatStrategyExpiry(s)}</span>
+                            <span style="font-size: 10px; color: #64748b;">${s.strategy_type || 'STRADDLE'} • ${s.product || 'NRML'} • ${totalLots} Lot${totalLots > 1 ? 's' : ''} (${s.quantity || lotSize} Qty)</span>
+                        </div>
+                        <div>
+                            <span class="opstra-header-spot" style="font-weight: 800; font-size: 12px; font-family: monospace; color: #0f172a;">₹${spotLtp.toLocaleString('en-IN', { maximumFractionDigits: 1 })}</span>
+                            <span style="font-size: 10px; font-weight: 700; color: ${parseFloat(spotDiffPct) >= 0 ? '#16a34a' : '#dc2626'}; font-family: monospace;">(${spotDiffSign}${spotDiffPct}%)</span>
+                        </div>
+                        <div>
+                            <span style="font-weight: 700; font-size: 13px; color: #334155;">${s.name || 'Straddle Total SL'}</span>
+                        </div>
+                        <div style="text-align: center;">
+                            <span class="opstra-status-dot ${isActive ? 'active' : 'inactive'}" title="${isActive ? 'Strategy Active & Running' : 'Strategy Inactive'}"></span>
+                        </div>
+                        <div style="text-align: right;">
+                            <span style="font-size: 14px; font-weight: 800; font-family: 'JetBrains Mono', monospace;" class="opstra-header-pnl ${getPnlClass(pnl)}">${formatPnl(pnl)}</span>
+                        </div>
+                        <div style="text-align: right;">
+                            <span id="stratCardChevron_${s.id}" class="strat-card-chevron ${isCollapsed ? 'collapsed' : ''}">▼</span>
+                        </div>
+                    </div>
+
+                    <!-- Collapsible Dropdown Panel -->
+                    <div id="stratCardBody_${s.id}" class="opstra-dropdown-panel" style="display: ${isCollapsed ? 'none' : 'block'};">
+                        <div class="opstra-panel-grid">
+                            <!-- Left Column: Positions & Key Opstra Metrics -->
+                            <div class="opstra-left-col">
+                                <div style="font-size: 11px; font-weight: 800; text-transform: uppercase; color: #64748b; margin-bottom: 8px; letter-spacing: 0.5px;">
+                                    Strategy Positions
+                                </div>
+                                <div style="display: flex; flex-direction: column; gap: 4px;">
+                                    ${legsHtml || '<div style="font-size: 11px; color: #94a3b8; font-style: italic;">No option legs calculated yet. Click 🔍 Calc Strikes below.</div>'}
+                                </div>
+                                ${metricsTableHtml}
+                            </div>
+
+                            <!-- Right Column: 4 Subtabs (Payoff Chart, Greeks, PnL, Edit) -->
+                            <div>
+                                <div class="opstra-subtabs-nav" id="opstraSubtabsNav_${s.id}">
+                                    <button type="button" class="opstra-subtab-btn ${currentSubtab === 'PAYOFF' ? 'active' : ''}" data-tab="PAYOFF" onclick="switchOpstraSubtab('${s.id}', 'PAYOFF')">
+                                        📈 Payoff Chart
+                                    </button>
+                                    <button type="button" class="opstra-subtab-btn ${currentSubtab === 'GREEKS' ? 'active' : ''}" data-tab="GREEKS" onclick="switchOpstraSubtab('${s.id}', 'GREEKS')">
+                                        📊 Greeks
+                                    </button>
+                                    <button type="button" class="opstra-subtab-btn ${currentSubtab === 'PNL' ? 'active' : ''}" data-tab="PNL" onclick="switchOpstraSubtab('${s.id}', 'PNL')">
+                                        💰 P&amp;L
+                                    </button>
+                                    <button type="button" class="opstra-subtab-btn ${currentSubtab === 'EDIT' ? 'active' : ''}" data-tab="EDIT" onclick="switchOpstraSubtab('${s.id}', 'EDIT')">
+                                        ✏️ Edit Strategy
+                                    </button>
+                                </div>
+
+                                <!-- Subtab 1: Payoff Chart -->
+                                <div id="opstraPane_payoff_${s.id}" style="display: ${currentSubtab === 'PAYOFF' ? 'block' : 'none'};">
+                                    <div style="height: 280px; width: 100%; position: relative;">
+                                        <canvas id="opstraPayoffCanvas_${s.id}"></canvas>
+                                    </div>
+                                </div>
+
+                                <!-- Subtab 2: Greeks -->
+                                <div id="opstraPane_greeks_${s.id}" style="display: ${currentSubtab === 'GREEKS' ? 'block' : 'none'};">
+                                    ${greeksTableHtml}
+                                </div>
+
+                                <!-- Subtab 3: PnL -->
+                                <div id="opstraPane_pnl_${s.id}" style="display: ${currentSubtab === 'PNL' ? 'block' : 'none'};">
+                                    ${pnlTableHtml}
+                                </div>
+
+                                <!-- Subtab 4: Edit Strategy -->
+                                <div id="opstraPane_edit_${s.id}" style="display: ${currentSubtab === 'EDIT' ? 'block' : 'none'};">
+                                    ${buildStraddleInlineEditPanel(s)}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Bottom Action Buttons Bar -->
+                        <div class="opstra-bottom-actions">
+                            <button onclick="toggleStraddleStrategy('${s.id}')" class="btn-opstra ${isActive ? 'btn-opstra-danger' : 'btn-opstra-primary'}">
+                                ${isActive ? '⏹️ Stop Strategy' : '▶️ Start Strategy'}
+                            </button>
+                            <button onclick="calculateStraddleStrikesFor('${s.id}')" class="btn-opstra btn-opstra-secondary" title="Recalculate strikes">
+                                🔍 Calc Strikes
+                            </button>
+                            <button onclick="squareoffStraddleStrategy('${s.id}')" class="btn-opstra btn-opstra-danger" title="Square off open legs">
+                                ⚡ Square Off / Exit
+                            </button>
+                            <button onclick="switchOpstraSubtab('${s.id}', 'EDIT')" class="btn-opstra btn-opstra-secondary">
+                                ✏️ Edit
+                            </button>
+                            <button onclick="deleteStraddleStrategy('${s.id}')" class="btn-opstra btn-opstra-secondary" style="color: #dc2626;" title="Delete Strategy">
+                                🗑️ Delete
+                            </button>
+                        </div>
                     </div>
                 </div>`;
             }).join('');
+
+            // Render Opstra Top Filter Bar + Strategy Cards
+            container.innerHTML = `
+                <div class="opstra-filter-bar" id="straddleFilterBar">
+                    <div class="opstra-bulk-links">
+                        <span class="link-btn" onclick="selectAllCards('STRADDLE')">SELECT ALL</span>
+                        <span class="link-btn" onclick="expandAllCards('STRADDLE')">EXPAND ALL</span>
+                        <span class="link-btn" onclick="collapseAllCards('STRADDLE')">COLLAPSE ALL</span>
+                    </div>
+                    <div class="opstra-pill-group">
+                        <button type="button" class="opstra-pill-btn ${straddlePillFilterState === 'ALL' ? 'active' : ''}" data-inst="ALL" onclick="setStraddlePillFilter('ALL')">ALL</button>
+                        <button type="button" class="opstra-pill-btn ${straddlePillFilterState === 'BANKNIFTY' ? 'active' : ''}" data-inst="BANKNIFTY" onclick="setStraddlePillFilter('BANKNIFTY')">BANKNIFTY</button>
+                        <button type="button" class="opstra-pill-btn ${straddlePillFilterState === 'NIFTY' ? 'active' : ''}" data-inst="NIFTY" onclick="setStraddlePillFilter('NIFTY')">NIFTY</button>
+                        <button type="button" class="opstra-pill-btn ${straddlePillFilterState === 'SENSEX' ? 'active' : ''}" data-inst="SENSEX" onclick="setStraddlePillFilter('SENSEX')">SENSEX</button>
+                        <button type="button" class="opstra-pill-btn ${straddlePillFilterState === 'FINNIFTY' ? 'active' : ''}" data-inst="FINNIFTY" onclick="setStraddlePillFilter('FINNIFTY')">FINNIFTY</button>
+                        <button type="button" class="opstra-pill-btn ${straddlePillFilterState === 'MIDCPNIFTY' ? 'active' : ''}" data-inst="MIDCPNIFTY" onclick="setStraddlePillFilter('MIDCPNIFTY')">MIDCPNIFTY</button>
+                    </div>
+                    <div style="font-size: 13px; font-weight: 800; font-family: monospace;">
+                        <span style="color: #64748b; font-size: 11px; font-weight: 700; font-family: sans-serif;">Total PNL: </span>
+                        <span class="opstra-total-pnl-val ${getPnlClass(totalStraddlePnl)}">${formatPnl(totalStraddlePnl)}</span>
+                    </div>
+                </div>
+
+                <div style="display: flex; flex-direction: column; gap: 8px;">
+                    ${cardsHtml}
+                </div>
+            `;
+
+            // Initialize payoff charts on expanded cards
+            setTimeout(() => {
+                filteredStrategies.forEach(s => {
+                    if (!isStrategyCardCollapsed(s.id) && getOpstraSubtab(s.id) === 'PAYOFF') {
+                        renderOpstraPayoffChart(s.id, s);
+                    }
+                });
+            }, 100);
         }
 
         function onStraddleStratTypeChange() {

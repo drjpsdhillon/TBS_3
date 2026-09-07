@@ -2359,6 +2359,71 @@ def api_pos_strangle_status():
         if kite_client:
             pos_strngl.set_kite_client(kite_client)
         strats = pos_strngl.load_pos_strategies()
+        
+        # Real-time refresh of live quotes for configured and placed positional strategy legs
+        if kite_client and strats:
+            symbols_to_quote = set()
+            for s in strats:
+                exch = pos_strngl.get_pos_exchange(s.get("index_name"))
+                if s.get("selected_ce"):
+                    symbols_to_quote.add(f"{exch}:{s['selected_ce']}")
+                if s.get("selected_pe"):
+                    symbols_to_quote.add(f"{exch}:{s['selected_pe']}")
+                orders_data = s.get("orders", {})
+                for leg in ["CE", "PE"]:
+                    sym = orders_data.get(leg, {}).get("symbol")
+                    if sym:
+                        symbols_to_quote.add(f"{exch}:{sym}")
+
+            if symbols_to_quote:
+                try:
+                    quotes = kite_client.ltp(list(symbols_to_quote))
+                    for s in strats:
+                        exch = pos_strngl.get_pos_exchange(s.get("index_name"))
+                        qty = int(s.get("quantity") or pos_strngl.get_pos_lot_size(s.get("index_name")))
+                        entry_action = s.get("entry_action", "SELL").upper()
+                        orders_data = s.setdefault("orders", {})
+                        
+                        curr_tot_prem = 0.0
+                        total_pnl = 0.0
+                        
+                        # Update CE
+                        ce_sym = s.get("selected_ce") or orders_data.get("CE", {}).get("symbol")
+                        if ce_sym and f"{exch}:{ce_sym}" in quotes:
+                            ce_ltp = float(quotes[f"{exch}:{ce_sym}"]["last_price"])
+                            s["selected_ce_ltp"] = ce_ltp
+                            if "CE" in orders_data:
+                                orders_data["CE"]["current_ltp"] = ce_ltp
+                                ce_entry = float(orders_data["CE"].get("first_entry_price") or orders_data["CE"].get("entry_price") or 0.0)
+                                if ce_entry > 0 and orders_data["CE"].get("status") == "ACTIVE":
+                                    leg_pnl = (ce_entry - ce_ltp) * qty if entry_action == "SELL" else (ce_ltp - ce_entry) * qty
+                                    orders_data["CE"]["pnl"] = round(leg_pnl, 2)
+                                    total_pnl += leg_pnl
+                            curr_tot_prem += ce_ltp
+
+                        # Update PE
+                        pe_sym = s.get("selected_pe") or orders_data.get("PE", {}).get("symbol")
+                        if pe_sym and f"{exch}:{pe_sym}" in quotes:
+                            pe_ltp = float(quotes[f"{exch}:{pe_sym}"]["last_price"])
+                            s["selected_pe_ltp"] = pe_ltp
+                            if "PE" in orders_data:
+                                orders_data["PE"]["current_ltp"] = pe_ltp
+                                pe_entry = float(orders_data["PE"].get("first_entry_price") or orders_data["PE"].get("entry_price") or 0.0)
+                                if pe_entry > 0 and orders_data["PE"].get("status") == "ACTIVE":
+                                    leg_pnl = (pe_entry - pe_ltp) * qty if entry_action == "SELL" else (pe_ltp - pe_entry) * qty
+                                    orders_data["PE"]["pnl"] = round(leg_pnl, 2)
+                                    total_pnl += leg_pnl
+                            curr_tot_prem += pe_ltp
+
+                        if curr_tot_prem > 0:
+                            s["current_total_premium"] = round(curr_tot_prem, 2)
+                        
+                        if orders_data.get("orders_placed"):
+                            s["pnl"] = round(total_pnl, 2)
+                            s["unrealized_pnl"] = s["pnl"]
+                except Exception as q_err:
+                    logger.warning(f"Error refreshing live quotes for Positional Strangle: {q_err}")
+
         return jsonify({
             "status": "ok",
             "strategies": strats,
@@ -2599,6 +2664,95 @@ def api_straddle_total_sl_status():
         if kite_client:
             straddle_total_sl.set_kite_client(kite_client)
         strats = straddle_total_sl.load_straddle_strategies()
+        
+        # Real-time refresh of live quotes for configured and placed strategy legs
+        if kite_client and strats:
+            symbols_to_quote = set()
+            for s in strats:
+                exch = straddle_total_sl.get_straddle_exchange(s.get("index_name"))
+                if s.get("selected_ce"):
+                    symbols_to_quote.add(f"{exch}:{s['selected_ce']}")
+                if s.get("selected_pe"):
+                    symbols_to_quote.add(f"{exch}:{s['selected_pe']}")
+                orders_data = s.get("orders", {})
+                for leg in ["CE", "PE"]:
+                    sym = orders_data.get(leg, {}).get("symbol")
+                    if sym:
+                        symbols_to_quote.add(f"{exch}:{sym}")
+                # Active adjustment orders
+                for adj_id, leg_data in s.get("adjustments", {}).get("active_orders", {}).items():
+                    if leg_data.get("symbol"):
+                        symbols_to_quote.add(f"{exch}:{leg_data['symbol']}")
+
+            if symbols_to_quote:
+                try:
+                    quotes = kite_client.ltp(list(symbols_to_quote))
+                    for s in strats:
+                        exch = straddle_total_sl.get_straddle_exchange(s.get("index_name"))
+                        qty = int(s.get("quantity") or straddle_total_sl.get_straddle_lot_size(s.get("index_name")))
+                        entry_action = s.get("entry_action", "SELL").upper()
+                        orders_data = s.setdefault("orders", {})
+                        
+                        curr_tot_prem = 0.0
+                        base_pnl = 0.0
+                        
+                        # Update CE
+                        ce_sym = s.get("selected_ce") or orders_data.get("CE", {}).get("symbol")
+                        if ce_sym and f"{exch}:{ce_sym}" in quotes:
+                            ce_ltp = float(quotes[f"{exch}:{ce_sym}"]["last_price"])
+                            s["selected_ce_ltp"] = ce_ltp
+                            if "CE" in orders_data:
+                                orders_data["CE"]["current_ltp"] = ce_ltp
+                                ce_entry = float(orders_data["CE"].get("first_entry_price") or orders_data["CE"].get("entry_price") or 0.0)
+                                if ce_entry > 0:
+                                    leg_pnl = (ce_entry - ce_ltp) * qty if entry_action == "SELL" else (ce_ltp - ce_entry) * qty
+                                    orders_data["CE"]["pnl"] = round(leg_pnl, 2)
+                                    base_pnl += leg_pnl
+                            curr_tot_prem += ce_ltp
+
+                        # Update PE
+                        pe_sym = s.get("selected_pe") or orders_data.get("PE", {}).get("symbol")
+                        if pe_sym and f"{exch}:{pe_sym}" in quotes:
+                            pe_ltp = float(quotes[f"{exch}:{pe_sym}"]["last_price"])
+                            s["selected_pe_ltp"] = pe_ltp
+                            if "PE" in orders_data:
+                                orders_data["PE"]["current_ltp"] = pe_ltp
+                                pe_entry = float(orders_data["PE"].get("first_entry_price") or orders_data["PE"].get("entry_price") or 0.0)
+                                if pe_entry > 0:
+                                    leg_pnl = (pe_entry - pe_ltp) * qty if entry_action == "SELL" else (pe_ltp - pe_entry) * qty
+                                    orders_data["PE"]["pnl"] = round(leg_pnl, 2)
+                                    base_pnl += leg_pnl
+                            curr_tot_prem += pe_ltp
+
+                        # Update Adjustments
+                        adj_pnl = 0.0
+                        for adj_id, leg_data in s.get("adjustments", {}).get("active_orders", {}).items():
+                            a_sym = leg_data.get("symbol")
+                            if a_sym and f"{exch}:{a_sym}" in quotes:
+                                a_ltp = float(quotes[f"{exch}:{a_sym}"]["last_price"])
+                                leg_data["current_ltp"] = a_ltp
+                                a_act = leg_data.get("action", "SELL").upper()
+                                a_qty = int(leg_data.get("quantity") or qty)
+                                a_entry = float(leg_data.get("entry_price", a_ltp))
+                                a_leg_pnl = (a_entry - a_ltp) * a_qty if a_act == "SELL" else (a_ltp - a_entry) * a_qty
+                                leg_data["pnl"] = round(a_leg_pnl, 2)
+                                adj_pnl += a_leg_pnl
+
+                        if curr_tot_prem > 0:
+                            s["current_total_premium"] = round(curr_tot_prem, 2)
+                        
+                        if orders_data.get("orders_placed"):
+                            s["pnl"] = round(base_pnl + adj_pnl, 2)
+                            s["unrealized_pnl"] = s["pnl"]
+
+                        # Recompute live Greeks
+                        try:
+                            straddle_total_sl.compute_straddle_strategy_greeks(s, quotes)
+                        except Exception:
+                            pass
+                except Exception as q_err:
+                    logger.warning(f"Error refreshing live quotes for Straddle Total SL: {q_err}")
+
         return jsonify({
             "status": "ok",
             "strategies": strats,
