@@ -444,55 +444,196 @@ def find_matching_rule(strategy_name):
     return None
 
 
-def resolve_option_tradingsymbol(kite, index_name, action, ltp=0.0):
+def get_current_net_position_for_symbol(kite, tradingsymbol):
     """
-    Finds ATM CE/PE option trading symbol for NIFTY, BANKNIFTY, FINNIFTY, SENSEX.
-    BUY signal -> ATM CE
-    SELL signal -> ATM PE
+    Queries Kite for existing net positions for a specific tradingsymbol.
+    Returns net quantity:
+      > 0 : currently NET LONG (Buy side position)
+      < 0 : currently NET SHORT (Sell side position)
+      0   : No open position
+    """
+    try:
+        positions = kite.positions()
+        net_pos = positions.get("net", [])
+        for pos in net_pos:
+            if pos.get("tradingsymbol") == tradingsymbol:
+                return int(pos.get("quantity", 0))
+    except Exception as e:
+        logger.warning(f"Error querying position for {tradingsymbol}: {e}")
+    return 0
+
+
+def get_best_market_depth_and_ltp(kite, exchange, tradingsymbol):
+    """
+    Fetches market depth and LTP for tradingsymbol.
+    Returns (best_bid, best_ask, ltp)
+    """
+    key = f"{exchange}:{tradingsymbol}"
+    try:
+        quote = kite.quote([key])
+        if key in quote:
+            q = quote[key]
+            ltp = float(q.get("last_price", 0.0))
+            depth = q.get("depth", {})
+            buy_depth = depth.get("buy", [])
+            sell_depth = depth.get("sell", [])
+            best_bid = float(buy_depth[0].get("price", 0.0)) if buy_depth and len(buy_depth) > 0 and buy_depth[0].get("price") else ltp
+            best_ask = float(sell_depth[0].get("price", 0.0)) if sell_depth and len(sell_depth) > 0 and sell_depth[0].get("price") else ltp
+            return best_bid, best_ask, ltp
+    except Exception as e:
+        logger.warning(f"Error fetching depth for {key}: {e}")
+    return 0.0, 0.0, 0.0
+
+
+def calculate_limit_price_with_buffer(direction, best_bid, best_ask, ltp, buffer_pct=0.003):
+    """
+    Calculates limit price with 0.3% buffer for high-probability instant fill:
+    - BUY: Best Offer/Ask + 0.3% (rounded to nearest 0.05 tick)
+    - SELL: Best Bid - 0.3% (rounded to nearest 0.05 tick)
+    """
+    if direction.upper() == "BUY":
+        base_price = best_ask if best_ask > 0 else ltp
+        if base_price <= 0:
+            return 0.0
+        limit_price = base_price * (1.0 + buffer_pct)
+        return round(limit_price * 20) / 20
+    else:  # SELL
+        base_price = best_bid if best_bid > 0 else ltp
+        if base_price <= 0:
+            return 0.0
+        limit_price = base_price * (1.0 - buffer_pct)
+        return round(limit_price * 20) / 20
+
+
+def resolve_option_tradingsymbol(kite, index_name, action, rule=None, ltp=0.0):
+    """
+    Resolves option tradingsymbol with strike selection, CE/PE selection, expiry, and round-off steps:
+    - strike_mode: 'ATM', 'OTM_1', 'OTM_2', 'OTM_3', 'ITM_1', 'ITM_2', 'ITM_3', 'ROUND_100', 'ROUND_500', 'ROUND_1000', 'MANUAL'
+    - option_type: 'AUTO' (BUY->CE, SELL->PE), 'CE', 'PE'
+    - round_off: 'AUTO', 100, 500, 1000
+    - expiry: 'CURRENT', 'NEXT', 'CURRENT_MONTH', 'NEXT_MONTH', or explicit date YYYY-MM-DD
     """
     try:
         import server
-        underlying = index_name.upper()
+        rule = rule or {}
+        strike_mode = str(rule.get("strike_mode", "ATM")).upper()
+        manual_symbol = str(rule.get("manual_symbol", "")).strip().upper()
 
-        step = 50
-        if "BANK" in underlying or "SENSEX" in underlying:
+        # If manual symbol provided and mode is MANUAL, return it directly
+        if strike_mode == "MANUAL" and manual_symbol:
+            return manual_symbol, f"Manual instrument specified: {manual_symbol}"
+
+        underlying = str(index_name or rule.get("instrument") or "NIFTY").upper().strip()
+        exchange = rule.get("exchange", "NFO")
+
+        # 1. Determine step size based on round_off config or instrument default
+        round_off_cfg = str(rule.get("round_off", "AUTO")).upper()
+        if round_off_cfg in ["100", 100, "ROUND_100"]:
             step = 100
-        elif "MIDCP" in underlying:
-            step = 25
+        elif round_off_cfg in ["500", 500, "ROUND_500"]:
+            step = 500
+        elif round_off_cfg in ["1000", 1000, "ROUND_1000"]:
+            step = 1000
+        elif strike_mode == "ROUND_100":
+            step = 100
+        elif strike_mode == "ROUND_500":
+            step = 500
+        elif strike_mode == "ROUND_1000":
+            step = 1000
+        else:
+            step = 50
+            if "BANK" in underlying or "SENSEX" in underlying:
+                step = 100
+            elif "MIDCP" in underlying:
+                step = 25
 
+        # 2. Get spot price if not provided
         if not ltp or ltp <= 0:
             spot_key = f"NSE:{underlying} 50" if underlying == "NIFTY" else f"NSE:NIFTY BANK" if "BANK" in underlying else f"BSE:{underlying}"
-            quotes = kite.quote([spot_key])
-            if spot_key in quotes:
-                ltp = quotes[spot_key].get("last_price", 0.0)
+            try:
+                quotes = kite.quote([spot_key])
+                if spot_key in quotes:
+                    ltp = quotes[spot_key].get("last_price", 0.0)
+            except Exception:
+                pass
 
         if not ltp or ltp <= 0:
             return None, f"Could not determine spot price for {underlying}"
 
-        atm_strike = round(ltp / step) * step
-        opt_type = "CE" if action.upper() == "BUY" else "PE"
+        # 3. Determine Option Type (CE / PE)
+        opt_type_cfg = str(rule.get("option_type", "AUTO")).upper()
+        if opt_type_cfg == "CE":
+            opt_type = "CE"
+        elif opt_type_cfg == "PE":
+            opt_type = "PE"
+        else:
+            # AUTO: BUY signal -> CE, SELL signal -> PE
+            clean_act = action.replace("_EXIT", "").replace(" EXIT", "").strip().upper()
+            opt_type = "CE" if clean_act == "BUY" else "PE"
 
+        # 4. Calculate Base ATM Strike
+        atm_strike = round(ltp / step) * step
+
+        # 5. Apply Strike Offset (ATM, OTM, ITM)
+        target_strike = atm_strike
+        offset_map = {
+            "OTM_1": 1, "+1 OTM": 1, "+1_OTM": 1,
+            "OTM_2": 2, "+2 OTM": 2, "+2_OTM": 2,
+            "OTM_3": 3, "+3 OTM": 3, "+3_OTM": 3,
+            "ITM_1": -1, "+1 ITM": -1, "+1_ITM": -1,
+            "ITM_2": -2, "+2 ITM": -2, "+2_ITM": -2,
+            "ITM_3": -3, "+3 ITM": -3, "+3_ITM": -3,
+        }
+
+        if strike_mode in offset_map:
+            steps_offset = offset_map[strike_mode]
+            if opt_type == "CE":
+                # For CE: OTM is higher strike (+), ITM is lower strike (-)
+                target_strike = atm_strike + (steps_offset * step)
+            else:
+                # For PE: OTM is lower strike (-), ITM is higher strike (+)
+                target_strike = atm_strike - (steps_offset * step)
+
+        # 6. Fetch Instruments Cache
         instruments = getattr(server, "instruments_cache", [])
         if not instruments:
-            instruments = kite.instruments("NFO")
-            setattr(server, "instruments_cache", instruments)
+            try:
+                instruments = kite.instruments(exchange)
+                setattr(server, "instruments_cache", instruments)
+            except Exception:
+                pass
 
+        # 7. Expiry Filter
+        expiry_cfg = str(rule.get("expiry", "CURRENT")).upper()
         today_dt = date.today()
+
         candidates = []
         for inst in instruments:
-            if inst.get("name") == underlying and inst.get("instrument_type") == opt_type and inst.get("strike") == float(atm_strike):
+            if inst.get("name") == underlying and inst.get("instrument_type") == opt_type and inst.get("strike") == float(target_strike):
                 exp = inst.get("expiry")
                 if isinstance(exp, str):
-                    exp = datetime.strptime(exp, "%Y-%m-%d").date()
+                    try:
+                        exp = datetime.strptime(exp, "%Y-%m-%d").date()
+                    except Exception:
+                        pass
                 if exp and exp >= today_dt:
                     candidates.append((exp, inst.get("tradingsymbol")))
 
         if candidates:
             candidates.sort(key=lambda x: x[0])
-            chosen_symbol = candidates[0][1]
-            return chosen_symbol, f"Selected {chosen_symbol} (Strike: {atm_strike} {opt_type})"
+            # Select target expiry
+            if expiry_cfg == "NEXT" and len(candidates) > 1:
+                chosen_symbol = candidates[1][1]
+            elif expiry_cfg not in ["CURRENT", "NEXT"] and any(str(c[0]) == expiry_cfg for c in candidates):
+                matched = [c for c in candidates if str(c[0]) == expiry_cfg]
+                chosen_symbol = matched[0][1]
+            else:
+                chosen_symbol = candidates[0][1]
 
-        return f"{underlying}{today_dt.strftime('%y%b').upper()}{int(atm_strike)}{opt_type}", "Calculated estimated symbol"
+            return chosen_symbol, f"Selected {chosen_symbol} (Strike: {target_strike} {opt_type}, Mode: {strike_mode})"
+
+        # Fallback generated standard symbol
+        return f"{underlying}{today_dt.strftime('%y%b').upper()}{int(target_strike)}{opt_type}", "Calculated estimated symbol"
 
     except Exception as e:
         logger.error(f"Error resolving option symbol: {e}")
@@ -506,7 +647,11 @@ def resolve_option_tradingsymbol(kite, index_name, action, ltp=0.0):
 def execute_tv_alert(alert):
     """
     Executes an incoming TradingView alert according to configured rules in tv_strategies.json.
-    Includes Idempotency / Deduplication check and automatic journal entry on success.
+    Includes:
+    - 4 Actions: BUY, BUY EXIT, SELL, SELL EXIT
+    - Intelligent Brokerage-Saving Net Lot Calculation (Existing lots in reverse + fresh lots)
+    - Depth-Based Limit Order Placement with ±0.3% buffer for instantaneous fill
+    - Idempotency / Deduplication check and automatic journal entry on success.
     """
     import server
     kite = server.kite_client
@@ -514,7 +659,8 @@ def execute_tv_alert(alert):
     alert_id = str(alert.get("alert_id") or f"alert_{int(time.time() * 1000)}")
     strategy = alert.get("strategy", "DEFAULT")
     alert_inst = alert.get("instrument", "")
-    action = str(alert.get("action", "BUY")).upper()
+    raw_action = str(alert.get("action", "BUY")).strip().upper()
+    action = raw_action.replace("_", " ")  # Normalize "BUY_EXIT" -> "BUY EXIT"
     ltp = float(alert.get("ltp", 0.0)) if alert.get("ltp") not in ("N/A", "", None) else 0.0
 
     # 1. DUPLICATE CHECK: Prevent duplicate order execution
@@ -539,34 +685,35 @@ def execute_tv_alert(alert):
             "alert_id": alert_id, "strategy": strategy, "instrument": alert_inst,
             "action": action, "ltp": ltp, "status": "SKIPPED", "message": msg
         })
-        # Mark as processed to prevent infinite re-try
         save_processed_alert_id(alert_id)
         return True
 
-    # 3. Determine target instrument, exchange, quantity, and product
+    # 3. Determine basic rule parameters
     target_instrument = rule.get("instrument") or alert_inst
     exchange = rule.get("exchange", "NFO")
     product = rule.get("product", "MIS")
-    order_type = rule.get("order_type", "MARKET")
+    configured_order_type = rule.get("order_type", "LIMIT")
     lots = int(rule.get("lots", 1))
     quantity = int(rule.get("quantity", 0))
     mode = rule.get("mode", "DIRECT")
 
+    # Base lot size calculation
+    base_sym = target_instrument.split()[0].replace("FUT", "").replace("CE", "").replace("PE", "")
+    lot_size = get_lot_size(base_sym)
     if quantity <= 0:
-        base_sym = target_instrument.split()[0].replace("FUT", "").replace("CE", "").replace("PE", "")
-        lot_size = get_lot_size(base_sym)
-        quantity = lots * lot_size
+        fresh_quantity = lots * lot_size
+    else:
+        fresh_quantity = quantity
 
     actual_tradingsymbol = target_instrument
-    order_txn = action
 
-    if mode == "ATM_OPTION" and kite:
-        opt_sym, desc = resolve_option_tradingsymbol(kite, target_instrument, action, ltp)
+    # Resolve Option Trading Symbol if Option Mode is selected
+    if mode in ["ATM_OPTION", "OPTION", "CUSTOM_OPTION"] and kite:
+        opt_sym, desc = resolve_option_tradingsymbol(kite, target_instrument, action, rule, ltp)
         if opt_sym:
             actual_tradingsymbol = opt_sym
-            order_txn = "BUY"  # When buying CE/PE options, transaction type is BUY
         else:
-            logger.warning(f"Fallback to direct instrument: {desc}")
+            logger.warning(f"Fallback to target instrument: {desc}")
 
     # Check Kite client connection
     if not kite:
@@ -574,29 +721,129 @@ def execute_tv_alert(alert):
         logger.error(f"❌ {msg}")
         log_execution({
             "alert_id": alert_id, "strategy": strategy, "rule_id": rule.get("id"),
-            "target_symbol": actual_tradingsymbol, "action": order_txn, "quantity": quantity,
+            "target_symbol": actual_tradingsymbol, "action": action, "quantity": fresh_quantity,
             "product": product, "status": "FAILED", "message": msg
         })
         return False
 
-    # 4. Place Order via Kite
+    # 4. Check Current Net Position in Broker for Reversal / Exit Netting
+    current_net_qty = get_current_net_position_for_symbol(kite, actual_tradingsymbol)
+    logger.info(f"📊 Live Broker Net Position for {actual_tradingsymbol}: {current_net_qty} Qty")
+
+    # 5. Handle the 4 Action Scenarios (BUY, BUY EXIT, SELL, SELL EXIT)
+    trade_action_cfg = str(rule.get("trade_action", "AUTO")).upper()
+    order_txn = "BUY"
+    final_order_qty = fresh_quantity
+    order_remarks = ""
+
+    if action == "BUY":
+        # Scenario: Fresh BUY or Reversal from SELL side
+        # Checks how many lots are in SELL side (current_net_qty < 0)
+        # Total Qty = (Sell exit lots + Fresh buy order lots) to reduce brokerage into a single combined order
+        if current_net_qty < 0:
+            sell_exit_qty = abs(current_net_qty)
+            final_order_qty = sell_exit_qty + fresh_quantity
+            order_remarks = f"Reversal BUY: {sell_exit_qty} Qty (Exit Short) + {fresh_quantity} Qty (Fresh Long) = {final_order_qty} Qty"
+            logger.info(f"🔄 [Net Reversal] {order_remarks}")
+        else:
+            final_order_qty = fresh_quantity
+            order_remarks = f"Fresh BUY: {fresh_quantity} Qty"
+
+        order_txn = "BUY" if trade_action_cfg in ["AUTO", "BUY"] else "SELL"
+
+    elif action == "SELL":
+        # Scenario: Fresh SELL or Reversal from BUY side
+        # Checks how many lots are in BUY side (current_net_qty > 0)
+        # Total Qty = (Buy exit lots + Fresh sell order lots) to reduce brokerage into a single combined order
+        if current_net_qty > 0:
+            buy_exit_qty = current_net_qty
+            final_order_qty = buy_exit_qty + fresh_quantity
+            order_remarks = f"Reversal SELL: {buy_exit_qty} Qty (Exit Long) + {fresh_quantity} Qty (Fresh Short) = {final_order_qty} Qty"
+            logger.info(f"🔄 [Net Reversal] {order_remarks}")
+        else:
+            final_order_qty = fresh_quantity
+            order_remarks = f"Fresh SELL: {fresh_quantity} Qty"
+
+        order_txn = "SELL" if trade_action_cfg in ["AUTO", "SELL"] else "BUY"
+
+    elif action in ["BUY EXIT", "BUY_EXIT"]:
+        # Scenario: Exit open position
+        # If open position exists: if Long (> 0) -> SELL, if Short (< 0) -> BUY
+        if current_net_qty > 0:
+            final_order_qty = current_net_qty
+            order_txn = "SELL"
+            order_remarks = f"BUY EXIT: Closing {current_net_qty} Long Qty via SELL order"
+        elif current_net_qty < 0:
+            final_order_qty = abs(current_net_qty)
+            order_txn = "BUY"
+            order_remarks = f"BUY EXIT: Closing {abs(current_net_qty)} Short Qty via BUY order"
+        else:
+            # Fallback if position is 0: place default exit size or skip
+            final_order_qty = fresh_quantity
+            order_txn = "SELL"
+            order_remarks = f"BUY EXIT: No open position detected, placing configured size {fresh_quantity} Qty"
+
+        logger.info(f"🚪 [Position Exit] {order_remarks}")
+
+    elif action in ["SELL EXIT", "SELL_EXIT"]:
+        # Scenario: Exit open position
+        # If open position exists: if Short (< 0) -> BUY, if Long (> 0) -> SELL
+        if current_net_qty < 0:
+            final_order_qty = abs(current_net_qty)
+            order_txn = "BUY"
+            order_remarks = f"SELL EXIT: Closing {abs(current_net_qty)} Short Qty via BUY order"
+        elif current_net_qty > 0:
+            final_order_qty = current_net_qty
+            order_txn = "SELL"
+            order_remarks = f"SELL EXIT: Closing {current_net_qty} Long Qty via SELL order"
+        else:
+            final_order_qty = fresh_quantity
+            order_txn = "BUY"
+            order_remarks = f"SELL EXIT: No open position detected, placing configured size {fresh_quantity} Qty"
+
+        logger.info(f"🚪 [Position Exit] {order_remarks}")
+
+    else:
+        # Fallback action
+        order_txn = "BUY" if "BUY" in action else "SELL"
+        final_order_qty = fresh_quantity
+        order_remarks = f"Standard Execution: {action} {final_order_qty} Qty"
+
+    # 6. Fetch Depth & Calculate Limit Price with 0.3% Buffer
+    best_bid, best_ask, market_ltp = get_best_market_depth_and_ltp(kite, exchange, actual_tradingsymbol)
+    effective_ltp = market_ltp if market_ltp > 0 else ltp
+
+    limit_price = 0.0
+    final_order_type = kite.ORDER_TYPE_LIMIT
+
+    if configured_order_type == "MARKET":
+        final_order_type = kite.ORDER_TYPE_MARKET
+    else:
+        # Calculate limit price with 0.3% buffer
+        limit_price = calculate_limit_price_with_buffer(order_txn, best_bid, best_ask, effective_ltp, buffer_pct=0.003)
+        if limit_price <= 0:
+            final_order_type = kite.ORDER_TYPE_MARKET
+
+    # 7. Place Order via Kite Connect
     try:
         txn_type = kite.TRANSACTION_TYPE_BUY if order_txn == "BUY" else kite.TRANSACTION_TYPE_SELL
         prod_type = kite.PRODUCT_MIS if product == "MIS" else (kite.PRODUCT_CNC if product == "CNC" else kite.PRODUCT_NRML)
-        ord_type = kite.ORDER_TYPE_MARKET if order_type == "MARKET" else kite.ORDER_TYPE_LIMIT
 
         place_kwargs = {
             "variety": kite.VARIETY_REGULAR,
             "exchange": getattr(kite, f"EXCHANGE_{exchange}", exchange),
             "tradingsymbol": actual_tradingsymbol,
             "transaction_type": txn_type,
-            "quantity": quantity,
-            "order_type": ord_type,
+            "quantity": int(final_order_qty),
+            "order_type": final_order_type,
             "product": prod_type,
             "tag": f"TV_{strategy[:15].replace(' ', '_')}"
         }
 
-        logger.info(f"📤 Placing Broker Order: {place_kwargs}")
+        if final_order_type == kite.ORDER_TYPE_LIMIT and limit_price > 0:
+            place_kwargs["price"] = float(limit_price)
+
+        logger.info(f"📤 Placing Broker Order: {place_kwargs} | Limit Buffer Applied: {limit_price} (Best Bid: {best_bid}, Best Ask: {best_ask})")
         order_id = kite.place_order(**place_kwargs)
         logger.info(f"✅ Order Placed Successfully! Broker Order ID: {order_id}")
 
@@ -604,20 +851,21 @@ def execute_tv_alert(alert):
         save_processed_alert_id(alert_id)
         last_poll_status["total_executed"] += 1
 
-        # 5. Log directly to Trade Journal (CSV & Multi-sheet Excel)
-        log_successful_order_journal(alert, rule, actual_tradingsymbol, order_txn, quantity, str(order_id), ltp)
+        # 8. Log directly to Trade Journal (CSV & Multi-sheet Excel)
+        log_successful_order_journal(alert, rule, actual_tradingsymbol, order_txn, final_order_qty, str(order_id), effective_ltp)
 
         log_execution({
             "alert_id": alert_id,
             "strategy": strategy,
             "rule_id": rule.get("id"),
             "target_symbol": actual_tradingsymbol,
-            "action": order_txn,
-            "quantity": quantity,
+            "action": f"{action} -> {order_txn}",
+            "quantity": final_order_qty,
             "product": product,
             "order_id": order_id,
+            "limit_price": limit_price if limit_price > 0 else "MARKET",
             "status": "EXECUTED",
-            "message": f"Successfully placed order {order_id} & saved to journal"
+            "message": f"Placed {order_txn} {final_order_qty}x {actual_tradingsymbol} @ ₹{limit_price or effective_ltp} | {order_remarks}"
         })
         return True
 
@@ -629,8 +877,8 @@ def execute_tv_alert(alert):
             "strategy": strategy,
             "rule_id": rule.get("id"),
             "target_symbol": actual_tradingsymbol,
-            "action": order_txn,
-            "quantity": quantity,
+            "action": f"{action} -> {order_txn}",
+            "quantity": final_order_qty,
             "product": product,
             "status": "ERROR",
             "message": err_msg

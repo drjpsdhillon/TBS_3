@@ -3931,26 +3931,28 @@
                     <!-- Card 3: Instant Test Alert Simulator -->
                     <div class="card" style="padding: 16px 20px; border-left: 5px solid #d97706; background: linear-gradient(135deg, #ffffff 0%, #fffbeb 100%);">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                            <span style="font-size: 11px; font-weight: 800; color: #92400e; text-transform: uppercase; letter-spacing: 0.5px;">🧪 Alert Test Simulator</span>
+                            <span style="font-size: 11px; font-weight: 800; color: #92400e; text-transform: uppercase; letter-spacing: 0.5px;">🧪 Alert Test Simulator (4 Action Types)</span>
                             <span style="font-size: 10px; font-weight: 800; background: #fef3c7; color: #92400e; padding: 2px 6px; border-radius: 4px; border: 1px solid #fde68a;">DRY RUN / LIVE</span>
                         </div>
-                        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 6px; align-items: center;">
-                            <select id="tvTestStrategySelect" style="padding: 4px 6px; font-size: 11px; font-weight: 700; border-radius: 4px; border: 1px solid #fde68a; background: #ffffff;">
+                        <div style="display: grid; grid-template-columns: 1.2fr 1.2fr 1fr auto; gap: 6px; align-items: center;">
+                            <select id="tvTestStrategySelect" style="padding: 5px 6px; font-size: 11px; font-weight: 700; border-radius: 4px; border: 1px solid #fde68a; background: #ffffff;">
                                 <option value="DEFAULT">DEFAULT</option>
                                 <option value="Nifty_Option_Scalp">Nifty_Option_Scalp</option>
                                 <option value="Silvermic_15M">Silvermic_15M</option>
                             </select>
-                            <select id="tvTestActionSelect" style="padding: 4px 6px; font-size: 11px; font-weight: 700; border-radius: 4px; border: 1px solid #fde68a; background: #ffffff;">
-                                <option value="BUY">BUY</option>
-                                <option value="SELL">SELL</option>
+                            <select id="tvTestActionSelect" style="padding: 5px 6px; font-size: 11px; font-weight: 800; border-radius: 4px; border: 1px solid #fde68a; background: #ffffff;">
+                                <option value="BUY" style="color:#15803d; font-weight:800;">🟢 BUY (Fresh Long / Net Reversal)</option>
+                                <option value="BUY EXIT" style="color:#b45309; font-weight:800;">🚪 BUY EXIT (Close Long/Buy Pos)</option>
+                                <option value="SELL" style="color:#b91c1c; font-weight:800;">🔴 SELL (Fresh Short / Net Reversal)</option>
+                                <option value="SELL EXIT" style="color:#b45309; font-weight:800;">🚪 SELL EXIT (Close Short/Sell Pos)</option>
                             </select>
-                            <input type="text" id="tvTestInstInput" value="NIFTY" placeholder="Inst" style="padding: 4px 6px; font-size: 11px; font-weight: 700; border-radius: 4px; border: 1px solid #fde68a; background: #ffffff;">
+                            <input type="text" id="tvTestInstInput" value="NIFTY" placeholder="Inst" style="padding: 5px 6px; font-size: 11px; font-weight: 700; border-radius: 4px; border: 1px solid #fde68a; background: #ffffff;">
                             <button onclick="simulateTvAlert()" class="btn-primary" style="padding: 5px 12px; font-size: 11px; width: auto; background: linear-gradient(135deg, #d97706, #b45309); border-color: #b45309;">
                                 ⚡ Send Alert
                             </button>
                         </div>
                         <div style="font-size: 10px; color: var(--text-secondary); border-top: 1px dashed #fde68a; padding-top: 6px; margin-top: 6px;">
-                            Simulates incoming alert from TradingView to test matching rule &amp; execution.
+                            Simulates incoming alert from TradingView with intelligent ±0.3% Limit pricing &amp; lot net-reversal.
                         </div>
                     </div>
                 </div>
@@ -3973,7 +3975,7 @@
                         <form id="tvRuleForm" onsubmit="saveTvStrategyRule(event)">
                             <input type="hidden" id="tvRuleEditId" value="">
 
-                            <!-- Rule Identity & Strategy Name -->
+                            <!-- 1. Rule Identity & Strategy Name -->
                             <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-left: 4px solid #3b82f6; border-radius: var(--radius-sm); padding: 12px 14px; margin-bottom: 12px;">
                                 <div style="font-size: 11px; font-weight: 800; color: #1e40af; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">
                                     🏷️ TradingView Strategy Name Match
@@ -3992,26 +3994,97 @@
                                 </div>
                             </div>
 
-                            <!-- Execution Behavior & Option Strike Mode -->
+                            <!-- 2. Execution Behavior & Option Strike Configuration -->
                             <div style="background: #fdfbf7; border: 1px solid #fed7aa; border-left: 4px solid #f97316; border-radius: var(--radius-sm); padding: 12px 14px; margin-bottom: 12px;">
                                 <div style="font-size: 11px; font-weight: 800; color: #c2410c; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">
-                                    ⚙️ Execution Mode &amp; Order Parameters
+                                    ⚙️ Execution Mode, Instrument &amp; Option Strike Parameters
                                 </div>
+                                
                                 <div class="form-row" style="margin-bottom: 8px;">
                                     <div class="form-group" style="margin-bottom: 0;">
                                         <label for="tvRuleMode" style="color: #c2410c; font-weight: 700;">Execution Mode</label>
-                                        <select id="tvRuleMode" style="background: #ffffff; border-color: #fdba74; font-weight: 700;">
-                                            <option value="DIRECT" selected>🎯 Direct Instrument (Futures, Equity, or Exact Symbol)</option>
-                                            <option value="ATM_OPTION">⚡ Auto ATM Option (BUY &rarr; ATM CE, SELL &rarr; ATM PE)</option>
+                                        <select id="tvRuleMode" onchange="onTvRuleModeChange()" style="background: #ffffff; border-color: #fdba74; font-weight: 700;">
+                                            <option value="DIRECT">🎯 Direct Instrument (Futures, Equity, or Exact Symbol)</option>
+                                            <option value="ATM_OPTION" selected>⚡ Auto Option Engine (ATM / OTM / ITM / Round-off)</option>
                                         </select>
                                     </div>
                                     <div class="form-group" style="margin-bottom: 0;">
-                                        <label for="tvRuleInstrument" style="color: #c2410c; font-weight: 700;">Target Underlying / Symbol (Blank = use alert symbol)</label>
-                                        <input type="text" id="tvRuleInstrument" placeholder="e.g. NIFTY, BANKNIFTY, SILVERMIC, or blank"
+                                        <label for="tvRuleInstrument" style="color: #c2410c; font-weight: 700;">Target Underlying / Symbol (e.g. NIFTY, BANKNIFTY, SENSEX, SILVERMIC)</label>
+                                        <input type="text" id="tvRuleInstrument" onchange="onTvRuleInstrumentChange()" placeholder="e.g. NIFTY, BANKNIFTY, SENSEX, or blank"
                                             style="background: #ffffff; border-color: #fdba74; font-weight: 700;">
                                     </div>
                                 </div>
 
+                                <!-- Option Specific Controls (Visible when Option mode selected) -->
+                                <div id="tvOptionSpecificFields" style="background: #ffffff; border: 1px solid #fed7aa; border-radius: 6px; padding: 10px; margin-bottom: 8px;">
+                                    <div style="font-size: 11px; font-weight: 800; color: #ea580c; margin-bottom: 8px; text-transform: uppercase;">
+                                        🎯 Option Strike Offset, CE/PE &amp; Expiry Selection
+                                    </div>
+                                    <div class="form-row" style="margin-bottom: 8px;">
+                                        <div class="form-group" style="margin-bottom: 0;">
+                                            <label for="tvRuleStrikeMode" style="font-weight: 700;">Strike Selection</label>
+                                            <select id="tvRuleStrikeMode" onchange="onTvRuleStrikeModeChange()" style="background: #fff7ed; border-color: #fdba74; font-weight: 700;">
+                                                <option value="ATM" selected>⚡ ATM (At The Money)</option>
+                                                <option value="OTM_1">📈 +1 OTM (Out of The Money)</option>
+                                                <option value="OTM_2">📈 +2 OTM (Out of The Money)</option>
+                                                <option value="OTM_3">📈 +3 OTM (Out of The Money)</option>
+                                                <option value="ITM_1">📉 +1 ITM (In The Money)</option>
+                                                <option value="ITM_2">📉 +2 ITM (In The Money)</option>
+                                                <option value="ITM_3">📉 +3 ITM (In The Money)</option>
+                                                <option value="ROUND_100">🎯 Round Off to 100 Strike</option>
+                                                <option value="ROUND_500">🎯 Round Off to 500 Strike</option>
+                                                <option value="ROUND_1000">🎯 Round Off to 1000 Strike</option>
+                                                <option value="MANUAL">✍️ Manual / Custom Symbol (e.g. NIFTY24SEP24800CE)</option>
+                                            </select>
+                                        </div>
+                                        <div class="form-group" style="margin-bottom: 0;">
+                                            <label for="tvRuleOptionType" style="font-weight: 700;">Option Type (CE / PE)</label>
+                                            <select id="tvRuleOptionType" style="background: #fff7ed; border-color: #fdba74; font-weight: 700;">
+                                                <option value="AUTO" selected>⚡ AUTO (BUY &rarr; CE, SELL &rarr; PE)</option>
+                                                <option value="CE">🟢 Call Option (CE Only)</option>
+                                                <option value="PE">🔴 Put Option (PE Only)</option>
+                                            </select>
+                                        </div>
+                                        <div class="form-group" style="margin-bottom: 0;">
+                                            <label for="tvRuleTradeAction" style="font-weight: 700;">Trade Action (Buy / Sell)</label>
+                                            <select id="tvRuleTradeAction" style="background: #fff7ed; border-color: #fdba74; font-weight: 700;">
+                                                <option value="AUTO" selected>⚡ AUTO (Buy Option on Entry, Exit on Exit)</option>
+                                                <option value="BUY">🟢 BUY (Long Option Buyer)</option>
+                                                <option value="SELL">🔴 SELL (Short Option Seller / Writer)</option>
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    <div class="form-row" style="margin-bottom: 0;">
+                                        <div class="form-group" style="margin-bottom: 0;">
+                                            <label for="tvRuleExpiry" style="font-weight: 700;">Option Expiry Contract</label>
+                                            <select id="tvRuleExpiry" style="background: #ffffff; border-color: #fdba74; font-weight: 700;">
+                                                <option value="CURRENT" selected>⚡ Current Expiry (Nearest)</option>
+                                                <option value="NEXT">📅 Next Expiry</option>
+                                            </select>
+                                        </div>
+                                        <div class="form-group" style="margin-bottom: 0;">
+                                            <label for="tvRuleRoundOff" style="font-weight: 700;">Round Off Strike Step</label>
+                                            <select id="tvRuleRoundOff" style="background: #ffffff; border-color: #fdba74; font-weight: 700;">
+                                                <option value="AUTO" selected>⚡ AUTO (50 Nifty / 100 BankNifty / 25 Midcp)</option>
+                                                <option value="100">100 Strike Step</option>
+                                                <option value="500">500 Strike Step</option>
+                                                <option value="1000">1000 Strike Step</option>
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    <!-- Manual Symbol Write-In Container -->
+                                    <div id="tvRuleManualSymbolContainer" style="display: none; margin-top: 8px; padding: 8px; background: #fffbeb; border: 1px dashed #f59e0b; border-radius: 4px;">
+                                        <label for="tvRuleManualSymbol" style="font-size: 11px; font-weight: 700; color: #b45309; display: block; margin-bottom: 3px;">
+                                            ✍️ Custom Tradingsymbol Format (Example: <code>NIFTY24SEP24800CE</code>, <code>BANKNIFTY24O0352000PE</code>, <code>SILVERMIC24NOV60000CE</code>)
+                                        </label>
+                                        <input type="text" id="tvRuleManualSymbol" placeholder="e.g. NIFTY24SEP24800CE"
+                                            style="width: 100%; padding: 6px 10px; font-size: 12px; font-weight: 700; font-family: monospace; border: 1px solid #f59e0b; border-radius: 4px; background: #ffffff;">
+                                    </div>
+                                </div>
+
+                                <!-- Exchange, Product, Order Type -->
                                 <div class="form-row" style="margin-bottom: 8px;">
                                     <div class="form-group" style="margin-bottom: 0;">
                                         <label for="tvRuleExchange" style="font-weight: 700;">Exchange</label>
@@ -4035,8 +4108,8 @@
                                     <div class="form-group" style="margin-bottom: 0;">
                                         <label for="tvRuleOrderType" style="font-weight: 700;">Order Type</label>
                                         <select id="tvRuleOrderType" style="background: #ffffff; font-weight: 600;">
-                                            <option value="MARKET" selected>MARKET</option>
-                                            <option value="LIMIT">LIMIT</option>
+                                            <option value="LIMIT" selected>LIMIT (&plusmn;0.3% Depth Buffer for Instant Fill)</option>
+                                            <option value="MARKET">MARKET</option>
                                         </select>
                                     </div>
                                 </div>
@@ -4079,8 +4152,10 @@
                                 <tr>
                                     <th>Status</th>
                                     <th>TradingView Strategy Name</th>
-                                    <th>Mode</th>
+                                    <th>Mode &amp; Strike</th>
+                                    <th>Option Type</th>
                                     <th>Target Symbol</th>
+                                    <th>Expiry</th>
                                     <th>Exchange</th>
                                     <th>Product</th>
                                     <th>Lots / Qty</th>
@@ -4091,7 +4166,7 @@
                             </thead>
                             <tbody id="tvRulesTableBody">
                                 <tr>
-                                    <td colspan="10" style="text-align: center; color: var(--text-muted); padding: 20px;">
+                                    <td colspan="12" style="text-align: center; color: var(--text-muted); padding: 20px;">
                                         Loading configured strategy rules...
                                     </td>
                                 </tr>
@@ -11170,141 +11245,67 @@
             window.location.href = url;
         }
 
-        function renderTvRulesTable(rules) {
-            const tbody = document.getElementById('tvRulesTableBody');
-            if (!tbody) return;
-
-            if (!rules || rules.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="10" style="text-align:center; color:var(--text-muted); padding:20px;">No strategy rules configured yet. Click '➕ New Rule' to add one.</td></tr>`;
-                return;
+        function onTvRuleModeChange() {
+            const mode = document.getElementById('tvRuleMode').value;
+            const optFields = document.getElementById('tvOptionSpecificFields');
+            if (optFields) {
+                optFields.style.display = (mode === 'ATM_OPTION' || mode === 'OPTION') ? 'block' : 'none';
             }
-
-            tbody.innerHTML = rules.map(r => {
-                const isActive = r.active !== false;
-                const isAtm = r.mode === 'ATM_OPTION';
-                const modePill = isAtm
-                    ? `<span style="background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; font-size:10px; font-weight:800; padding:2px 6px; border-radius:4px;">⚡ ATM Option</span>`
-                    : `<span style="background:#f1f5f9; color:#475569; border:1px solid #cbd5e1; font-size:10px; font-weight:800; padding:2px 6px; border-radius:4px;">🎯 Direct</span>`;
-
-                const targetSym = r.instrument || '<i style="color:var(--text-muted);">(From Alert)</i>';
-                const lotOrQty = r.quantity > 0 ? `${r.quantity} Qty` : `${r.lots || 1} Lot(s)`;
-
-                return `
-                <tr style="${!isActive ? 'opacity: 0.6; background: rgba(0,0,0,0.01);' : ''}">
-                    <td>
-                        <label class="switch" style="transform: scale(0.8); margin: 0;">
-                            <input type="checkbox" ${isActive ? 'checked' : ''} onchange="toggleTvStrategyRule('${r.id}')">
-                            <span class="slider round"></span>
-                        </label>
-                    </td>
-                    <td>
-                        <b style="font-size: 12px; color: var(--text-primary);">${r.strategy_name || 'DEFAULT'}</b>
-                    </td>
-                    <td>${modePill}</td>
-                    <td><b style="font-family: monospace; font-size: 12px;">${targetSym}</b></td>
-                    <td><span style="font-weight:700; font-size:11px;">${r.exchange || 'NFO'}</span></td>
-                    <td><span style="font-weight:700; font-size:11px; color:#2563eb;">${r.product || 'MIS'}</span></td>
-                    <td><b style="font-family: monospace;">${lotOrQty}</b></td>
-                    <td><span style="font-size:11px;">${r.order_type || 'MARKET'}</span></td>
-                    <td><span style="font-size:11px; color:var(--text-secondary);">${r.description || '--'}</span></td>
-                    <td>
-                        <div style="display:flex; gap:6px;">
-                            <button onclick="editTvStrategyRule('${r.id}')" class="btn-secondary" style="padding:3px 8px; font-size:11px;" title="Edit Rule">✏️</button>
-                            <button onclick="deleteTvStrategyRule('${r.id}')" class="btn-secondary" style="padding:3px 8px; font-size:11px; color:#dc2626;" title="Delete Rule">🗑️</button>
-                        </div>
-                    </td>
-                </tr>`;
-            }).join('');
         }
 
-        function updateTvTestDropdown(rules) {
-            const select = document.getElementById('tvTestStrategySelect');
-            if (!select) return;
-            const currentVal = select.value;
-            const names = Array.from(new Set(rules.map(r => r.strategy_name).filter(Boolean)));
-            if (!names.includes('DEFAULT')) names.unshift('DEFAULT');
-            select.innerHTML = names.map(n => `<option value="${n}" ${n === currentVal ? 'selected' : ''}>${n}</option>`).join('');
-        }
-
-        function renderTvLogsTable(logs) {
-            const tbody = document.getElementById('tvLogsTableBody');
-            const countBadge = document.getElementById('tvLogCountBadge');
-            if (countBadge) countBadge.textContent = `${logs.length} Logged`;
-            if (!tbody) return;
-
-            if (!logs || logs.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="10" style="text-align:center; color:var(--text-muted); padding:20px;">No alert execution records yet.</td></tr>`;
-                return;
+        function onTvRuleStrikeModeChange() {
+            const strikeMode = document.getElementById('tvRuleStrikeMode').value;
+            const manualContainer = document.getElementById('tvRuleManualSymbolContainer');
+            if (manualContainer) {
+                manualContainer.style.display = (strikeMode === 'MANUAL') ? 'block' : 'none';
             }
-
-            tbody.innerHTML = logs.slice().reverse().map(l => {
-                const isBuy = l.action === 'BUY';
-                const actionBadge = `<span style="background:${isBuy ? '#dcfce7' : '#fee2e2'}; color:${isBuy ? '#166534' : '#991b1b'}; border:1px solid ${isBuy ? '#bbf7d0' : '#fecaca'}; font-size:10px; font-weight:800; padding:2px 6px; border-radius:4px;">${l.action || 'BUY'}</span>`;
-
-                let statusBadge = `<span style="background:#dcfce7; color:#166534; font-weight:800; padding:2px 6px; border-radius:4px; font-size:10px;">EXECUTED</span>`;
-                if (l.status === 'ERROR' || l.status === 'FAILED') {
-                    statusBadge = `<span style="background:#fee2e2; color:#991b1b; font-weight:800; padding:2px 6px; border-radius:4px; font-size:10px;">FAILED</span>`;
-                } else if (l.status === 'SKIPPED') {
-                    statusBadge = `<span style="background:#fef3c7; color:#b45309; font-weight:800; padding:2px 6px; border-radius:4px; font-size:10px;">SKIPPED</span>`;
-                }
-
-                return `
-                <tr>
-                    <td style="font-size:11px; font-family:monospace; color:var(--text-muted);">${l.timestamp || '--'}</td>
-                    <td style="font-size:11px; font-family:monospace;">${l.alert_id || '--'}</td>
-                    <td><b>${l.strategy || '--'}</b></td>
-                    <td>${actionBadge}</td>
-                    <td><b style="font-family:monospace; font-size:12px;">${l.target_symbol || l.instrument || '--'}</b></td>
-                    <td style="font-family:monospace; font-weight:700;">${l.quantity || '--'}</td>
-                    <td style="font-size:11px; font-weight:700; color:#2563eb;">${l.product || '--'}</td>
-                    <td style="font-family:monospace; font-size:11px;">${l.order_id || '--'}</td>
-                    <td>${statusBadge}</td>
-                    <td style="font-size:11px; color:var(--text-secondary); max-width:240px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${l.message || ''}">${l.message || '--'}</td>
-                </tr>`;
-            }).join('');
         }
 
-        async function saveTvConfig() {
-            const urlInput = document.getElementById('tvWebhookUrlInput');
-            if (!urlInput) return;
-            const webhookUrl = urlInput.value.trim();
-            if (!webhookUrl) return;
+        async function onTvRuleInstrumentChange() {
+            const inst = (document.getElementById('tvRuleInstrument')?.value || '').trim().toUpperCase();
+            const expirySelect = document.getElementById('tvRuleExpiry');
+            if (!inst || !expirySelect) return;
+
+            const currentVal = expirySelect.value;
+            expirySelect.innerHTML = `<option value="CURRENT">⚡ Current Expiry (Nearest)</option><option value="NEXT">📅 Next Expiry</option>`;
 
             try {
-                const res = await api('/api/tv/config', 'POST', { webhook_url: webhookUrl });
-                if (res.status === 'ok') {
-                    toast('✅ Webhook URL updated successfully');
-                    fetchTvStatus(true);
+                const res = await api(`/api/expiries?index=${inst}`);
+                const dates = Array.isArray(res) ? res : (res?.dates || res?.expiries || []);
+                if (dates.length > 0) {
+                    let opts = `<option value="CURRENT" ${currentVal === 'CURRENT' ? 'selected' : ''}>⚡ Current Expiry (Nearest)</option>`;
+                    opts += `<option value="NEXT" ${currentVal === 'NEXT' ? 'selected' : ''}>📅 Next Expiry</option>`;
+                    opts += `<optgroup label="Upcoming Expiry Dates">`;
+                    dates.forEach(d => {
+                        opts += `<option value="${d}" ${currentVal === d ? 'selected' : ''}>${d}</option>`;
+                    });
+                    opts += `</optgroup>`;
+                    expirySelect.innerHTML = opts;
                 }
-            } catch (err) {
-                toast('❌ Failed to update Webhook config', 'error');
-            }
-        }
-
-        async function toggleTvEngine(enable) {
-            try {
-                const res = await api('/api/tv/config', 'POST', { enabled: Boolean(enable) });
-                if (res.status === 'ok') {
-                    toast(enable ? '🚀 TradingView Alert Poller Started' : '🛑 TradingView Alert Poller Paused');
-                    fetchTvStatus(true);
-                }
-            } catch (err) {
-                toast('❌ Error toggling TV engine', 'error');
-            }
+            } catch (e) { }
         }
 
         function resetTvRuleForm() {
             document.getElementById('tvRuleEditId').value = '';
             document.getElementById('tvRuleStratName').value = '';
             document.getElementById('tvRuleDescription').value = '';
-            document.getElementById('tvRuleMode').value = 'DIRECT';
-            document.getElementById('tvRuleInstrument').value = '';
+            document.getElementById('tvRuleMode').value = 'ATM_OPTION';
+            document.getElementById('tvRuleInstrument').value = 'NIFTY';
+            document.getElementById('tvRuleStrikeMode').value = 'ATM';
+            document.getElementById('tvRuleOptionType').value = 'AUTO';
+            document.getElementById('tvRuleTradeAction').value = 'AUTO';
+            document.getElementById('tvRuleExpiry').value = 'CURRENT';
+            document.getElementById('tvRuleRoundOff').value = 'AUTO';
+            document.getElementById('tvRuleManualSymbol').value = '';
             document.getElementById('tvRuleExchange').value = 'NFO';
             document.getElementById('tvRuleProduct').value = 'MIS';
-            document.getElementById('tvRuleOrderType').value = 'MARKET';
+            document.getElementById('tvRuleOrderType').value = 'LIMIT';
             document.getElementById('tvRuleLots').value = '1';
             document.getElementById('tvRuleQty').value = '0';
             document.getElementById('tvRuleFormTitle').textContent = '➕ Add New TradingView Strategy Rule';
+            onTvRuleModeChange();
+            onTvRuleStrikeModeChange();
+            onTvRuleInstrumentChange();
             isTvFormEditing = false;
         }
 
@@ -11315,14 +11316,24 @@
             document.getElementById('tvRuleEditId').value = rule.id || '';
             document.getElementById('tvRuleStratName').value = rule.strategy_name || '';
             document.getElementById('tvRuleDescription').value = rule.description || '';
-            document.getElementById('tvRuleMode').value = rule.mode || 'DIRECT';
+            document.getElementById('tvRuleMode').value = rule.mode || 'ATM_OPTION';
             document.getElementById('tvRuleInstrument').value = rule.instrument || '';
+            document.getElementById('tvRuleStrikeMode').value = rule.strike_mode || 'ATM';
+            document.getElementById('tvRuleOptionType').value = rule.option_type || 'AUTO';
+            document.getElementById('tvRuleTradeAction').value = rule.trade_action || 'AUTO';
+            document.getElementById('tvRuleExpiry').value = rule.expiry || 'CURRENT';
+            document.getElementById('tvRuleRoundOff').value = rule.round_off || 'AUTO';
+            document.getElementById('tvRuleManualSymbol').value = rule.manual_symbol || '';
             document.getElementById('tvRuleExchange').value = rule.exchange || 'NFO';
             document.getElementById('tvRuleProduct').value = rule.product || 'MIS';
-            document.getElementById('tvRuleOrderType').value = rule.order_type || 'MARKET';
+            document.getElementById('tvRuleOrderType').value = rule.order_type || 'LIMIT';
             document.getElementById('tvRuleLots').value = rule.lots || 1;
             document.getElementById('tvRuleQty').value = rule.quantity || 0;
             document.getElementById('tvRuleFormTitle').textContent = `✏️ Edit Rule: ${rule.strategy_name || 'DEFAULT'}`;
+
+            onTvRuleModeChange();
+            onTvRuleStrikeModeChange();
+            onTvRuleInstrumentChange();
 
             isTvFormEditing = true;
             toggleCardCollapse('tvRuleFormCollapseContent', 'tvRuleFormChevron', true);
@@ -11344,6 +11355,12 @@
                 description: document.getElementById('tvRuleDescription').value.trim(),
                 mode: document.getElementById('tvRuleMode').value,
                 instrument: document.getElementById('tvRuleInstrument').value.trim().toUpperCase(),
+                strike_mode: document.getElementById('tvRuleStrikeMode').value,
+                option_type: document.getElementById('tvRuleOptionType').value,
+                trade_action: document.getElementById('tvRuleTradeAction').value,
+                expiry: document.getElementById('tvRuleExpiry').value,
+                round_off: document.getElementById('tvRuleRoundOff').value,
+                manual_symbol: document.getElementById('tvRuleManualSymbol').value.trim().toUpperCase(),
                 exchange: document.getElementById('tvRuleExchange').value,
                 product: document.getElementById('tvRuleProduct').value,
                 order_type: document.getElementById('tvRuleOrderType').value,
@@ -11363,6 +11380,66 @@
             } catch (err) {
                 toast('❌ Failed to save strategy rule', 'error');
             }
+        }
+
+        function renderTvRulesTable(rules) {
+            const tbody = document.getElementById('tvRulesTableBody');
+            if (!tbody) return;
+
+            if (!rules || rules.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="12" style="text-align:center; color:var(--text-muted); padding:20px;">No strategy rules configured yet. Click '➕ New Rule' to add one.</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = rules.map(r => {
+                const isActive = r.active !== false;
+                const isAtm = (r.mode === 'ATM_OPTION' || r.mode === 'OPTION');
+                const strikeMode = r.strike_mode || 'ATM';
+                const strikeLabel = strikeMode.replace('_', ' ');
+
+                let modePill = `<span style="background:#f1f5f9; color:#475569; border:1px solid #cbd5e1; font-size:10px; font-weight:800; padding:2px 6px; border-radius:4px;">🎯 Direct</span>`;
+                if (isAtm) {
+                    if (strikeMode === 'MANUAL') {
+                        modePill = `<span style="background:#fef3c7; color:#92400e; border:1px solid #fde68a; font-size:10px; font-weight:800; padding:2px 6px; border-radius:4px;">✍️ ${r.manual_symbol || 'Manual'}</span>`;
+                    } else {
+                        modePill = `<span style="background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; font-size:10px; font-weight:800; padding:2px 6px; border-radius:4px;">⚡ ${strikeLabel}</span>`;
+                    }
+                }
+
+                const optType = r.option_type || 'AUTO';
+                const optTypePill = optType === 'CE' ? `<span style="color:#15803d; font-weight:800;">CE Only</span>` : (optType === 'PE' ? `<span style="color:#b91c1c; font-weight:800;">PE Only</span>` : `<span style="color:#2563eb; font-weight:700;">AUTO</span>`);
+                const targetSym = r.instrument || '<i style="color:var(--text-muted);">(From Alert)</i>';
+                const expiryDisplay = r.expiry || 'CURRENT';
+                const lotOrQty = r.quantity > 0 ? `${r.quantity} Qty` : `${r.lots || 1} Lot(s)`;
+
+                return `
+                <tr style="${!isActive ? 'opacity: 0.6; background: rgba(0,0,0,0.01);' : ''}">
+                    <td>
+                        <label class="switch" style="transform: scale(0.8); margin: 0;">
+                            <input type="checkbox" ${isActive ? 'checked' : ''} onchange="toggleTvStrategyRule('${r.id}')">
+                            <span class="slider round"></span>
+                        </label>
+                    </td>
+                    <td>
+                        <b style="font-size: 12px; color: var(--text-primary);">${r.strategy_name || 'DEFAULT'}</b>
+                    </td>
+                    <td>${modePill}</td>
+                    <td><span style="font-size:11px;">${optTypePill}</span></td>
+                    <td><b style="font-family: monospace; font-size: 12px;">${targetSym}</b></td>
+                    <td><span style="font-size:11px; font-weight:600; color:#475569;">${expiryDisplay}</span></td>
+                    <td><span style="font-weight:700; font-size:11px;">${r.exchange || 'NFO'}</span></td>
+                    <td><span style="font-weight:700; font-size:11px; color:#2563eb;">${r.product || 'MIS'}</span></td>
+                    <td><b style="font-family: monospace;">${lotOrQty}</b></td>
+                    <td><span style="font-size:11px; font-weight:700;">${r.order_type || 'LIMIT'}</span></td>
+                    <td><span style="font-size:11px; color:var(--text-secondary);">${r.description || '--'}</span></td>
+                    <td>
+                        <div style="display:flex; gap:6px;">
+                            <button onclick="editTvStrategyRule('${r.id}')" class="btn-secondary" style="padding:3px 8px; font-size:11px;" title="Edit Rule">✏️</button>
+                            <button onclick="deleteTvStrategyRule('${r.id}')" class="btn-secondary" style="padding:3px 8px; font-size:11px; color:#dc2626;" title="Delete Rule">🗑️</button>
+                        </div>
+                    </td>
+                </tr>`;
+            }).join('');
         }
 
         async function deleteTvStrategyRule(ruleId) {
