@@ -3295,6 +3295,43 @@ def api_tv_test_alert():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 
+@app.route("/api/tv/journal/summary", methods=["GET"])
+def api_tv_journal_summary():
+    """Returns trading journal summary and trade statistics."""
+    try:
+        import tv_engine
+        summary = tv_engine.get_tv_journal_summary()
+        return jsonify({"status": "ok", **summary})
+    except Exception as e:
+        logger.error(f"Error in api_tv_journal_summary: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route("/api/tv/journal/download", methods=["GET"])
+def api_tv_journal_download():
+    """Downloads tv_trading_journal.xlsx or tv_trading_journal.csv."""
+    try:
+        import tv_engine
+        fmt = request.args.get("format", "xlsx").lower()
+        if fmt == "csv":
+            filename = "tv_trading_journal.csv"
+            filepath = os.path.join(BASE_DIR, filename)
+            if not os.path.exists(filepath):
+                records = tv_engine.load_tv_journal_records()
+                tv_engine.write_tv_journal_records(records)
+            return send_from_directory(BASE_DIR, filename, as_attachment=True)
+        else:
+            filename = "tv_trading_journal.xlsx"
+            filepath = os.path.join(BASE_DIR, filename)
+            records = tv_engine.load_tv_journal_records()
+            tv_engine.write_tv_journal_records(records)
+            return send_from_directory(BASE_DIR, filename, as_attachment=True)
+    except Exception as e:
+        logger.error(f"Error downloading TradingView journal: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+
 @app.route("/")
 def serve_root():
     return send_from_directory(BASE_DIR, "index.html")
