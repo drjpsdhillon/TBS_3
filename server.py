@@ -3195,9 +3195,110 @@ def api_commodity_pending_orders():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 
+# ========================================================================
+# TRADINGVIEW WEBHOOK & STRATEGY RULE API ROUTES
+# ========================================================================
+
+@app.route("/api/tv/status", methods=["GET"])
+def api_tv_status():
+    """Returns live status of TradingView alert poller, webhook connection, rules, and logs."""
+    try:
+        import tv_engine
+        return jsonify({"status": "ok", **tv_engine.get_status()})
+    except Exception as e:
+        logger.error(f"Error in api_tv_status: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route("/api/tv/config", methods=["GET", "POST"])
+def api_tv_config():
+    """Gets or updates TradingView poller configuration (Webhook URL, interval, etc.)."""
+    import tv_engine
+    if request.method == "GET":
+        return jsonify({"status": "ok", "config": tv_engine.load_tv_config()})
+    
+    body = request.get_json(silent=True) or {}
+    cfg = tv_engine.load_tv_config()
+    cfg.update(body)
+    tv_engine.save_tv_config(cfg)
+    return jsonify({"status": "ok", "config": cfg})
+
+
+@app.route("/api/tv/strategies", methods=["GET", "POST"])
+def api_tv_strategies():
+    """Gets all strategy rules or adds/updates a strategy rule."""
+    import tv_engine
+    if request.method == "GET":
+        return jsonify({"status": "ok", "strategies": tv_engine.load_tv_strategies()})
+    
+    body = request.get_json(silent=True) or {}
+    strats = tv_engine.load_tv_strategies()
+    rule_id = body.get("id") or f"rule_{int(time.time() * 1000)}"
+    body["id"] = rule_id
+
+    # Check if updating existing
+    updated = False
+    for i, s in enumerate(strats):
+        if s.get("id") == rule_id:
+            strats[i] = body
+            updated = True
+            break
+    if not updated:
+        strats.append(body)
+
+    tv_engine.save_tv_strategies(strats)
+    return jsonify({"status": "ok", "strategies": strats, "saved_rule": body})
+
+
+@app.route("/api/tv/strategies/<rule_id>", methods=["DELETE"])
+def api_tv_delete_strategy(rule_id):
+    """Deletes a strategy rule by ID."""
+    import tv_engine
+    strats = tv_engine.load_tv_strategies()
+    strats = [s for s in strats if s.get("id") != rule_id]
+    tv_engine.save_tv_strategies(strats)
+    return jsonify({"status": "ok", "strategies": strats})
+
+
+@app.route("/api/tv/strategies/<rule_id>/toggle", methods=["POST"])
+def api_tv_toggle_strategy(rule_id):
+    """Toggles active status of a strategy rule."""
+    import tv_engine
+    strats = tv_engine.load_tv_strategies()
+    target = None
+    for s in strats:
+        if s.get("id") == rule_id:
+            s["active"] = not s.get("active", True)
+            target = s
+            break
+    tv_engine.save_tv_strategies(strats)
+    return jsonify({"status": "ok", "strategies": strats, "updated": target})
+
+
+@app.route("/api/tv/test_alert", methods=["POST"])
+def api_tv_test_alert():
+    """Simulates an alert execution test directly from index.html."""
+    try:
+        import tv_engine
+        body = request.get_json(silent=True) or {}
+        test_alert = {
+            "alert_id": f"test_{int(time.time() * 1000)}",
+            "strategy": body.get("strategy", "DEFAULT"),
+            "instrument": body.get("instrument", "NIFTY"),
+            "action": body.get("action", "BUY"),
+            "ltp": body.get("ltp", 0.0)
+        }
+        res = tv_engine.execute_tv_alert(test_alert)
+        return jsonify({"status": "ok" if res else "error", "alert": test_alert, "result": res})
+    except Exception as e:
+        logger.error(f"Error in api_tv_test_alert: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
 @app.route("/")
 def serve_root():
     return send_from_directory(BASE_DIR, "index.html")
+
 
 
 if __name__ == "__main__":

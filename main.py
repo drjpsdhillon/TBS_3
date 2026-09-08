@@ -62,10 +62,20 @@ def start_commodity():
     except Exception as e:
         print(f"❌ [Main] Error initializing commodity.py: {e}")
 
+def start_tv_engine():
+    """Starts the TradingView Webhook Poller & Strategy Order Execution engine."""
+    print("📡 [Main] Initializing tv_engine.py (TradingView Webhook Execution)...")
+    try:
+        import tv_engine
+        tv_engine.start_engine()
+        print("✅ [Main] tv_engine.py initialized and polling webhook alerts.")
+    except Exception as e:
+        print(f"❌ [Main] Error initializing tv_engine.py: {e}")
+
 def main():
     print("=" * 65)
     print("  KITE CONNECT TRADING SYSTEM — UNIFIED MASTER LAUNCHER")
-    print("  Components: server.py + pos_strngl.py + straddle_total_sl.py + commodity.py")
+    print("  Components: server.py + pos_strngl.py + straddle_total_sl.py + commodity.py + tv_engine.py")
     print("=" * 65)
 
     # 1. Initialize positional strangle engine
@@ -77,8 +87,12 @@ def main():
     # 3. Initialize commodity options & futures engine
     start_commodity()
 
-    # 4. Run Flask Web Server in main thread
+    # 4. Initialize TradingView Webhook & Strategy Execution engine
+    start_tv_engine()
+
+    # 5. Run Flask Web Server in main thread
     start_server()
 
 if __name__ == "__main__":
     main()
+
