@@ -4169,6 +4169,7 @@
                                     <div class="tv-pill-group" id="tvPillGroup_category_regular" style="display: none;">
                                         <button type="button" class="tv-pill-btn active" data-value="MARKET" onclick="setTvPill('category', 'MARKET')">MARKET</button>
                                         <button type="button" class="tv-pill-btn" data-value="LIMIT" onclick="setTvPill('category', 'LIMIT')">LIMIT</button>
+                                        <button type="button" class="tv-pill-btn" data-value="LIMIT MARKET" onclick="setTvPill('category', 'LIMIT MARKET')">LIMIT MARKET (MCX)</button>
                                         <button type="button" class="tv-pill-btn" data-value="STOP LIMIT" onclick="setTvPill('category', 'STOP LIMIT')">STOP LIMIT</button>
                                         <button type="button" class="tv-pill-btn" data-value="STOP MARKET" onclick="setTvPill('category', 'STOP MARKET')">STOP MARKET</button>
                                     </div>
@@ -11494,6 +11495,7 @@
                 const expiryContainer = document.getElementById('tvLeg_expiry_container');
                 const autoCatGroup = document.getElementById('tvPillGroup_category_autostrike');
                 const regCatGroup = document.getElementById('tvPillGroup_category_regular');
+                const currentExchange = document.getElementById('tvLeg_exchange')?.value || 'NFO';
 
                 if (autoContainer) autoContainer.style.display = isAuto ? 'block' : 'none';
                 if (expiryContainer) expiryContainer.style.display = isAuto ? 'block' : 'none';
@@ -11505,7 +11507,21 @@
                     } else {
                         autoCatGroup.style.display = 'none';
                         regCatGroup.style.display = 'flex';
-                        setTvPill('category', 'MARKET');
+                        if (currentExchange === 'MCX') {
+                            setTvPill('category', 'LIMIT MARKET');
+                        } else {
+                            setTvPill('category', 'MARKET');
+                        }
+                    }
+                }
+            }
+
+            // Exchange-driven smart category switch
+            if (param === 'exchange') {
+                const variety = document.getElementById('tvLeg_variety')?.value || 'AUTOSTRIKEPRICE';
+                if (variety !== 'AUTOSTRIKEPRICE' && variety !== 'FULLY ALGO') {
+                    if (value === 'MCX') {
+                        setTvPill('category', 'LIMIT MARKET');
                     }
                 }
             }
