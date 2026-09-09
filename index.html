@@ -5969,49 +5969,18 @@
             } catch (e) { }
         }
 
-        // Global Event Delegation for Dynamic Button Clicks & Visual Feedback
+        // Global Event Delegation for Dynamic Button Audio & Visual Feedback
         document.addEventListener('pointerdown', (e) => {
             const btn = e.target.closest('button, .btn, .btn-primary, .btn-secondary, .btn-danger, .tab-btn, .nav-tab, .btn-logout, a.btn');
-            if (!btn) return;
+            if (!btn || btn.disabled) return;
 
             // Determine tone
-            const isDanger = btn.classList.contains('btn-danger') || btn.style.color?.includes('error') || btn.style.color?.includes('danger') || btn.textContent.includes('Delete') || btn.textContent.includes('Stop') || btn.textContent.includes('Exit');
-            const isAction = btn.classList.contains('btn-primary') || btn.type === 'submit' || btn.textContent.includes('Save') || btn.textContent.includes('Run') || btn.textContent.includes('Start') || btn.textContent.includes('Calc');
+            const isDanger = btn.classList.contains('btn-danger') || btn.textContent.includes('Delete') || btn.textContent.includes('Stop');
+            const isAction = btn.classList.contains('btn-primary') || btn.textContent.includes('Save') || btn.textContent.includes('Run');
             const tone = isDanger ? 'danger' : (isAction ? 'action' : 'standard');
 
             playClickSound(tone);
-
-            // Trigger Pop Animation
-            btn.classList.remove('btn-clicked-effect');
-            void btn.offsetWidth; // Force reflow
-            btn.classList.add('btn-clicked-effect');
-
-            // Trigger Dynamic Ripple Effect at Click Coordinates
-            const rect = btn.getBoundingClientRect();
-            const ripple = document.createElement('span');
-            ripple.className = 'click-ripple';
-            const diameter = Math.max(rect.width, rect.height);
-            const radius = diameter / 2;
-
-            ripple.style.width = ripple.style.height = `${diameter}px`;
-            ripple.style.left = `${(e.clientX || (rect.left + rect.width / 2)) - rect.left - radius}px`;
-            ripple.style.top = `${(e.clientY || (rect.top + rect.height / 2)) - rect.top - radius}px`;
-
-            // If danger button, soft red tint on ripple, else white
-            if (isDanger) {
-                ripple.style.background = 'rgba(239, 68, 68, 0.4)';
-            } else if (isAction) {
-                ripple.style.background = 'rgba(255, 255, 255, 0.6)';
-            }
-
-            const existingRipple = btn.querySelector('.click-ripple');
-            if (existingRipple) existingRipple.remove();
-
-            btn.appendChild(ripple);
-            setTimeout(() => {
-                ripple.remove();
-            }, 600);
-        }, true);
+        });
 
         function toast(msg) {
             const c = document.getElementById('toastContainer');
