@@ -1073,6 +1073,48 @@ def stop_engine():
     logger.info("🛑 TV Alert Execution Engine stopped.")
 
 
+def clear_pending_alerts():
+    """Fetches all pending alerts from webhook server and immediately acknowledges/clears them."""
+    config = load_tv_config()
+    webhook_url = config.get("webhook_url", "http://127.0.0.1:80").rstrip("/")
+    cleared_count = 0
+    try:
+        # First try direct clear endpoint if available
+        try:
+            r = requests.post(f"{webhook_url}/clear-alerts", timeout=2)
+            if r.status_code == 200:
+                logger.info("🗑️ Cleared all pending alerts via /clear-alerts.")
+                last_poll_status["pending_alerts_count"] = 0
+                return True, "Alert queue cleared successfully"
+        except Exception:
+            pass
+
+        # Fallback: fetch pending alerts and acknowledge each
+        res = requests.get(f"{webhook_url}/pending-alerts", timeout=3)
+        if res.status_code == 200:
+            alerts = res.json()
+            for alert in alerts:
+                alert_id = str(alert.get("alert_id"))
+                if alert_id:
+                    try:
+                        requests.post(
+                            f"{webhook_url}/acknowledge-alert",
+                            json={"alert_id": alert_id},
+                            timeout=2
+                        )
+                        cleared_count += 1
+                    except Exception:
+                        pass
+            last_poll_status["pending_alerts_count"] = 0
+            logger.info(f"🗑️ Cleared {cleared_count} pending alerts from webhook queue.")
+            return True, f"Cleared {cleared_count} pending alerts"
+        else:
+            return False, f"Server returned status {res.status_code}"
+    except Exception as e:
+        logger.error(f"Error clearing pending alerts: {e}")
+        return False, str(e)
+
+
 def get_status():
     """Returns current status, config, strategy rules, execution logs, and trade journal stats."""
     config = load_tv_config()

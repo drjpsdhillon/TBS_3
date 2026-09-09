@@ -3271,8 +3271,16 @@ def api_tv_toggle_strategy(rule_id):
             s["active"] = not s.get("active", True)
             target = s
             break
-    tv_engine.save_tv_strategies(strats)
-    return jsonify({"status": "ok", "strategies": strats, "updated": target})
+@app.route("/api/tv/clear_pending", methods=["POST"])
+def api_tv_clear_pending():
+    """Clears all pending alerts in the webhook queue."""
+    try:
+        import tv_engine
+        success, msg = tv_engine.clear_pending_alerts()
+        return jsonify({"status": "ok" if success else "error", "message": msg})
+    except Exception as e:
+        logger.error(f"Error in api_tv_clear_pending: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 
 @app.route("/api/tv/test_alert", methods=["POST"])
