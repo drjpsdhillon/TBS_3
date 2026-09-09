@@ -1746,6 +1746,7 @@ def api_get_credentials():
         "api_secret": creds.get("api_secret", ""),
         "username": creds.get("username", ""),
         "password": creds.get("password", ""),
+        "totp_secret": creds.get("totp_secret", ""),
     })
 
 
@@ -1753,7 +1754,7 @@ def api_get_credentials():
 def api_save_credentials():
     data = request.json or {}
     creds = load_credentials()
-    for key in ("api_key", "api_secret", "username", "password"):
+    for key in ("api_key", "api_secret", "username", "password", "totp_secret"):
         if key in data:
             creds[key] = data[key]
     save_credentials(creds)
@@ -1808,7 +1809,31 @@ def api_login_auto():
             })
         except Exception:
             logger.info("Cached token expired, proceeding with fresh login.")
-            
+    # If cached token expired or missing, check if user provided TOTP Secret for 100% automated login
+    totp_secret = creds.get("totp_secret", "").strip()
+    if totp_secret and totp_secret != "YOUR_TOTP_SECRET" and creds.get("username") and creds.get("password"):
+        try:
+            import pyotp
+            totp = pyotp.TOTP(totp_secret)
+            fresh_code = str(totp.now())
+            logger.info("Generated fresh automatic TOTP from totp_secret: %s", fresh_code)
+            request_token, err = perform_manual_totp_login(api_key, creds["username"], creds["password"], fresh_code)
+            if request_token:
+                session_data = kite.generate_session(request_token, api_secret=api_secret)
+                access_token = session_data["access_token"]
+                kite.set_access_token(access_token)
+                save_session_cache(access_token)
+                kite_client = kite
+                cache_nfo_instruments()
+                start_kite_ticker()
+                return jsonify({
+                    "status": "ok",
+                    "message": f"Automatically logged in as {session_data.get('user_name')}",
+                    "user_name": session_data.get("user_name"),
+                })
+        except Exception as auto_totp_e:
+            logger.warning(f"Auto-TOTP generation failed: {auto_totp_e}")
+
     return jsonify({"status": "need_totp", "message": "Please enter TOTP to authorize new session."})
 
 
@@ -1821,13 +1846,25 @@ def api_login_totp():
         return jsonify({"status": "error", "message": "Please provide a valid 6-digit TOTP."}), 400
 
     creds = load_credentials()
+    # Check if incoming request provided fresh credentials
+    if data.get("api_key"):
+        creds["api_key"] = data["api_key"].strip()
+    if data.get("api_secret"):
+        creds["api_secret"] = data["api_secret"].strip()
+    if data.get("username"):
+        creds["username"] = data["username"].strip()
+    if data.get("password"):
+        creds["password"] = data["password"].strip()
+    
+    save_credentials(creds)
+
     api_key = creds.get("api_key", "")
     api_secret = creds.get("api_secret", "")
     username = creds.get("username", "")
     password = creds.get("password", "")
 
     if not all([api_key, api_secret, username, password]):
-        return jsonify({"status": "error", "message": "Credentials incomplete."}), 400
+        return jsonify({"status": "error", "message": "Credentials incomplete. Please check User ID, Password, API Key, and API Secret."}), 400
 
     request_token, err = perform_manual_totp_login(api_key, username, password, totp_code)
     if not request_token:
