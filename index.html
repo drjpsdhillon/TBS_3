@@ -4003,14 +4003,14 @@
                         </div>
                         <div style="font-size: 13px; font-weight: 700; color: var(--text-primary); margin-bottom: 4px; display: flex; align-items: center; gap: 6px;">
                             <span>URL:</span>
-                            <input type="text" id="tvWebhookUrlInput" value="http://127.0.0.1:3000" placeholder="e.g. http://127.0.0.1:3000 or https://xyz.loca.lt" style="flex: 1; min-width: 0; padding: 4px 8px; font-size: 12px; font-weight: 600; font-family: monospace; border: 1px solid var(--border-color); border-radius: 4px;">
+                            <input type="text" id="tvWebhookUrlInput" value="http://127.0.0.1:80" placeholder="e.g. http://127.0.0.1:80 or https://xyz.trycloudflare.com" style="flex: 1; min-width: 0; padding: 4px 8px; font-size: 12px; font-weight: 600; font-family: monospace; border: 1px solid var(--border-color); border-radius: 4px;">
                             <button onclick="saveTvConfig()" class="btn-primary" style="padding: 4px 10px; font-size: 11px; width: auto; flex-shrink: 0;">Save</button>
                         </div>
                         <!-- Previous / Recent Saved URLs Selector -->
                         <div id="tvSavedUrlsContainer" style="display: flex; align-items: center; gap: 6px; margin-bottom: 4px;">
                             <span style="font-size: 10px; font-weight: 700; color: var(--text-secondary); white-space: nowrap;">Recent URLs:</span>
                             <select id="tvPreviousUrlsSelect" onchange="onTvSelectPreviousUrl(this.value)" style="flex: 1; min-width: 0; padding: 2px 6px; font-size: 11px; font-family: monospace; border-radius: 3px; background: #ffffff; border: 1px solid #cbd5e1;">
-                                <option value="http://127.0.0.1:3000">http://127.0.0.1:3000 (Local Default)</option>
+                                <option value="http://127.0.0.1:80">http://127.0.0.1:80</option>
                             </select>
                         </div>
                         <div style="font-size: 11px; color: var(--text-secondary); display: flex; justify-content: space-between; border-top: 1px dashed #bfdbfe; padding-top: 6px; margin-top: 6px;">
@@ -11735,16 +11735,22 @@
                 // 3. Update Webhook URL input & Previous URLs dropdown
                 try {
                     const urlInput = document.getElementById('tvWebhookUrlInput');
-                    if (urlInput && document.activeElement !== urlInput && cfg.webhook_url) {
-                        urlInput.value = cfg.webhook_url;
+                    const prevSelect = document.getElementById('tvPreviousUrlsSelect');
+                    const targetUrl = cfg.webhook_url || 'http://127.0.0.1:80';
+
+                    if (urlInput && document.activeElement !== urlInput) {
+                        urlInput.value = targetUrl;
                     }
 
-                    const prevSelect = document.getElementById('tvPreviousUrlsSelect');
                     if (prevSelect) {
-                        const history = cfg.previous_webhook_urls || (cfg.webhook_url ? [cfg.webhook_url] : ['http://127.0.0.1:3000']);
-                        const currentVal = urlInput ? urlInput.value.trim() : (cfg.webhook_url || 'http://127.0.0.1:3000');
-                        prevSelect.innerHTML = history.map(u => 
-                            `<option value="${u}" ${u === currentVal ? 'selected' : ''}>${u}</option>`
+                        const history = (cfg.previous_webhook_urls && cfg.previous_webhook_urls.length > 0) 
+                            ? cfg.previous_webhook_urls 
+                            : [targetUrl, 'http://127.0.0.1:3000'];
+                        
+                        // Ensure current targetUrl is in list
+                        const uniqueHistory = Array.from(new Set([targetUrl, ...history]));
+                        prevSelect.innerHTML = uniqueHistory.map(u => 
+                            `<option value="${u}" ${u === targetUrl ? 'selected' : ''}>${u}</option>`
                         ).join('');
                     }
                 } catch (e) {}
@@ -12147,19 +12153,27 @@
         }
 
         async function saveTvConfig() {
-            const url = document.getElementById('tvWebhookUrlInput')?.value?.trim();
+            const input = document.getElementById('tvWebhookUrlInput');
+            let url = input ? input.value.trim() : '';
             if (!url) {
-                toast('⚠️ Webhook URL cannot be empty', 'warning');
+                toast('⚠️ Webhook URL cannot be empty');
                 return;
+            }
+            // Auto add http:// if missing protocol
+            if (!url.startsWith('http://') && !url.startsWith('https://')) {
+                url = 'http://' + url;
+                if (input) input.value = url;
             }
             try {
                 const res = await api('/api/tv/config', 'POST', { webhook_url: url, enabled: true });
                 if (res.status === 'ok') {
-                    toast('✅ Webhook URL configuration saved');
-                    fetchTvStatus(true);
+                    toast('✅ Webhook URL saved: ' + url);
+                    await fetchTvStatus(true);
+                } else {
+                    toast('⚠️ ' + (res.message || 'Could not save configuration'));
                 }
             } catch (e) {
-                toast('❌ Failed to save TV config', 'error');
+                toast('❌ Failed to save TV config');
             }
         }
 
