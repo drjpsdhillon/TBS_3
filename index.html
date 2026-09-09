@@ -1656,7 +1656,7 @@
                                 <input type="password" id="password" placeholder="••••••••">
                             </div>
                         </div>
-                        <button class="btn-secondary" onclick="saveCredentials()" style="margin-top: 8px;">💾 Save
+                        <button id="btnSaveCreds" class="btn-secondary" onclick="saveCredentials(event)" style="margin-top: 8px;">💾 Save
                             Credentials</button>
                         <div style="margin-bottom: 16px;"></div>
                     </div>
@@ -6068,17 +6068,45 @@
             if (data.password) document.getElementById('password').value = data.password;
         }
 
-        async function saveCredentials() {
+        async function saveCredentials(event) {
+            if (event && event.preventDefault) event.preventDefault();
+            const btn = document.getElementById('btnSaveCreds');
+            const origHtml = btn ? btn.innerHTML : '💾 Save Credentials';
+            
             const payload = {
-                api_key: document.getElementById('apiKey').value.trim(),
-                api_secret: document.getElementById('apiSecret').value.trim(),
-                username: document.getElementById('username').value.trim(),
-                password: document.getElementById('password').value.trim(),
+                api_key: (document.getElementById('apiKey')?.value || '').trim(),
+                api_secret: (document.getElementById('apiSecret')?.value || '').trim(),
+                username: (document.getElementById('username')?.value || '').trim(),
+                password: (document.getElementById('password')?.value || '').trim(),
             };
-            const res = await api('/api/credentials', 'POST', payload);
-            if (res.status === 'ok') {
-                toast('Credentials saved successfully');
-                document.getElementById('lnkGetToken').href = `https://kite.zerodha.com/connect/login?api_key=${payload.api_key}&v=3`;
+
+            if (!payload.api_key || !payload.api_secret) {
+                toast('⚠️ Please provide at least API Key and API Secret');
+                return;
+            }
+
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '⏳ Saving...';
+            }
+
+            try {
+                const res = await api('/api/credentials', 'POST', payload);
+                if (res && res.status === 'ok') {
+                    toast('✅ Credentials saved successfully!');
+                    const lnk = document.getElementById('lnkGetToken');
+                    if (lnk) lnk.href = `https://kite.zerodha.com/connect/login?api_key=${payload.api_key}&v=3`;
+                } else {
+                    toast('❌ Error saving credentials: ' + (res?.message || 'Server error'));
+                }
+            } catch (err) {
+                console.error("Save credentials error:", err);
+                toast('❌ Network error saving credentials');
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = origHtml;
+                }
             }
         }
 
