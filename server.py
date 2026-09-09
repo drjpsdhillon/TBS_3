@@ -3131,7 +3131,7 @@ def api_squareoff_commodity_strategy(strat_id):
         if not target:
             return jsonify({"status": "error", "message": f"Strategy {strat_id} not found."}), 404
 
-        commodity.squareoff_commodity_strategy(target, reason="MANUAL_SQUAREOFF", kite=kite_client)
+        commodity.squareoff_commodity_strategy(target, reason="MANUAL_SQUAREOFF")
         return jsonify({"status": "ok", "message": f"Squared off {target.get('name')}"})
     except Exception as e:
         logger.error(f"Error in api_squareoff_commodity_strategy: {e}")
