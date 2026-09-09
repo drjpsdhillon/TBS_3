@@ -496,12 +496,24 @@ def place_commodity_order(kite, sym, action, qty, product="MIS", tag="comm"):
     if last_ltp <= 0:
         last_ltp = 100.0
 
+    # Check commodity tick size (1.0 for Gold/Silver/Crude, 0.10 for NatGas, 0.05 for Base Metals)
+    is_gold_silver_crude = any(k in sym.upper() for k in ["GOLD", "SILVER", "CRUDEOIL", "CRUDE", "GOLDPETAL"])
+    is_natgas = "NAT" in sym.upper()
+    tick_sz = 1.0 if is_gold_silver_crude else (0.10 if is_natgas else 0.05)
+
     if action_upper == "SELL":
         base_p = best_bid if best_bid > 0 else last_ltp
-        order_price = round((base_p * 0.99) * 20) / 20
+        raw_p = base_p * 0.99
     else:
         base_p = best_ask if best_ask > 0 else last_ltp
-        order_price = round((base_p * 1.01) * 20) / 20
+        raw_p = base_p * 1.01
+
+    if tick_sz >= 1.0:
+        order_price = float(round(raw_p))
+    elif tick_sz >= 0.1:
+        order_price = float(round(raw_p * 10) / 10)
+    else:
+        order_price = float(round(raw_p * 20) / 20)
 
     pos_tag = f"{tag}"[:20]
     place_kwargs = {
