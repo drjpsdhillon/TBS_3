@@ -788,19 +788,25 @@ def _execute_single_leg(kite, alert, rule, leg, raw_action, ltp):
     quantity = int(leg.get("quantity", rule.get("quantity", 0)))
     qty_or_fund = leg.get("qty_or_fund", "QTY")
 
+    is_auto = variety in ["AUTOSTRIKEPRICE", "AUTOSTRIKE", "ATM_OPTION", "OPTION"]
+
     # Determine base lot size
     base_sym = instrument.split()[0].replace("FUT", "").replace("CE", "").replace("PE", "")
     lot_size = get_lot_size(base_sym)
+    if exchange in ["NSE", "BSE"] and not is_auto:
+        if lot_size <= 0:
+            lot_size = 1
+
     if quantity <= 0:
-        fresh_quantity = lots * lot_size
+        fresh_quantity = lots * (lot_size if lot_size > 0 else 1)
     else:
         fresh_quantity = quantity
 
     actual_tradingsymbol = instrument
     effective_ltp = ltp
 
-    # Resolve Option Trading Symbol for Auto Strike varieties
-    if variety in ["AUTOSTRIKEPRICE", "AUTOSTRIKE", "ATM_OPTION", "OPTION"] or "in_out_money" in leg:
+    # Resolve Option Trading Symbol ONLY for Auto Strike varieties
+    if is_auto:
         opt_sym, desc = resolve_option_tradingsymbol(kite, instrument, raw_action, leg, ltp)
         if opt_sym:
             actual_tradingsymbol = opt_sym

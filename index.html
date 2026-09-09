@@ -4243,8 +4243,8 @@
                                         </div>
                                     </div>
 
-                                    <!-- Field 7: Expiry -->
-                                    <div class="form-group" style="margin-bottom: 0;">
+                                    <!-- Field 7: Expiry (Hidden for REGULAR variety) -->
+                                    <div class="form-group" id="tvLeg_expiry_container" style="margin-bottom: 0;">
                                         <label for="tvLeg_expiry" style="font-weight: 700;">7. Expiry:</label>
                                         <select id="tvLeg_expiry" style="background: #ffffff; font-weight: 700;">
                                             <option value="CURRENT_WEEK" selected>⚡ Current Weekly (or Monthly if weekly unavailable)</option>
@@ -11491,10 +11491,12 @@
             if (param === 'variety') {
                 const isAuto = (value === 'AUTOSTRIKEPRICE' || value === 'FULLY ALGO');
                 const autoContainer = document.getElementById('tvAutoStrikeParamsContainer');
+                const expiryContainer = document.getElementById('tvLeg_expiry_container');
                 const autoCatGroup = document.getElementById('tvPillGroup_category_autostrike');
                 const regCatGroup = document.getElementById('tvPillGroup_category_regular');
 
                 if (autoContainer) autoContainer.style.display = isAuto ? 'block' : 'none';
+                if (expiryContainer) expiryContainer.style.display = isAuto ? 'block' : 'none';
                 if (autoCatGroup && regCatGroup) {
                     if (isAuto) {
                         autoCatGroup.style.display = 'flex';
@@ -11591,20 +11593,21 @@
         }
 
         function addCurrentLegToActiveTab() {
-            const variety = document.getElementById('tvLeg_variety')?.value || 'AUTOSTRIKEPRICE';
-            const category = document.getElementById('tvLeg_category')?.value || 'FULLY ALGO AUTOSTRIKE';
+            const variety = document.getElementById('tvLeg_variety')?.value || 'REGULAR';
+            const isAuto = (variety === 'AUTOSTRIKEPRICE' || variety === 'FULLY ALGO');
+            const category = document.getElementById('tvLeg_category')?.value || (isAuto ? 'FULLY ALGO AUTOSTRIKE' : 'MARKET');
             const exchange = document.getElementById('tvLeg_exchange')?.value || 'NFO';
             const product = document.getElementById('tvLeg_product')?.value || 'NRML';
             const transition = document.getElementById('tvLeg_transition')?.value || 'BUY';
             const instrument = document.getElementById('tvLeg_instrument')?.value || 'NIFTY';
-            const expiry = document.getElementById('tvLeg_expiry')?.value || 'CURRENT_WEEK';
+            const expiry = isAuto ? (document.getElementById('tvLeg_expiry')?.value || 'CURRENT_WEEK') : '';
             const qtyMode = document.getElementById('tvLeg_qty_mode')?.value || 'QTY';
             const lots = parseInt(document.getElementById('tvLeg_lots')?.value) || 1;
             const fixedQty = parseInt(document.getElementById('tvLeg_fixed_qty')?.value) || 0;
-            const inOutMoney = parseInt(document.getElementById('tvLeg_in_out_money')?.value) || 0;
-            const minusPlus = document.getElementById('tvLeg_minus_plus')?.value || '0';
-            const optionType = document.getElementById('tvLeg_option_type')?.value || 'CE';
-            const nearby = document.getElementById('tvLeg_nearby')?.value || 'AUTO';
+            const inOutMoney = isAuto ? (parseInt(document.getElementById('tvLeg_in_out_money')?.value) || 0) : 0;
+            const minusPlus = isAuto ? (document.getElementById('tvLeg_minus_plus')?.value || '0') : '0';
+            const optionType = isAuto ? (document.getElementById('tvLeg_option_type')?.value || 'CE') : '';
+            const nearby = isAuto ? (document.getElementById('tvLeg_nearby')?.value || 'AUTO') : 'AUTO';
 
             const leg = {
                 id: `leg_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
@@ -11614,15 +11617,18 @@
                 product: product,
                 transition_type: transition,
                 instrument: instrument,
-                expiry: expiry,
                 qty_or_fund: qtyMode,
                 lots: lots,
-                quantity: fixedQty,
-                in_out_money: inOutMoney,
-                minus_or_plus: minusPlus,
-                option_type: optionType,
-                nearby: nearby
+                quantity: fixedQty
             };
+
+            if (isAuto) {
+                leg.expiry = expiry;
+                leg.in_out_money = inOutMoney;
+                leg.minus_or_plus = minusPlus;
+                leg.option_type = optionType;
+                leg.nearby = nearby;
+            }
 
             if (activeTvAlertTab === 'BUY') {
                 currentTvBuyLegs.push(leg);
@@ -11670,12 +11676,14 @@
                     const isAuto = (leg.variety === 'AUTOSTRIKEPRICE' || leg.variety === 'FULLY ALGO');
                     const strikeBadge = isAuto ?
                         `<span style="background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; font-size: 10px; font-weight: 800; padding: 2px 6px; border-radius: 4px;">
-                            ${leg.minus_or_plus === '0' ? 'ATM' : (leg.minus_or_plus === '+' ? `+${leg.in_out_money} OTM` : `-${leg.in_out_money} ITM`)} ${leg.option_type}
+                            ${leg.minus_or_plus === '0' ? 'ATM' : (leg.minus_or_plus === '+' ? `+${leg.in_out_money} OTM` : `-${leg.in_out_money} ITM`)} ${leg.option_type || ''}
                         </span>` :
-                        `<span style="background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 4px;">${leg.variety}</span>`;
+                        `<span style="background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 4px;">${leg.variety || 'REGULAR'}</span>`;
 
                     const optColor = leg.option_type === 'CE' ? '#15803d' : '#b91c1c';
                     const transColor = leg.transition_type === 'BUY' ? '#16a34a' : '#dc2626';
+                    const optBadge = (isAuto && leg.option_type) ? `<span style="font-weight: 700; color: ${optColor};">${leg.option_type}</span>` : '';
+                    const expBadge = (isAuto && leg.expiry) ? `<span style="font-size: 10px; color: var(--text-secondary);">${leg.expiry}</span>` : '';
 
                     return `
                     <div class="tv-leg-card" style="display: flex; justify-content: space-between; align-items: center; background: #ffffff; border: 1px solid #e2e8f0; border-left: 4px solid ${transColor}; border-radius: 4px; padding: 8px 12px; font-size: 11px;">
@@ -11684,8 +11692,8 @@
                             <span style="background: #f8fafc; font-weight: 800; color: ${transColor}; border: 1px solid #cbd5e1; padding: 2px 6px; border-radius: 4px;">${leg.transition_type}</span>
                             <b style="font-family: monospace; font-size: 12px;">${leg.instrument}</b>
                             ${strikeBadge}
-                            <span style="font-weight: 700; color: ${optColor};">${leg.option_type}</span>
-                            <span style="font-size: 10px; color: var(--text-secondary);">${leg.expiry}</span>
+                            ${optBadge}
+                            ${expBadge}
                             <span style="background: #faf5ff; color: #6b21a8; border: 1px solid #e9d5ff; font-weight: 700; padding: 1px 6px; border-radius: 4px;">${leg.exchange}:${leg.product}</span>
                             <span style="font-weight: 800; font-family: monospace;">${leg.quantity > 0 ? `${leg.quantity} Qty` : `${leg.lots} Lot(s)`}</span>
                             <span style="font-size: 10px; color: #64748b; background: #f1f5f9; padding: 1px 5px; border-radius: 3px;">${leg.order_category}</span>
@@ -12017,12 +12025,14 @@
                             return `<span style="color: var(--text-muted); font-size: 11px;">(None)</span>`;
                         }
                         return legs.map(l => {
-                            const offset = (l.minus_or_plus === '0' || !l.minus_or_plus) ? 'ATM' : `${l.minus_or_plus || ''}${l.in_out_money || 0}`;
-                            const opt = l.option_type ? `${l.option_type}` : '';
+                            const isAuto = (l.variety === 'AUTOSTRIKEPRICE' || l.variety === 'FULLY ALGO');
+                            const offset = isAuto ? ((l.minus_or_plus === '0' || !l.minus_or_plus) ? 'ATM' : `${l.minus_or_plus || ''}${l.in_out_money || 0}`) : '';
+                            const opt = (isAuto && l.option_type) ? `${l.option_type}` : '';
                             const size = (l.quantity && Number(l.quantity) > 0) ? `${l.quantity} Qty` : `${l.lots || 1}L`;
+                            const details = [offset, opt].filter(Boolean).join(' ');
                             return `<div style="margin-bottom: 2px;">
                                 <span style="background: ${colorHex}15; color: ${colorHex}; border: 1px solid ${colorHex}40; font-size: 10px; font-weight: 800; padding: 1px 6px; border-radius: 4px; display: inline-block;">
-                                    ${l.transition_type || 'BUY'} ${l.instrument || ''} ${offset} ${opt} (${size})
+                                    ${l.transition_type || 'BUY'} ${l.instrument || ''} ${details ? details + ' ' : ''}(${size}) [${l.exchange || 'NFO'}:${l.product || 'NRML'}]
                                 </span>
                             </div>`;
                         }).join('');
