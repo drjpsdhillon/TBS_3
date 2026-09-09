@@ -3210,7 +3210,9 @@ def api_commodity_pending_orders():
 def api_tv_status():
     """Returns live status of TradingView alert poller, webhook connection, rules, and logs."""
     try:
+        import importlib
         import tv_engine
+        importlib.reload(tv_engine)
         if not tv_engine.tv_engine_running:
             tv_engine.start_engine()
         return jsonify({"status": "ok", **tv_engine.get_status()})
@@ -3300,7 +3302,9 @@ def api_tv_clear_pending():
 def api_tv_test_alert():
     """Simulates an alert execution test directly from index.html."""
     try:
+        import importlib
         import tv_engine
+        importlib.reload(tv_engine)
         body = request.get_json(silent=True) or {}
         test_alert = {
             "alert_id": f"test_{int(time.time() * 1000)}",

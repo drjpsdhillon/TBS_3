@@ -362,10 +362,10 @@ def sync_master_instruments(kite=None, force=False):
     return master_dict
 
 
-def get_instrument_meta(symbol, exchange="NFO", kite=None):
+def get_instrument_meta(symbol, exchange=None, kite=None):
     """
-    Returns metadata dict (tick_size, lot_size, instrument_token, etc.) for any tradingsymbol or underlying.
-    If not found in local cache, dynamically fetches from Kite and persists it immediately.
+    Returns metadata dict (tick_size, lot_size, instrument_token, exchange, etc.) for any tradingsymbol or underlying.
+    Automatically identifies MCX commodities and infers correct tick_size, lot_size, and exchange.
     """
     global master_instruments_cache
     if not master_instruments_cache:
@@ -380,27 +380,64 @@ def get_instrument_meta(symbol, exchange="NFO", kite=None):
     m = re.match(r"^([A-Za-z\-]+?)(?:\d|$)", sym)
     base_sym = m.group(1) if m else sym
 
+    # Auto-detect MCX commodities
+    is_mcx_commodity = any(c in base_sym for c in [
+        "GOLD", "SILVER", "CRUDEOIL", "CRUDE", "NATURALGAS", "NATGAS", 
+        "COPPER", "ZINC", "ALUM", "LEAD", "NICKEL", "COTTON", "MENTHAOIL"
+    ])
+    
+    inferred_exchange = "MCX" if is_mcx_commodity else (exchange or ("CDS" if "USDINR" in base_sym else "NFO"))
+
     for s in [base_sym, sym]:
         if s in master_instruments_cache:
             meta = dict(master_instruments_cache[s])
             meta["tradingsymbol"] = sym
+            if is_mcx_commodity:
+                meta["exchange"] = "MCX"
             return meta
 
-    # If not found in cache and Kite is connected, fetch dynamically from exchange dump
+    # Default tick sizes and lot sizes
+    default_tick = 0.05
+    default_lot = 1
+
+    if is_mcx_commodity or inferred_exchange == "MCX":
+        inferred_exchange = "MCX"
+        if any(g in base_sym for g in ["GOLD", "SILVER", "CRUDEOIL", "CRUDE"]):
+            default_tick = 1.0
+        elif "NATURALGAS" in base_sym or "NATGAS" in base_sym:
+            default_tick = 0.10
+        elif any(m in base_sym for m in ["COPPER", "ZINC", "ALUM", "LEAD", "NICKEL"]):
+            default_tick = 0.05
+        else:
+            default_tick = 1.0
+
+        mcx_lots = {
+            "CRUDEOIL": 100, "CRUDEOILM": 10, "NATURALGAS": 1250, "NATGASMINI": 250,
+            "GOLD": 100, "GOLDM": 10, "GOLDPETAL": 1, "GOLDGUINEA": 8,
+            "SILVER": 30, "SILVERM": 5, "SILVERMIC": 1, "COPPER": 2500, "ZINC": 5000, "LEAD": 5000, "ALUMINIUM": 5000
+        }
+        default_lot = mcx_lots.get(base_sym, get_lot_size(base_sym) or 1)
+    elif inferred_exchange == "CDS":
+        default_tick = 0.0025
+        default_lot = 1000
+    else:
+        default_tick = 0.05
+        default_lot = get_lot_size(base_sym) or 1
+
+    # If Kite is connected, try downloading live instrument metadata
     if kite:
         try:
-            inst_list = kite.instruments(exchange)
-            matched_item = None
+            inst_list = kite.instruments(inferred_exchange)
             for inst in inst_list:
                 ts = str(inst.get("tradingsymbol", "")).upper()
                 nm = str(inst.get("name", "")).upper()
-                tick = float(inst.get("tick_size") or (1.0 if exchange == "MCX" and "GOLD" in nm else 0.05))
-                ls = int(inst.get("lot_size") or 1)
+                tick = float(inst.get("tick_size") or (1.0 if inferred_exchange == "MCX" and "GOLD" in nm else default_tick))
+                ls = int(inst.get("lot_size") or default_lot)
 
                 info = {
                     "tradingsymbol": ts,
                     "name": nm,
-                    "exchange": exchange,
+                    "exchange": inferred_exchange,
                     "instrument_token": inst.get("instrument_token"),
                     "tick_size": tick,
                     "lot_size": ls,
@@ -408,37 +445,17 @@ def get_instrument_meta(symbol, exchange="NFO", kite=None):
                     "expiry": str(inst.get("expiry")) if inst.get("expiry") else None
                 }
                 master_instruments_cache[ts] = info
-                if ts == sym:
-                    matched_item = info
 
             save_master_instruments(master_instruments_cache)
-            if matched_item:
-                logger.info(f"💾 Discovered and cached metadata for {sym}: tick_size={matched_item['tick_size']}, lot_size={matched_item['lot_size']}")
-                return matched_item
+            if sym in master_instruments_cache:
+                return master_instruments_cache[sym]
         except Exception as e:
-            logger.warning(f"Error querying live instrument metadata for {sym} on {exchange}: {e}")
-
-    # Fallback to intelligent heuristics
-    exch = str(exchange or "NFO").upper()
-    default_tick = 0.05
-    default_lot = get_lot_size(sym) or get_lot_size(base_sym) or 1
-
-    if exch == "MCX":
-        if any(g in sym for g in ["GOLD", "SILVER", "CRUDEOIL"]):
-            default_tick = 1.0
-        elif "NATURALGAS" in sym or "NATGAS" in sym:
-            default_tick = 0.10
-        elif any(m in sym for m in ["COPPER", "ZINC", "ALUM", "LEAD", "NICKEL"]):
-            default_tick = 0.05
-        else:
-            default_tick = 1.0
-    elif exch == "CDS":
-        default_tick = 0.0025
+            logger.warning(f"Error querying live instrument metadata for {sym} on {inferred_exchange}: {e}")
 
     fallback_meta = {
         "tradingsymbol": sym,
         "name": base_sym,
-        "exchange": exch,
+        "exchange": inferred_exchange,
         "tick_size": default_tick,
         "lot_size": default_lot
     }
@@ -1039,8 +1056,9 @@ def _execute_single_leg(kite, alert, rule, leg, raw_action, ltp):
         else:
             logger.warning(f"Fallback to target instrument: {desc}")
 
-    # Fetch instrument metadata (exact tick size & broker lot size)
+    # Fetch instrument metadata (exact tick size, broker lot size, and proper exchange)
     inst_meta = get_instrument_meta(actual_tradingsymbol, exchange=exchange, kite=kite)
+    exchange = inst_meta.get("exchange", exchange)
     inst_tick_size = float(inst_meta.get("tick_size") or 0.05)
     inst_lot_size = int(inst_meta.get("lot_size") or 1)
 
@@ -1053,7 +1071,7 @@ def _execute_single_leg(kite, alert, rule, leg, raw_action, ltp):
     # Determine order transaction type (BUY or SELL)
     order_txn = "BUY" if transition_type == "BUY" else "SELL"
 
-    # Fetch Market Depth & LTP, then calculate Limit Price strictly aligned to tick size
+    # Fetch Market Depth & LTP on proper exchange, then calculate Limit Price strictly aligned to tick size
     best_bid, best_ask, market_ltp = get_best_market_depth_and_ltp(kite, exchange, actual_tradingsymbol)
     if market_ltp > 0:
         effective_ltp = market_ltp
