@@ -1070,10 +1070,12 @@ def _execute_single_leg(kite, alert, rule, leg, raw_action, ltp):
     inst_lot_size = int(inst_meta.get("lot_size") or 1)
 
     # Auto-adjust tick size for MCX commodities if needed
-    is_mcx = (exchange == "MCX") or any(c in actual_tradingsymbol for c in ["GOLD", "SILVER", "CRUDEOIL", "CRUDE"])
+    is_mcx = (exchange == "MCX") or any(c in actual_tradingsymbol for c in [
+        "GOLD", "SILVER", "CRUDEOIL", "CRUDE", "GOLDPETAL", "GOLDGUINEA", "GOLDM", "SILVERM", "SILVERMIC"
+    ])
     if is_mcx:
         exchange = "MCX"
-        if any(c in actual_tradingsymbol for c in ["GOLD", "SILVER", "CRUDEOIL", "CRUDE"]):
+        if any(c in actual_tradingsymbol for c in ["GOLD", "SILVER", "CRUDEOIL", "CRUDE", "GOLDPETAL", "GOLDGUINEA", "GOLDM", "SILVERM", "SILVERMIC"]):
             inst_tick_size = 1.0
         elif "NATURALGAS" in actual_tradingsymbol or "NATGAS" in actual_tradingsymbol:
             inst_tick_size = 0.10
@@ -1101,26 +1103,24 @@ def _execute_single_leg(kite, alert, rule, leg, raw_action, ltp):
         order_txn, best_bid, best_ask, effective_ltp, tick_size=inst_tick_size, buffer_pct=0.003
     )
 
-    # For MCX contracts with tick_size == 1.0, guarantee strict integer whole number (no decimals like .45)
-    if inst_tick_size >= 1.0:
+    # For MCX contracts with tick_size >= 1.0, guarantee strict integer whole number (no decimals like .45)
+    if inst_tick_size >= 1.0 and limit_price > 0:
         limit_price = float(int(round(limit_price)))
 
     # Order Type Determination:
-    # On MCX or when LIMIT MARKET / MARKET is specified, Kite rejects pure MARKET orders on illiquid contracts
-    # or requires marketable LIMIT. So LIMIT MARKET places a LIMIT order at marketable price.
-    is_limit_market = (order_category in ["LIMIT MARKET", "LIMIT_MARKET", "MARKET"]) or (exchange == "MCX")
-
-    if is_limit_market:
-        final_order_type = kite.ORDER_TYPE_LIMIT
-        # Fallback to pure MARKET only if no price could be calculated at all
-        if limit_price <= 0:
-            final_order_type = kite.ORDER_TYPE_MARKET
+    if order_category == "MARKET":
+        final_order_type = kite.ORDER_TYPE_MARKET
     elif order_category == "LIMIT":
         final_order_type = kite.ORDER_TYPE_LIMIT
         if limit_price <= 0 and effective_ltp > 0:
             limit_price = align_price_to_tick_size(effective_ltp, inst_tick_size)
+    elif order_category == "STOP LIMIT":
+        final_order_type = kite.ORDER_TYPE_SL
+    elif order_category == "STOP MARKET":
+        final_order_type = kite.ORDER_TYPE_SL_M
     else:
-        final_order_type = kite.ORDER_TYPE_LIMIT if limit_price > 0 else kite.ORDER_TYPE_MARKET
+        # Default AutoStrike fallback
+        final_order_type = kite.ORDER_TYPE_MARKET
 
     txn_type = kite.TRANSACTION_TYPE_BUY if order_txn == "BUY" else kite.TRANSACTION_TYPE_SELL
     prod_type = kite.PRODUCT_MIS if product == "MIS" else (kite.PRODUCT_CNC if product == "CNC" else kite.PRODUCT_NRML)
@@ -1136,8 +1136,16 @@ def _execute_single_leg(kite, alert, rule, leg, raw_action, ltp):
         "tag": f"TV_{strategy[:15].replace(' ', '_')}"
     }
     if final_order_type == kite.ORDER_TYPE_LIMIT and limit_price > 0:
-        # Guarantee clean float representation: 15475.0 instead of 15475.45
-        place_kwargs["price"] = float(int(round(limit_price))) if inst_tick_size >= 1.0 else float(limit_price)
+        final_price = float(int(round(limit_price))) if inst_tick_size >= 1.0 else float(align_price_to_tick_size(limit_price, inst_tick_size))
+        place_kwargs["price"] = final_price
+
+    # Hard enforcement for all MCX order parameters before calling Kite API
+    if exchange == "MCX" or is_mcx:
+        if inst_tick_size >= 1.0:
+            if "price" in place_kwargs and place_kwargs["price"] is not None:
+                place_kwargs["price"] = float(int(round(float(place_kwargs["price"]))))
+            if "trigger_price" in place_kwargs and place_kwargs["trigger_price"] is not None:
+                place_kwargs["trigger_price"] = float(int(round(float(place_kwargs["trigger_price"]))))
 
     logger.info(f"📤 Placing Broker Leg Order: {place_kwargs} (Tick Size: {inst_tick_size}, Lot Size: {inst_lot_size})")
     order_id = kite.place_order(**place_kwargs)
