@@ -3204,6 +3204,8 @@ def api_tv_status():
     """Returns live status of TradingView alert poller, webhook connection, rules, and logs."""
     try:
         import tv_engine
+        if not tv_engine.tv_engine_running:
+            tv_engine.start_engine()
         return jsonify({"status": "ok", **tv_engine.get_status()})
     except Exception as e:
         logger.error(f"Error in api_tv_status: {e}")
