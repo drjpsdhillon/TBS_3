@@ -24,3 +24,4 @@ venv/
 .venv/
 *.log
 *.pyc
+*.xlsx
