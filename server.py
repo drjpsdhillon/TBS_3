@@ -289,6 +289,13 @@ def cache_nfo_instruments():
                     dates_set.add(str(exp))
         expiry_dates = sorted(list(dates_set))
         logger.info(f"NFO Instruments cached: {len(instruments_cache)} options, {len(futures_cache)} futures, {len(expiry_dates)} expiry dates. Broker Lot Sizes: {lot_sizes_cache}")
+        
+        # Also sync full master instruments (MCX, NFO, BFO, NSE) for TV Engine & order executor
+        try:
+            import tv_engine
+            tv_engine.sync_master_instruments(kite_client)
+        except Exception as tv_sync_e:
+            logger.warning(f"TV engine master instruments sync warning: {tv_sync_e}")
     except Exception as e:
         logger.error(f"Error caching instruments: {e}")
 

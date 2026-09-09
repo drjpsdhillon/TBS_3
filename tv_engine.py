@@ -44,11 +44,15 @@ TV_PROCESSED_ALERTS_FILE = os.path.join(BASE_DIR, "tv_processed_alerts.json")
 TV_JOURNAL_CSV = os.path.join(BASE_DIR, "tv_trading_journal.csv")
 TV_JOURNAL_XLSX = os.path.join(BASE_DIR, "tv_trading_journal.xlsx")
 LOT_SIZES_FILE = os.path.join(BASE_DIR, "lot_sizes.json")
+MASTER_INSTRUMENTS_FILE = os.path.join(BASE_DIR, "master_instruments.json")
 
 tv_lock = threading.Lock()
 tv_journal_lock = threading.Lock()
 tv_engine_running = False
 tv_worker_thread = None
+
+master_instruments_cache = {}
+last_master_sync_date = ""
 
 # In-memory execution logs (latest 200)
 execution_logs = []
@@ -246,19 +250,224 @@ def save_tv_strategies(strategies_list):
         return False
 
 
+def load_master_instruments():
+    """Loads cached master instruments metadata (tick_size, lot_size, tokens)."""
+    global master_instruments_cache
+    if master_instruments_cache:
+        return master_instruments_cache
+    if os.path.exists(MASTER_INSTRUMENTS_FILE):
+        try:
+            with open(MASTER_INSTRUMENTS_FILE, "r", encoding="utf-8") as f:
+                master_instruments_cache = json.load(f)
+                return master_instruments_cache
+        except Exception as e:
+            logger.warning(f"Error reading {MASTER_INSTRUMENTS_FILE}: {e}")
+    return master_instruments_cache
+
+
+def save_master_instruments(data):
+    """Saves master instruments metadata dict to disk."""
+    global master_instruments_cache
+    master_instruments_cache = data
+    try:
+        with open(MASTER_INSTRUMENTS_FILE, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2)
+        return True
+    except Exception as e:
+        logger.error(f"Error saving {MASTER_INSTRUMENTS_FILE}: {e}")
+        return False
+
+
+def sync_master_instruments(kite=None, force=False):
+    """
+    Downloads full master instruments list for NFO, BFO, MCX, NSE from Kite Connect.
+    Saves tick_size, lot_size, instrument_token, and exchange details to master_instruments.json
+    and updates lot_sizes.json.
+    """
+    global master_instruments_cache, last_master_sync_date
+    today_str = datetime.now().strftime("%Y-%m-%d")
+    if not force and last_master_sync_date == today_str and master_instruments_cache:
+        return master_instruments_cache
+
+    if not kite:
+        try:
+            import server
+            kite = getattr(server, "kite_client", None)
+        except Exception:
+            pass
+
+    if not kite:
+        return load_master_instruments()
+
+    logger.info("📥 [Master Instruments] Downloading daily master instruments for NFO, BFO, MCX, NSE from Kite...")
+    master_dict = load_master_instruments() or {}
+    updated_lots = {}
+    if os.path.exists(LOT_SIZES_FILE):
+        try:
+            with open(LOT_SIZES_FILE, "r", encoding="utf-8") as f:
+                updated_lots = json.load(f)
+        except Exception:
+            pass
+
+    # Standard Commodity Defaults to ensure immediate resolution
+    default_mcx_lots = {
+        "CRUDEOIL": 100, "CRUDEOILM": 10, "NATURALGAS": 1250, "NATGASMINI": 250,
+        "GOLD": 100, "GOLDM": 10, "GOLDPETAL": 1, "GOLDGUINEA": 8,
+        "SILVER": 30, "SILVERM": 5, "SILVERMIC": 1, "COPPER": 2500, "ZINC": 5000, "LEAD": 5000, "ALUMINIUM": 5000
+    }
+    for k, v in default_mcx_lots.items():
+        updated_lots[k] = v
+
+    exchanges = ["NFO", "BFO", "MCX", "NSE"]
+    for exch in exchanges:
+        try:
+            inst_list = kite.instruments(exch)
+            for inst in inst_list:
+                tsym = str(inst.get("tradingsymbol", "")).upper()
+                name = str(inst.get("name", "")).upper()
+                tick = float(inst.get("tick_size") or (1.0 if exch == "MCX" and "GOLD" in name else 0.05))
+                ls = int(inst.get("lot_size") or 1)
+
+                info = {
+                    "tradingsymbol": tsym,
+                    "name": name,
+                    "exchange": exch,
+                    "instrument_token": inst.get("instrument_token"),
+                    "tick_size": tick,
+                    "lot_size": ls,
+                    "instrument_type": inst.get("instrument_type"),
+                    "expiry": str(inst.get("expiry")) if inst.get("expiry") else None
+                }
+
+                if tsym:
+                    master_dict[tsym] = info
+                if name:
+                    if name not in master_dict or ls > 1:
+                        master_dict[name] = info
+                    updated_lots[name] = ls
+        except Exception as e:
+            logger.warning(f"Failed to fetch master instruments for {exch}: {e}")
+
+    save_master_instruments(master_dict)
+
+    if updated_lots:
+        try:
+            with open(LOT_SIZES_FILE, "w", encoding="utf-8") as f:
+                json.dump(updated_lots, f, indent=4)
+        except Exception:
+            pass
+
+    last_master_sync_date = today_str
+    logger.info(f"✅ [Master Instruments] Cached {len(master_dict)} instruments in master_instruments.json & lot_sizes.json")
+    return master_dict
+
+
+def get_instrument_meta(symbol, exchange="NFO", kite=None):
+    """
+    Returns metadata dict (tick_size, lot_size, instrument_token, etc.) for any tradingsymbol or underlying.
+    If not found in local cache, dynamically fetches from Kite and persists it immediately.
+    """
+    global master_instruments_cache
+    if not master_instruments_cache:
+        load_master_instruments()
+
+    sym = str(symbol or "").strip().upper()
+    if sym in master_instruments_cache:
+        return master_instruments_cache[sym]
+
+    # Cleanly extract base symbol prefix (e.g. GOLDPETAL from GOLDPETAL26OCTFUT, NIFTY from NIFTY24OCT25000CE)
+    import re
+    m = re.match(r"^([A-Za-z\-]+?)(?:\d|$)", sym)
+    base_sym = m.group(1) if m else sym
+
+    for s in [base_sym, sym]:
+        if s in master_instruments_cache:
+            meta = dict(master_instruments_cache[s])
+            meta["tradingsymbol"] = sym
+            return meta
+
+    # If not found in cache and Kite is connected, fetch dynamically from exchange dump
+    if kite:
+        try:
+            inst_list = kite.instruments(exchange)
+            matched_item = None
+            for inst in inst_list:
+                ts = str(inst.get("tradingsymbol", "")).upper()
+                nm = str(inst.get("name", "")).upper()
+                tick = float(inst.get("tick_size") or (1.0 if exchange == "MCX" and "GOLD" in nm else 0.05))
+                ls = int(inst.get("lot_size") or 1)
+
+                info = {
+                    "tradingsymbol": ts,
+                    "name": nm,
+                    "exchange": exchange,
+                    "instrument_token": inst.get("instrument_token"),
+                    "tick_size": tick,
+                    "lot_size": ls,
+                    "instrument_type": inst.get("instrument_type"),
+                    "expiry": str(inst.get("expiry")) if inst.get("expiry") else None
+                }
+                master_instruments_cache[ts] = info
+                if ts == sym:
+                    matched_item = info
+
+            save_master_instruments(master_instruments_cache)
+            if matched_item:
+                logger.info(f"💾 Discovered and cached metadata for {sym}: tick_size={matched_item['tick_size']}, lot_size={matched_item['lot_size']}")
+                return matched_item
+        except Exception as e:
+            logger.warning(f"Error querying live instrument metadata for {sym} on {exchange}: {e}")
+
+    # Fallback to intelligent heuristics
+    exch = str(exchange or "NFO").upper()
+    default_tick = 0.05
+    default_lot = get_lot_size(sym) or get_lot_size(base_sym) or 1
+
+    if exch == "MCX":
+        if any(g in sym for g in ["GOLD", "SILVER", "CRUDEOIL"]):
+            default_tick = 1.0
+        elif "NATURALGAS" in sym or "NATGAS" in sym:
+            default_tick = 0.10
+        elif any(m in sym for m in ["COPPER", "ZINC", "ALUM", "LEAD", "NICKEL"]):
+            default_tick = 0.05
+        else:
+            default_tick = 1.0
+    elif exch == "CDS":
+        default_tick = 0.0025
+
+    fallback_meta = {
+        "tradingsymbol": sym,
+        "name": base_sym,
+        "exchange": exch,
+        "tick_size": default_tick,
+        "lot_size": default_lot
+    }
+    master_instruments_cache[sym] = fallback_meta
+    return fallback_meta
+
+
 def get_lot_size(symbol):
     """Resolve broker lot size for given underlying symbol."""
+    sym = str(symbol).strip().upper()
+    if sym in master_instruments_cache and master_instruments_cache[sym].get("lot_size"):
+        return int(master_instruments_cache[sym]["lot_size"])
+
     if os.path.exists(LOT_SIZES_FILE):
         try:
             with open(LOT_SIZES_FILE, "r", encoding="utf-8") as f:
                 lot_dict = json.load(f)
-                sym = str(symbol).strip().upper()
                 if sym in lot_dict:
                     return int(lot_dict[sym])
         except Exception:
             pass
-    defaults = {"NIFTY": 65, "BANKNIFTY": 30, "FINNIFTY": 60, "MIDCPNIFTY": 120, "SENSEX": 20, "CRUDEOILM": 10, "SILVERMIC": 1}
-    return defaults.get(str(symbol).strip().upper(), 1)
+
+    defaults = {
+        "NIFTY": 65, "BANKNIFTY": 30, "FINNIFTY": 60, "MIDCPNIFTY": 120, "SENSEX": 20, "BANKEX": 30,
+        "CRUDEOIL": 100, "CRUDEOILM": 10, "NATURALGAS": 1250, "NATGASMINI": 250,
+        "GOLD": 100, "GOLDM": 10, "GOLDPETAL": 1, "GOLDGUINEA": 8,
+        "SILVER": 30, "SILVERM": 5, "SILVERMIC": 1
+    }
+    return defaults.get(sym, 1)
 
 
 # ========================================================================
@@ -502,24 +711,49 @@ def get_best_market_depth_and_ltp(kite, exchange, tradingsymbol):
     return 0.0, 0.0, 0.0
 
 
-def calculate_limit_price_with_buffer(direction, best_bid, best_ask, ltp, buffer_pct=0.003):
+def align_price_to_tick_size(raw_price, tick_size=0.05):
     """
-    Calculates limit price with 0.3% buffer for high-probability instant fill:
-    - BUY: Best Offer/Ask + 0.3% (rounded to nearest 0.05 tick)
-    - SELL: Best Bid - 0.3% (rounded to nearest 0.05 tick)
+    Rounds raw_price strictly to valid exchange tick size steps.
+    e.g. raw_price=15536.25, tick_size=1.0 -> 15536.0
+    e.g. raw_price=24520.12, tick_size=0.05 -> 24520.10
+    """
+    try:
+        raw = float(raw_price)
+        tick = float(tick_size) if tick_size and float(tick_size) > 0 else 0.05
+    except Exception:
+        return float(raw_price)
+
+    steps = round(raw / tick)
+    aligned = steps * tick
+
+    if tick >= 1.0:
+        return float(round(aligned))
+    elif tick >= 0.1:
+        return float(f"{aligned:.1f}")
+    elif tick >= 0.01:
+        return float(f"{aligned:.2f}")
+    else:
+        return float(f"{aligned:.4f}")
+
+
+def calculate_limit_price_with_buffer(direction, best_bid, best_ask, ltp, tick_size=0.05, buffer_pct=0.003):
+    """
+    Calculates limit price with buffer for high-probability instant fill and aligns strictly to tick size:
+    - BUY: Best Offer/Ask + buffer_pct (aligned to tick_size)
+    - SELL: Best Bid - buffer_pct (aligned to tick_size)
     """
     if direction.upper() == "BUY":
         base_price = best_ask if best_ask > 0 else ltp
         if base_price <= 0:
             return 0.0
-        limit_price = base_price * (1.0 + buffer_pct)
-        return round(limit_price * 20) / 20
+        raw_price = base_price * (1.0 + buffer_pct)
+        return align_price_to_tick_size(raw_price, tick_size)
     else:  # SELL
         base_price = best_bid if best_bid > 0 else ltp
         if base_price <= 0:
             return 0.0
-        limit_price = base_price * (1.0 - buffer_pct)
-        return round(limit_price * 20) / 20
+        raw_price = base_price * (1.0 - buffer_pct)
+        return align_price_to_tick_size(raw_price, tick_size)
 
 
 def resolve_option_tradingsymbol(kite, index_name, action, rule=None, ltp=0.0):
@@ -745,9 +979,13 @@ def squareoff_strategy_positions(kite, rule, strategy_name):
             exit_txn = kite.TRANSACTION_TYPE_SELL if net_qty > 0 else kite.TRANSACTION_TYPE_BUY
             exit_qty = abs(net_qty)
 
-            # Get market depth for fast exit
+            # Get market depth for fast exit with proper tick size alignment
+            inst_meta = get_instrument_meta(tsym, exchange=exchange, kite=kite)
+            inst_tick_size = float(inst_meta.get("tick_size") or 0.05)
             best_bid, best_ask, ltp = get_best_market_depth_and_ltp(kite, exchange, tsym)
-            exit_limit_price = calculate_limit_price_with_buffer("SELL" if net_qty > 0 else "BUY", best_bid, best_ask, ltp, buffer_pct=0.003)
+            exit_limit_price = calculate_limit_price_with_buffer(
+                "SELL" if net_qty > 0 else "BUY", best_bid, best_ask, ltp, tick_size=inst_tick_size, buffer_pct=0.003
+            )
 
             place_kwargs = {
                 "variety": kite.VARIETY_REGULAR,
@@ -762,7 +1000,7 @@ def squareoff_strategy_positions(kite, rule, strategy_name):
             if exit_limit_price > 0:
                 place_kwargs["price"] = float(exit_limit_price)
 
-            logger.info(f"🚪 [Squareoff Position] Closing {tsym} {net_qty} Qty with {place_kwargs}")
+            logger.info(f"🚪 [Squareoff Position] Closing {tsym} {net_qty} Qty with {place_kwargs} (Tick: {inst_tick_size})")
             order_id = kite.place_order(**place_kwargs)
             closed_orders.append({"symbol": tsym, "order_id": order_id, "quantity": exit_qty, "txn": "SELL" if net_qty > 0 else "BUY"})
     except Exception as e:
@@ -789,19 +1027,6 @@ def _execute_single_leg(kite, alert, rule, leg, raw_action, ltp):
     qty_or_fund = leg.get("qty_or_fund", "QTY")
 
     is_auto = variety in ["AUTOSTRIKEPRICE", "AUTOSTRIKE", "ATM_OPTION", "OPTION"]
-
-    # Determine base lot size
-    base_sym = instrument.split()[0].replace("FUT", "").replace("CE", "").replace("PE", "")
-    lot_size = get_lot_size(base_sym)
-    if exchange in ["NSE", "BSE"] and not is_auto:
-        if lot_size <= 0:
-            lot_size = 1
-
-    if quantity <= 0:
-        fresh_quantity = lots * (lot_size if lot_size > 0 else 1)
-    else:
-        fresh_quantity = quantity
-
     actual_tradingsymbol = instrument
     effective_ltp = ltp
 
@@ -814,28 +1039,33 @@ def _execute_single_leg(kite, alert, rule, leg, raw_action, ltp):
         else:
             logger.warning(f"Fallback to target instrument: {desc}")
 
+    # Fetch instrument metadata (exact tick size & broker lot size)
+    inst_meta = get_instrument_meta(actual_tradingsymbol, exchange=exchange, kite=kite)
+    inst_tick_size = float(inst_meta.get("tick_size") or 0.05)
+    inst_lot_size = int(inst_meta.get("lot_size") or 1)
+
+    # Determine execution quantity
+    if quantity <= 0:
+        fresh_quantity = lots * (inst_lot_size if inst_lot_size > 0 else 1)
+    else:
+        fresh_quantity = quantity
+
     # Determine order transaction type (BUY or SELL)
     order_txn = "BUY" if transition_type == "BUY" else "SELL"
 
-    # Determine order type (MARKET, LIMIT, etc.)
-    configured_order_type = str(leg.get("order_type", rule.get("order_type", "MARKET"))).upper()
-    if order_category in ["MARKET", "LIMIT"]:
-        configured_order_type = order_category
-
-    # Fetch Depth & Calculate Limit Price
+    # Fetch Market Depth & LTP, then calculate Limit Price strictly aligned to tick size
     best_bid, best_ask, market_ltp = get_best_market_depth_and_ltp(kite, exchange, actual_tradingsymbol)
     if market_ltp > 0:
         effective_ltp = market_ltp
 
-    limit_price = 0.0
-    final_order_type = kite.ORDER_TYPE_LIMIT
+    limit_price = calculate_limit_price_with_buffer(
+        order_txn, best_bid, best_ask, effective_ltp, tick_size=inst_tick_size, buffer_pct=0.003
+    )
 
-    if configured_order_type == "MARKET":
+    # Always place as LIMIT order with tick-size aligned price to guarantee immediate fill
+    final_order_type = kite.ORDER_TYPE_LIMIT
+    if limit_price <= 0:
         final_order_type = kite.ORDER_TYPE_MARKET
-    else:
-        limit_price = calculate_limit_price_with_buffer(order_txn, best_bid, best_ask, effective_ltp, buffer_pct=0.003)
-        if limit_price <= 0:
-            final_order_type = kite.ORDER_TYPE_MARKET
 
     txn_type = kite.TRANSACTION_TYPE_BUY if order_txn == "BUY" else kite.TRANSACTION_TYPE_SELL
     prod_type = kite.PRODUCT_MIS if product == "MIS" else (kite.PRODUCT_CNC if product == "CNC" else kite.PRODUCT_NRML)
@@ -853,7 +1083,7 @@ def _execute_single_leg(kite, alert, rule, leg, raw_action, ltp):
     if final_order_type == kite.ORDER_TYPE_LIMIT and limit_price > 0:
         place_kwargs["price"] = float(limit_price)
 
-    logger.info(f"📤 Placing Broker Leg Order: {place_kwargs}")
+    logger.info(f"📤 Placing Broker Leg Order: {place_kwargs} (Tick Size: {inst_tick_size}, Lot Size: {inst_lot_size})")
     order_id = kite.place_order(**place_kwargs)
     logger.info(f"✅ Leg Order Placed Successfully! Broker Order ID: {order_id}")
 
@@ -1058,12 +1288,26 @@ def _worker_loop():
             last_poll_status["last_error"] = str(e)
             logger.error(f"Error in TV worker loop: {e}")
 
+        # Check for Daily 8:45 AM Master Instruments Sync
+        try:
+            now_dt = datetime.now()
+            cur_hm = now_dt.strftime("%H:%M")
+            today_date = now_dt.strftime("%Y-%m-%d")
+            if cur_hm == "08:45" and now_dt.weekday() < 5 and last_master_sync_date != today_date:
+                import server
+                kite_cli = getattr(server, "kite_client", None)
+                if kite_cli:
+                    sync_master_instruments(kite=kite_cli, force=True)
+        except Exception as sync_err:
+            logger.warning(f"Error in 8:45 AM master instruments check: {sync_err}")
+
         time.sleep(poll_interval)
 
 
 def start_engine():
     """Starts the background TV alert worker thread."""
     global tv_engine_running, tv_worker_thread
+    load_master_instruments()
     if tv_engine_running and tv_worker_thread and tv_worker_thread.is_alive():
         return
     tv_engine_running = True
