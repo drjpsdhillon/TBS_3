@@ -3286,6 +3286,20 @@ def api_tv_toggle_strategy(rule_id):
     return jsonify({"status": "ok", "rule": target, "strategies": strats})
 
 
+@app.route("/api/tv/engine/toggle", methods=["POST"])
+def api_tv_toggle_engine():
+    """Toggles TV background poller engine on or off."""
+    import tv_engine
+    body = request.get_json(silent=True) or {}
+    enabled = body.get("enabled", True)
+    cfg = tv_engine.load_tv_config()
+    cfg["enabled"] = bool(enabled)
+    tv_engine.save_tv_config(cfg)
+    if enabled:
+        tv_engine.start_engine()
+    return jsonify({"status": "ok", "enabled": cfg["enabled"]})
+
+
 @app.route("/api/tv/clear_pending", methods=["POST"])
 def api_tv_clear_pending():
     """Clears all pending alerts in the webhook queue."""
