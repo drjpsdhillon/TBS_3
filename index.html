@@ -12414,6 +12414,27 @@
             fetchCommodityStatus(true);
             fetchCommodityPnlSummary();
             fetchTvStatus(true);
+
+            // Check if URL has request_token or access_token from Zerodha redirect
+            const urlParams = new URLSearchParams(window.location.search);
+            const queryToken = urlParams.get('request_token') || urlParams.get('access_token');
+            if (queryToken) {
+                toast('⚡ Completing login from Zerodha authorization...');
+                try {
+                    const res = await api('/api/login/access-token', 'POST', { access_token: queryToken });
+                    if (res.status === 'ok') {
+                        toast('✅ Connected successfully to Zerodha Kite!');
+                        window.history.replaceState({}, document.title, window.location.pathname);
+                        showDashboard(res.user_name);
+                        return;
+                    } else {
+                        toast('❌ ' + (res.message || 'Authorization failed'), true);
+                    }
+                } catch (e) {
+                    console.error("Token auth error:", e);
+                }
+            }
+
             const res = await api('/api/login/status');
             if (res.logged_in) {
                 showDashboard(res.user_name);

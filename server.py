@@ -1855,18 +1855,48 @@ def api_login_totp():
 def api_login_access_token():
     global kite_client
     data = request.json or {}
-    access_token = data.get("access_token", "").strip()
-    if not access_token:
-        return jsonify({"status": "error", "message": "Access token required."}), 400
+    token_input = data.get("access_token", "").strip()
+    if not token_input:
+        return jsonify({"status": "error", "message": "Access token or Request token required."}), 400
+
+    # If the user pasted a full URL (e.g. http://127.0.0.1:5050/?request_token=XXXXX&action=login&status=success)
+    if "request_token=" in token_input:
+        import urllib.parse
+        parsed = urllib.parse.urlparse(token_input)
+        params = urllib.parse.parse_qs(parsed.query)
+        token_input = params.get("request_token", [token_input])[0]
+    elif "access_token=" in token_input:
+        import urllib.parse
+        parsed = urllib.parse.urlparse(token_input)
+        params = urllib.parse.parse_qs(parsed.query)
+        token_input = params.get("access_token", [token_input])[0]
 
     creds = load_credentials()
     api_key = creds.get("api_key", "")
+    api_secret = creds.get("api_secret", "")
     if not api_key:
         return jsonify({"status": "error", "message": "API key not configured."}), 400
 
-    kite = build_kite_client(api_key, creds.get("api_secret", ""), access_token)
+    kite = build_kite_client(api_key, api_secret)
+    access_token = None
+    profile = None
+
+    # Try 1: Treat token_input directly as access_token
     try:
+        kite.set_access_token(token_input)
         profile = kite.profile()
+        access_token = token_input
+    except Exception:
+        # Try 2: Treat token_input as a request_token from Zerodha login redirect
+        try:
+            session_data = kite.generate_session(token_input, api_secret=api_secret)
+            access_token = session_data["access_token"]
+            kite.set_access_token(access_token)
+            profile = kite.profile()
+        except Exception as e:
+            return jsonify({"status": "error", "message": f"Login failed with token: {e}"}), 401
+
+    if access_token and profile:
         save_session_cache(access_token)
         kite_client = kite
         cache_nfo_instruments()
@@ -1876,8 +1906,8 @@ def api_login_access_token():
             "message": f"Logged in as {profile.get('user_name')}",
             "user_name": profile.get("user_name"),
         })
-    except Exception as e:
-        return jsonify({"status": "error", "message": f"Invalid access token: {e}"}), 401
+
+    return jsonify({"status": "error", "message": "Could not authenticate with provided token."}), 401
 
 
 @app.route("/api/logout", methods=["POST"])
