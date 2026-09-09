@@ -3994,7 +3994,7 @@
             <!-- TAB 6: TRADINGVIEW WEBHOOK & STRATEGY RULES EXECUTION -->
             <div id="tabTradingView" class="tab-pane" style="margin-bottom: 28px;">
                 <!-- Top Summary: Webhook Tunnel Status & Control Banner -->
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-bottom: 20px;">
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(330px, 1fr)); gap: 16px; margin-bottom: 20px;">
                     <!-- Card 1: Webhook Poller & Tunnel Status -->
                     <div class="card" style="padding: 16px 20px; border-left: 5px solid #2563eb; background: linear-gradient(135deg, #ffffff 0%, #eff6ff 100%);">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
@@ -4003,13 +4003,13 @@
                         </div>
                         <div style="font-size: 13px; font-weight: 700; color: var(--text-primary); margin-bottom: 4px; display: flex; align-items: center; gap: 6px;">
                             <span>URL:</span>
-                            <input type="text" id="tvWebhookUrlInput" value="http://127.0.0.1:3000" placeholder="e.g. http://127.0.0.1:3000 or https://xyz.loca.lt" style="flex: 1; padding: 4px 8px; font-size: 12px; font-weight: 600; font-family: monospace; border: 1px solid var(--border-color); border-radius: 4px;">
-                            <button onclick="saveTvConfig()" class="btn-primary" style="padding: 4px 10px; font-size: 11px; width: auto;">Save</button>
+                            <input type="text" id="tvWebhookUrlInput" value="http://127.0.0.1:3000" placeholder="e.g. http://127.0.0.1:3000 or https://xyz.loca.lt" style="flex: 1; min-width: 0; padding: 4px 8px; font-size: 12px; font-weight: 600; font-family: monospace; border: 1px solid var(--border-color); border-radius: 4px;">
+                            <button onclick="saveTvConfig()" class="btn-primary" style="padding: 4px 10px; font-size: 11px; width: auto; flex-shrink: 0;">Save</button>
                         </div>
                         <!-- Previous / Recent Saved URLs Selector -->
                         <div id="tvSavedUrlsContainer" style="display: flex; align-items: center; gap: 6px; margin-bottom: 4px;">
                             <span style="font-size: 10px; font-weight: 700; color: var(--text-secondary); white-space: nowrap;">Recent URLs:</span>
-                            <select id="tvPreviousUrlsSelect" onchange="onTvSelectPreviousUrl(this.value)" style="flex: 1; padding: 2px 6px; font-size: 11px; font-family: monospace; border-radius: 3px; background: #ffffff; border: 1px solid #cbd5e1;">
+                            <select id="tvPreviousUrlsSelect" onchange="onTvSelectPreviousUrl(this.value)" style="flex: 1; min-width: 0; padding: 2px 6px; font-size: 11px; font-family: monospace; border-radius: 3px; background: #ffffff; border: 1px solid #cbd5e1;">
                                 <option value="http://127.0.0.1:3000">http://127.0.0.1:3000 (Local Default)</option>
                             </select>
                         </div>
@@ -4044,28 +4044,32 @@
                     <!-- Card 3: Instant Test Alert Simulator -->
                     <div class="card" style="padding: 16px 20px; border-left: 5px solid #d97706; background: linear-gradient(135deg, #ffffff 0%, #fffbeb 100%);">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                            <span style="font-size: 11px; font-weight: 800; color: #92400e; text-transform: uppercase; letter-spacing: 0.5px;">🧪 Alert Test Simulator (4 Action Types)</span>
+                            <span style="font-size: 11px; font-weight: 800; color: #92400e; text-transform: uppercase; letter-spacing: 0.5px;">🧪 Alert Test Simulator</span>
                             <span style="font-size: 10px; font-weight: 800; background: #fef3c7; color: #92400e; padding: 2px 6px; border-radius: 4px; border: 1px solid #fde68a;">DRY RUN / LIVE</span>
                         </div>
-                        <div style="display: grid; grid-template-columns: 1.2fr 1.2fr 1fr auto; gap: 6px; align-items: center;">
-                            <select id="tvTestStrategySelect" style="padding: 5px 6px; font-size: 11px; font-weight: 700; border-radius: 4px; border: 1px solid #fde68a; background: #ffffff;">
-                                <option value="DEFAULT">DEFAULT</option>
-                                <option value="Nifty_Option_Scalp">Nifty_Option_Scalp</option>
-                                <option value="Silvermic_15M">Silvermic_15M</option>
-                            </select>
-                            <select id="tvTestActionSelect" style="padding: 5px 6px; font-size: 11px; font-weight: 800; border-radius: 4px; border: 1px solid #fde68a; background: #ffffff;">
-                                <option value="BUY" style="color:#15803d; font-weight:800;">🟢 BUY (Fresh Long / Net Reversal)</option>
-                                <option value="BUY EXIT" style="color:#b45309; font-weight:800;">🚪 BUY EXIT (Close Long/Buy Pos)</option>
-                                <option value="SELL" style="color:#b91c1c; font-weight:800;">🔴 SELL (Fresh Short / Net Reversal)</option>
-                                <option value="SELL EXIT" style="color:#b45309; font-weight:800;">🚪 SELL EXIT (Close Short/Sell Pos)</option>
-                            </select>
-                            <input type="text" id="tvTestInstInput" value="NIFTY" placeholder="Inst" style="padding: 5px 6px; font-size: 11px; font-weight: 700; border-radius: 4px; border: 1px solid #fde68a; background: #ffffff;">
-                            <button onclick="simulateTvAlert()" class="btn-primary" style="padding: 5px 12px; font-size: 11px; width: auto; background: linear-gradient(135deg, #d97706, #b45309); border-color: #b45309;">
-                                ⚡ Send Alert
-                            </button>
+                        <div style="display: flex; flex-direction: column; gap: 6px;">
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
+                                <select id="tvTestStrategySelect" title="Select Strategy" style="padding: 5px 6px; font-size: 11px; font-weight: 700; border-radius: 4px; border: 1px solid #fde68a; background: #ffffff; min-width: 0;">
+                                    <option value="DEFAULT">DEFAULT</option>
+                                    <option value="Nifty_Option_Scalp">Nifty_Option_Scalp</option>
+                                    <option value="Silvermic_15M">Silvermic_15M</option>
+                                </select>
+                                <select id="tvTestActionSelect" title="Select Action" style="padding: 5px 6px; font-size: 11px; font-weight: 800; border-radius: 4px; border: 1px solid #fde68a; background: #ffffff; min-width: 0;">
+                                    <option value="BUY" style="color:#15803d; font-weight:800;">🟢 BUY Alert</option>
+                                    <option value="BUY EXIT" style="color:#b45309; font-weight:800;">🚪 BUY EXIT</option>
+                                    <option value="SELL" style="color:#b91c1c; font-weight:800;">🔴 SELL Alert</option>
+                                    <option value="SELL EXIT" style="color:#b45309; font-weight:800;">🚪 SELL EXIT</option>
+                                </select>
+                            </div>
+                            <div style="display: grid; grid-template-columns: 1fr auto; gap: 6px; align-items: center;">
+                                <input type="text" id="tvTestInstInput" value="NIFTY" placeholder="Instrument (e.g. NIFTY)" style="padding: 5px 8px; font-size: 11px; font-weight: 700; border-radius: 4px; border: 1px solid #fde68a; background: #ffffff; min-width: 0;">
+                                <button onclick="simulateTvAlert()" class="btn-primary" style="padding: 5px 14px; font-size: 11px; width: auto; background: linear-gradient(135deg, #d97706, #b45309); border-color: #b45309; white-space: nowrap;">
+                                    ⚡ Send Alert
+                                </button>
+                            </div>
                         </div>
                         <div style="font-size: 10px; color: var(--text-secondary); border-top: 1px dashed #fde68a; padding-top: 6px; margin-top: 6px;">
-                            Simulates incoming alert from TradingView with intelligent ±0.3% Limit pricing &amp; lot net-reversal.
+                            Test strategy execution without waiting for live TradingView webhook.
                         </div>
                     </div>
                 </div>
@@ -12185,9 +12189,9 @@
                     ltp: 24850.0
                 });
                 if (res.status === 'ok') {
-                    toast(`✅ Test Alert Executed for '${strat}'`);
+                    toast(`✅ ${res.message || `Test Alert Executed for '${strat}'`}`);
                 } else {
-                    toast(`⚠️ Test Alert Result: ${res.status || 'error'}`);
+                    toast(`⚠️ ${res.message || 'Execution failed'}`, 'error');
                 }
                 fetchTvStatus(true);
             } catch (err) {

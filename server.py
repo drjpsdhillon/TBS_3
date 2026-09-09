@@ -3288,8 +3288,14 @@ def api_tv_test_alert():
             "action": body.get("action", "BUY"),
             "ltp": body.get("ltp", 0.0)
         }
-        res = tv_engine.execute_tv_alert(test_alert)
-        return jsonify({"status": "ok" if res else "error", "alert": test_alert, "result": res})
+        success, msg, details = tv_engine.execute_tv_alert(test_alert)
+        return jsonify({
+            "status": "ok" if success else "error",
+            "message": msg,
+            "details": details,
+            "alert": test_alert,
+            "result": success
+        })
     except Exception as e:
         logger.error(f"Error in api_tv_test_alert: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500

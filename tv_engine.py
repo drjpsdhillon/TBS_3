@@ -889,12 +889,13 @@ def execute_tv_alert(alert):
     if is_alert_already_processed(alert_id):
         logger.warning(f"🛡️ [Deduplication] Alert #{alert_id} was already executed earlier. Skipping duplicate order placement.")
         last_poll_status["total_duplicates_prevented"] += 1
+        dup_msg = "Duplicate alert detected & prevented from re-executing."
         log_execution({
             "alert_id": alert_id, "strategy": strategy, "instrument": alert_inst,
             "action": action, "ltp": ltp, "status": "SKIPPED",
-            "message": "Duplicate alert detected & prevented from re-executing."
+            "message": dup_msg
         })
-        return True  # Return True so caller can acknowledge/clear from queue
+        return True, dup_msg, []  # Return True so caller can acknowledge/clear from queue
 
     logger.info(f"⚡ [TV Engine] Processing Alert #{alert_id} | Strategy: '{strategy}' | Action: {action} {alert_inst} @ {ltp}")
 
@@ -908,7 +909,7 @@ def execute_tv_alert(alert):
             "action": action, "ltp": ltp, "status": "SKIPPED", "message": msg
         })
         save_processed_alert_id(alert_id)
-        return True
+        return True, msg, []
 
     # Check Kite client connection
     if not kite:
@@ -918,19 +919,20 @@ def execute_tv_alert(alert):
             "alert_id": alert_id, "strategy": strategy, "rule_id": rule.get("id"),
             "action": action, "status": "FAILED", "message": msg
         })
-        return False
+        return False, msg, []
 
     # 3. Handle EXIT Actions (e.g. 'BUY EXIT', 'SELL EXIT', 'EXIT')
     if "EXIT" in action or action == "CLOSE":
         closed = squareoff_strategy_positions(kite, rule, strategy)
         save_processed_alert_id(alert_id)
         last_poll_status["total_executed"] += len(closed)
+        exit_msg = f"Strategy Exit Executed: Squared off {len(closed)} open position(s)."
         log_execution({
             "alert_id": alert_id, "strategy": strategy, "rule_id": rule.get("id"),
             "action": action, "status": "EXECUTED",
-            "message": f"Strategy Exit Executed: Squared off {len(closed)} open position(s)."
+            "message": exit_msg
         })
-        return True
+        return True, exit_msg, closed
 
     # 4. Check if Strategy has Multi-Leg Configuration
     buy_legs = rule.get("buy_legs", [])
@@ -973,25 +975,27 @@ def execute_tv_alert(alert):
         last_poll_status["total_executed"] += len(executed_legs)
 
         symbols_str = ", ".join(f"{l['txn']} {l['quantity']}x {l['symbol']}" for l in executed_legs)
+        success_msg = f"Successfully executed {len(executed_legs)} leg(s): {symbols_str}" + (f" | Errors: {errors}" if errors else "")
         log_execution({
             "alert_id": alert_id,
             "strategy": strategy,
             "rule_id": rule.get("id"),
             "action": action,
             "status": "EXECUTED" if not errors else "PARTIAL",
-            "message": f"Successfully executed {len(executed_legs)} leg(s): {symbols_str}" + (f" | Errors: {errors}" if errors else "")
+            "message": success_msg
         })
-        return True
+        return True, success_msg, executed_legs
     else:
+        fail_msg = f"Failed to execute legs: {'; '.join(errors)}" if errors else "No legs were executed."
         log_execution({
             "alert_id": alert_id,
             "strategy": strategy,
             "rule_id": rule.get("id"),
             "action": action,
             "status": "ERROR",
-            "message": f"Failed to execute legs: {'; '.join(errors)}"
+            "message": fail_msg
         })
-        return False
+        return False, fail_msg, []
 
 
 def _worker_loop():
@@ -1022,7 +1026,7 @@ def _worker_loop():
                     alert_id = str(alert.get("alert_id"))
 
                     # Execute alert according to strategy rules with deduplication check
-                    success = execute_tv_alert(alert)
+                    success, exec_msg, details = execute_tv_alert(alert)
 
                     # Acknowledge alert so webhook server clears it from alert_queue.json
                     if success or config.get("auto_acknowledge", True):
