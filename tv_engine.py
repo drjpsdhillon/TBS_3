@@ -635,6 +635,45 @@ def log_successful_order_journal(alert, rule, tradingsymbol, action, quantity, o
     logger.info(f"📖 Logged Trade #{trade_id} into Trading Journal (CSV & Multi-Sheet Excel)")
 
 
+def log_unmatched_alert_journal(alert, action):
+    """
+    Appends an alert entry to the Trading Journal when no matching strategy rule is found.
+    Explicitly records Strategy Name, BUY/SELL Action, Instrument, Trigger LTP, and Alert ID.
+    """
+    now = datetime.now()
+    alert_id = alert.get("alert_id") or f"alert_{int(time.time() * 1000)}"
+    strat_name = alert.get("strategy", "UNKNOWN")
+    inst = alert.get("instrument", "--")
+    ltp = alert.get("ltp", 0.0)
+
+    trade_id = f"TV_UNMATCHED_{strat_name[:8]}_{now.strftime('%Y%m%d%H%M%S')}"
+
+    new_entry = {
+        "Trade_ID": trade_id,
+        "Date": now.strftime("%Y-%m-%d"),
+        "Time": now.strftime("%H:%M:%S"),
+        "Alert_ID": str(alert_id),
+        "Strategy_Name": strat_name,
+        "Execution_Mode": "UNMATCHED",
+        "Underlying": inst,
+        "Tradingsymbol": inst,
+        "Exchange": "--",
+        "Action": str(action).upper(),
+        "Quantity": "0",
+        "Product": "--",
+        "Order_Type": "--",
+        "Trigger_LTP": f"{float(ltp):.2f}" if ltp else "0.00",
+        "Kite_Order_ID": "NO_ORDER",
+        "Execution_Status": "NO_MATCHING_STRATEGY",
+        "Remarks": f"⚠️ Alert received for strategy '{strat_name}' ({action} {inst}) but no active strategy rule is configured in tv_strategies.json"
+    }
+
+    records = load_tv_journal_records()
+    records.append(new_entry)
+    write_tv_journal_records(records)
+    logger.warning(f"⚠️ [Trading Journal] Logged Unmatched Alert #{trade_id} | Strategy: '{strat_name}' | Action: {action} | Instrument: {inst}")
+
+
 def get_tv_journal_summary():
     """Returns summary stats of the TV trading journal."""
     records = load_tv_journal_records()
@@ -670,19 +709,20 @@ def log_execution(record):
 
 
 def find_matching_rule(strategy_name):
-    """Find matching strategy rule by name (case-insensitive) or fallback to DEFAULT."""
+    """Find matching strategy rule by exact name (case-insensitive) or fallback if 'DEFAULT'."""
     rules = load_tv_strategies()
-    name = str(strategy_name).strip().lower()
+    name = str(strategy_name or "").strip().lower()
 
     # 1. Exact or lowercase match
     for rule in rules:
         if rule.get("active", True) and rule.get("strategy_name", "").strip().lower() == name:
             return rule
 
-    # 2. Fallback to active DEFAULT rule
-    for rule in rules:
-        if rule.get("active", True) and rule.get("strategy_name", "").strip().upper() == "DEFAULT":
-            return rule
+    # 2. Only fallback to DEFAULT rule if strategy name was omitted or explicitly 'DEFAULT'
+    if name in ("", "default"):
+        for rule in rules:
+            if rule.get("active", True) and rule.get("strategy_name", "").strip().upper() == "DEFAULT":
+                return rule
 
     return None
 
@@ -1202,14 +1242,23 @@ def execute_tv_alert(alert):
     # 2. Match with user rule
     rule = find_matching_rule(strategy)
     if not rule:
-        msg = f"No active rule found matching strategy '{strategy}'."
+        msg = f"⚠️ Alert received for Strategy '{strategy}' ({action} {alert_inst}), but NO MATCHING STRATEGY RULE is configured or active in tv_strategies.json!"
         logger.warning(f"⚠️ {msg}")
+        
+        # Explicitly log unmatched alert into Trade Journal so user sees it in CSV & Excel
+        log_unmatched_alert_journal(alert, action)
+
         log_execution({
-            "alert_id": alert_id, "strategy": strategy, "instrument": alert_inst,
-            "action": action, "ltp": ltp, "status": "SKIPPED", "message": msg
+            "alert_id": alert_id,
+            "strategy": strategy,
+            "instrument": alert_inst,
+            "action": action,
+            "ltp": ltp,
+            "status": "NO_MATCHING_STRATEGY",
+            "message": msg
         })
         save_processed_alert_id(alert_id)
-        return True, msg, []
+        return False, msg, []
 
     # Check Kite client connection
     if not kite:
@@ -1328,8 +1377,9 @@ def _worker_loop():
                     # Execute alert according to strategy rules with deduplication check
                     success, exec_msg, details = execute_tv_alert(alert)
 
-                    # Acknowledge alert so webhook server clears it from alert_queue.json
-                    if success or config.get("auto_acknowledge", True):
+                    # Acknowledge & delete alert from webhook queue so next alerts can be received and processed
+                    # This applies to successful trades, unmatched strategies, and skipped duplicates
+                    if success or exec_msg.startswith("⚠️ Alert received") or config.get("auto_acknowledge", True):
                         try:
                             ack_res = requests.post(
                                 f"{webhook_url}/acknowledge-alert",

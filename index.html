@@ -4484,6 +4484,19 @@
                         </table>
                     </div>
                 </div>
+
+                <!-- TradingView Alert Engine Logs Terminal Console -->
+                <div class="card" style="margin-bottom: 24px;">
+                    <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                        <div class="card-title">📜 TRADINGVIEW ALERT ENGINE LOGS</div>
+                        <span class="mtm-sync-badge" id="tvLogsLastSync">Sync: Just now</span>
+                    </div>
+                    <div>
+                        <div id="tvLogsTerminal" class="logs-terminal" style="height: 380px;">
+                            <div class="log-line">TradingView alert engine logs streaming...</div>
+                        </div>
+                    </div>
+                </div>
             </div>
 
         </div>
@@ -11882,10 +11895,39 @@
 
                     const dupBadge = document.getElementById('tvDupPreventedBadge');
                     if (dupBadge) dupBadge.textContent = `${st.total_duplicates_prevented || 0} Duplicates Blocked`;
-                } catch (e) {}
+                    // 6. Check for newly received UNMATCHED strategy alerts and popup an immediate warning toast
+                    if (logs && logs.length > 0) {
+                        const latestLog = logs[logs.length - 1];
+                        if (latestLog && latestLog.status === 'NO_MATCHING_STRATEGY') {
+                            const alertKey = `unmatched_${latestLog.alert_id || latestLog.id || latestLog.timestamp}`;
+                            if (!window._lastNotifiedUnmatched || window._lastNotifiedUnmatched !== alertKey) {
+                                window._lastNotifiedUnmatched = alertKey;
+                                toast(`⚠️ UNMATCHED TV ALERT: Strategy '${latestLog.strategy}' (${latestLog.action} ${latestLog.instrument || ''}) received but NO strategy rule found!`, 'error');
+                            }
+                        }
+                    }
 
-                // 6. Render Logs Table
-                renderTvLogsTable(logs);
+                    // 7. Render Logs Table & Live Terminal Stream
+                    renderTvLogsTable(logs);
+
+                    const tvTerminal = document.getElementById('tvLogsTerminal');
+                    const tvLastSync = document.getElementById('tvLogsLastSync');
+                    if (tvLastSync) tvLastSync.textContent = `Sync: ${new Date().toLocaleTimeString()}`;
+                    if (tvTerminal && logs && logs.length > 0) {
+                        tvTerminal.innerHTML = logs.map(l => {
+                            const isErr = l.status === 'NO_MATCHING_STRATEGY' || l.status === 'ERROR' || l.status === 'FAILED';
+                            const isWarn = l.status === 'PARTIAL' || l.status === 'SKIPPED';
+                            const color = isErr ? '#f87171' : (isWarn ? '#fbbf24' : '#4ade80');
+                            const prefix = isErr ? '❌ [MISMATCH/ERROR]' : (isWarn ? '⚠️ [NOTICE]' : '✅ [EXECUTED]');
+                            return `<div class="log-line" style="color: ${color}; padding: 2px 0;">
+                                <span style="color: #94a3b8;">${l.timestamp || ''}</span> 
+                                <b>${prefix}</b> 
+                                [${l.strategy || 'DEFAULT'}] ${l.action || ''} ${l.symbol || l.instrument || ''} 
+                                ➔ ${l.message || l.details || l.status || ''}
+                            </div>`;
+                        }).join('');
+                        tvTerminal.scrollTop = tvTerminal.scrollHeight;
+                    }
 
             } catch (err) {
                 console.error('Error fetching TV status:', err);
