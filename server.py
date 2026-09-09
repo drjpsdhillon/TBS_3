@@ -1909,6 +1909,16 @@ def api_login_access_token():
         token_input = params.get("access_token", [token_input])[0]
 
     creds = load_credentials()
+    if data.get("api_key"):
+        creds["api_key"] = data["api_key"].strip()
+    if data.get("api_secret"):
+        creds["api_secret"] = data["api_secret"].strip()
+    if data.get("username"):
+        creds["username"] = data["username"].strip()
+    if data.get("password"):
+        creds["password"] = data["password"].strip()
+    save_credentials(creds)
+
     api_key = creds.get("api_key", "")
     api_secret = creds.get("api_secret", "")
     if not api_key:

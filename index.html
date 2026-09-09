@@ -6088,20 +6088,32 @@
 
         async function doTokenLogin() {
             const token = document.getElementById('accessToken').value.trim();
-            if (!token) { toast('Enter access token', true); return; }
+            if (!token) { alert('Please enter or paste your Access Token / Request Token'); return; }
             const btn = document.getElementById('btnTokenLogin');
             const origText = btn ? btn.innerHTML : '';
             if (btn) {
                 btn.disabled = true;
-                btn.innerHTML = '<span class="btn-text">⏳ Connecting...</span>';
+                btn.innerHTML = '<span class="btn-text">⏳ Connecting with Token...</span>';
             }
 
+            const apiKey = (document.getElementById('apiKey')?.value || '').trim();
+            const apiSecret = (document.getElementById('apiSecret')?.value || '').trim();
+            const username = (document.getElementById('username')?.value || '').trim();
+            const password = (document.getElementById('password')?.value || '').trim();
+
             try {
-                const res = await api('/api/login/access-token', 'POST', { access_token: token });
+                const res = await api('/api/login/access-token', 'POST', { 
+                    access_token: token,
+                    api_key: apiKey,
+                    api_secret: apiSecret,
+                    username: username,
+                    password: password
+                });
                 if (res.status === 'ok') {
                     toast('✅ ' + (res.message || 'Connected'));
                     showDashboard(res.user_name);
                 } else {
+                    alert('Login Error: ' + (res.message || 'Login failed'));
                     toast('❌ ' + (res.message || 'Login failed'), true);
                 }
             } catch (err) {
