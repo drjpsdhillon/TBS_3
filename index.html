@@ -4219,29 +4219,30 @@
 
                                 <!-- Field 6, 7, 8: Instrument, Expiry, Quantity / Fund -->
                                 <div class="form-row" style="margin-bottom: 10px;">
-                                    <!-- Field 6: Instrument (Dropdown + Quick Add Custom Input) -->
-                                    <div class="form-group" style="margin-bottom: 0; flex: 1.1;">
+                                    <!-- Field 6: Instrument (Direct Input with Search Datalist & Quick Buttons) -->
+                                    <div class="form-group" style="margin-bottom: 0; flex: 1.2;">
                                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
-                                            <label for="tvLeg_instrument" style="font-weight: 700; margin-bottom: 0;">6. Instrument:</label>
-                                            <span style="font-size: 10px; color: #2563eb; cursor: pointer; font-weight: 700;" onclick="toggleCustomInstrumentInput()">+ Add Custom</span>
+                                            <label for="tvLeg_instrument" style="font-weight: 700; margin-bottom: 0;">6. Instrument / Tradingsymbol:</label>
                                         </div>
-                                        <select id="tvLeg_instrument" onchange="onTvLegInstrumentChange()" style="background: #ffffff; font-weight: 700; width: 100%;">
-                                            <option value="NIFTY" selected>NIFTY</option>
-                                            <option value="BANKNIFTY">BANKNIFTY</option>
-                                            <option value="FINNIFTY">FINNIFTY</option>
-                                            <option value="MIDCPNIFTY">MIDCPNIFTY</option>
-                                            <option value="SENSEX">SENSEX</option>
-                                            <option value="BANKEX">BANKEX</option>
-                                            <option value="SILVERMIC">SILVERMIC</option>
-                                            <option value="CRUDEOIL">CRUDEOIL</option>
-                                            <option value="NATURALGAS">NATURALGAS</option>
-                                            <option value="GOLDM">GOLDM</option>
-                                        </select>
-                                        <!-- Custom Instrument Input Bar -->
-                                        <div id="tvCustomInstInputRow" style="display: none; margin-top: 5px; gap: 4px;">
-                                            <input type="text" id="tvCustomInstInput" placeholder="e.g. RELIANCE, SBIN" style="flex: 1; padding: 4px 8px; font-size: 11px; font-weight: 700; text-transform: uppercase;">
-                                            <button type="button" onclick="addCustomInstrumentOption()" class="btn-primary" style="padding: 4px 8px; font-size: 11px; width: auto;">➕ Add</button>
+                                        <div style="display: flex; gap: 4px; align-items: center;">
+                                            <input type="text" id="tvLeg_instrument" list="tvLeg_instrument_list" onchange="onTvLegInstrumentChange()" oninput="onTvLegInstrumentChange()"
+                                                placeholder="e.g. NIFTY, GOLDPETAL26OCTFUT, SBIN" value="NIFTY"
+                                                style="background: #ffffff; font-weight: 700; width: 100%; text-transform: uppercase; font-family: monospace; font-size: 12px; padding: 6px 8px; border: 1px solid #cbd5e1; border-radius: 4px;">
                                         </div>
+                                        <datalist id="tvLeg_instrument_list">
+                                            <option value="NIFTY">NIFTY 50 Index</option>
+                                            <option value="BANKNIFTY">Bank Nifty Index</option>
+                                            <option value="FINNIFTY">Fin Nifty Index</option>
+                                            <option value="MIDCPNIFTY">Midcap Nifty Index</option>
+                                            <option value="SENSEX">BSE Sensex</option>
+                                            <option value="BANKEX">BSE Bankex</option>
+                                            <option value="SILVERMIC">Silver Micro (MCX)</option>
+                                            <option value="CRUDEOIL">Crude Oil (MCX)</option>
+                                            <option value="NATURALGAS">Natural Gas (MCX)</option>
+                                            <option value="GOLDM">Gold Mini (MCX)</option>
+                                            <option value="GOLDPETAL26OCTFUT">Gold Petal Oct Fut (MCX)</option>
+                                            <option value="SILVERMIC26OCTFUT">Silver Micro Oct Fut (MCX)</option>
+                                        </datalist>
                                     </div>
 
                                     <!-- Field 7: Expiry (Hidden for REGULAR variety) -->
@@ -11541,40 +11542,40 @@
 
         function ensureInstrumentInDropdown(instName) {
             if (!instName) return;
-            const instSelect = document.getElementById('tvLeg_instrument');
-            if (!instSelect) return;
             const upper = instName.trim().toUpperCase();
-            let found = false;
-            for (let i = 0; i < instSelect.options.length; i++) {
-                if (instSelect.options[i].value === upper) {
-                    found = true;
-                    break;
+            const datalist = document.getElementById('tvLeg_instrument_list');
+            if (datalist) {
+                let found = false;
+                for (let i = 0; i < datalist.options.length; i++) {
+                    if (datalist.options[i].value === upper) {
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found) {
+                    const opt = document.createElement('option');
+                    opt.value = upper;
+                    opt.textContent = upper;
+                    datalist.appendChild(opt);
                 }
             }
-            if (!found) {
-                const opt = document.createElement('option');
-                opt.value = upper;
-                opt.textContent = upper;
-                instSelect.appendChild(opt);
-            }
-        }
 
-        function addCustomInstrumentOption() {
-            const input = document.getElementById('tvCustomInstInput');
-            const val = (input?.value || '').trim().toUpperCase();
-            if (!val) {
-                toast('⚠️ Please type an instrument symbol', 'warning');
-                return;
+            const instInput = document.getElementById('tvLeg_instrument');
+            if (instInput && instInput.tagName === 'SELECT') {
+                let found = false;
+                for (let i = 0; i < instInput.options.length; i++) {
+                    if (instInput.options[i].value === upper) {
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found) {
+                    const opt = document.createElement('option');
+                    opt.value = upper;
+                    opt.textContent = upper;
+                    instInput.appendChild(opt);
+                }
             }
-            ensureInstrumentInDropdown(val);
-            const instSelect = document.getElementById('tvLeg_instrument');
-            if (instSelect) {
-                instSelect.value = val;
-                onTvLegInstrumentChange();
-            }
-            if (input) input.value = '';
-            toggleCustomInstrumentInput();
-            toast(`✅ Added instrument '${val}' to dropdown list`);
         }
 
         async function onTvLegInstrumentChange() {
@@ -11715,6 +11716,7 @@
                             <span style="font-size: 10px; color: #64748b; background: #f1f5f9; padding: 1px 5px; border-radius: 3px;">${leg.order_category}</span>
                         </div>
                         <div style="display: flex; gap: 4px;">
+                            <button type="button" onclick="loadLegIntoForm('${actionType}', ${idx})" class="btn-secondary" style="padding: 2px 6px; font-size: 11px; color: #2563eb;" title="Edit Leg in Form">✏️</button>
                             <button type="button" onclick="removeLegFromActiveTab('${actionType}', ${idx})" class="btn-secondary" style="padding: 2px 6px; font-size: 11px; color: #dc2626;" title="Remove Leg">✕</button>
                         </div>
                     </div>`;
@@ -11723,6 +11725,50 @@
 
             if (buyList) buyList.innerHTML = renderList(currentTvBuyLegs, 'BUY');
             if (sellList) sellList.innerHTML = renderList(currentTvSellLegs, 'SELL');
+        }
+
+        function loadLegIntoForm(actionType, index) {
+            const list = actionType === 'BUY' ? currentTvBuyLegs : currentTvSellLegs;
+            const leg = list && list[index];
+            if (!leg) return;
+
+            setTvPill('variety', leg.variety || 'REGULAR');
+            setTvPill('category', leg.order_category || 'MARKET');
+            setTvPill('exchange', leg.exchange || 'NFO');
+            setTvPill('product', leg.product || 'NRML');
+            setTvPill('transition', leg.transition_type || actionType);
+
+            const instInput = document.getElementById('tvLeg_instrument');
+            if (instInput) {
+                instInput.value = leg.instrument || 'NIFTY';
+                ensureInstrumentInDropdown(leg.instrument);
+            }
+
+            const expirySelect = document.getElementById('tvLeg_expiry');
+            if (expirySelect && leg.expiry) {
+                expirySelect.value = leg.expiry;
+            }
+
+            const qtyModeEl = document.getElementById('tvLeg_qty_mode');
+            if (qtyModeEl && leg.qty_or_fund) qtyModeEl.value = leg.qty_or_fund;
+
+            const lotsEl = document.getElementById('tvLeg_lots');
+            if (lotsEl) lotsEl.value = leg.lots || 1;
+
+            const fixedQtyEl = document.getElementById('tvLeg_fixed_qty');
+            if (fixedQtyEl) fixedQtyEl.value = leg.quantity || 0;
+
+            const inOutEl = document.getElementById('tvLeg_in_out_money');
+            if (inOutEl && leg.in_out_money !== undefined) inOutEl.value = String(leg.in_out_money);
+
+            setTvPill('minus_plus', leg.minus_or_plus || '0');
+            if (leg.option_type) setTvPill('option_type', leg.option_type);
+
+            const nearbyEl = document.getElementById('tvLeg_nearby');
+            if (nearbyEl && leg.nearby) nearbyEl.value = leg.nearby;
+
+            switchTvAlertTab(actionType);
+            toast(`📋 Loaded Leg #${index + 1} (${leg.instrument}) into form for editing`);
         }
 
         async function fetchTvStatus(force = false) {
@@ -11968,6 +12014,13 @@
 
             switchTvAlertTab('BUY');
             renderConfiguredLegsLists();
+
+            // Auto-populate the active form inputs with the 1st leg so user sees full configuration immediately
+            const firstLeg = (currentTvBuyLegs.length > 0) ? currentTvBuyLegs[0] : (currentTvSellLegs.length > 0 ? currentTvSellLegs[0] : null);
+            if (firstLeg) {
+                const actionForFirstLeg = (currentTvBuyLegs.length > 0) ? 'BUY' : 'SELL';
+                loadLegIntoForm(actionForFirstLeg, 0);
+            }
 
             isTvFormEditing = true;
             toggleCardCollapse('tvRuleFormCollapseContent', 'tvRuleFormChevron', true);
