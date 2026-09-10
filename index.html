@@ -1709,6 +1709,54 @@
         <!-- Standalone Immediate Login Controller (Guarantees responsiveness for credentials toggle, saving, and TOTP login) -->
         <script>
             (function() {
+                // ═══════════════════════════════════════════════════════════
+                // TAB SWITCHING CONTROLLER (EARLY DEFINITION)
+                // ═══════════════════════════════════════════════════════════
+                window.switchMainTab = function(tabId, btn) {
+                    try {
+                        var panes = document.querySelectorAll('.tab-pane');
+                        for (var i = 0; i < panes.length; i++) {
+                            panes[i].classList.remove('active');
+                        }
+                        var btns = document.querySelectorAll('.tab-btn');
+                        for (var j = 0; j < btns.length; j++) {
+                            btns[j].classList.remove('active');
+                        }
+
+                        var targetPane = document.getElementById(tabId);
+                        if (targetPane) targetPane.classList.add('active');
+
+                        if (btn && btn.classList) {
+                            btn.classList.add('active');
+                        } else {
+                            var matchingBtn = document.querySelector('.tab-btn[onclick*="' + tabId + '"]');
+                            if (matchingBtn) matchingBtn.classList.add('active');
+                        }
+
+                        // Trigger tab-specific refresh handlers if defined
+                        try {
+                            if (tabId === 'tabDashboard' && typeof window.fetchDashboardOiAnalysis === 'function') {
+                                window.fetchDashboardOiAnalysis();
+                            } else if (tabId === 'tabConfigLogs' && typeof window.fetchAndRenderStrategies === 'function') {
+                                window.fetchAndRenderStrategies();
+                            } else if (tabId === 'tabPosStrangle' && typeof window.fetchPosStrangleStatus === 'function') {
+                                window.fetchPosStrangleStatus(true);
+                            } else if (tabId === 'tabStraddleTotalSl' && typeof window.fetchStraddleStatus === 'function') {
+                                window.fetchStraddleStatus(true);
+                            } else if (tabId === 'tabCommodity' && typeof window.fetchCommodityStatus === 'function') {
+                                window.fetchCommodityStatus(true);
+                                if (typeof window.fetchCommodityPnlSummary === 'function') window.fetchCommodityPnlSummary();
+                            } else if (tabId === 'tabTradingView' && typeof window.fetchTvStatus === 'function') {
+                                window.fetchTvStatus(true);
+                            }
+                        } catch (err) {
+                            console.warn("Tab refresh hook warning:", err);
+                        }
+                    } catch (e) {
+                        console.error("switchMainTab error:", e);
+                    }
+                };
+
                 window.toggleCredFields = function() {
                     var btn = document.getElementById('credToggle');
                     var fields = document.getElementById('credFields');
@@ -1835,6 +1883,7 @@
                                 document.getElementById('loginView').style.display = 'none';
                                 document.getElementById('consoleView').style.display = 'block';
                                 document.getElementById('btnLogout').style.display = 'inline-flex';
+                                window.switchMainTab('tabDashboard');
                             }
                         } else {
                             alert('Login Error: ' + (json.message || 'TOTP Login failed'));
@@ -1875,6 +1924,20 @@
                             }
                         };
                     }
+
+                    // Direct binding for all tab buttons to guarantee instant response
+                    var tabButtons = document.querySelectorAll('.tab-nav .tab-btn');
+                    tabButtons.forEach(function(tb) {
+                        tb.addEventListener('click', function(e) {
+                            var onclickAttr = tb.getAttribute('onclick');
+                            if (onclickAttr) {
+                                var match = onclickAttr.match(/switchMainTab\(['"]([^'"]+)['"]/);
+                                if (match && match[1]) {
+                                    window.switchMainTab(match[1], tb);
+                                }
+                            }
+                        });
+                    });
 
                     window.loadCredentials();
                 }
