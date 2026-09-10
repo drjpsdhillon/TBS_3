@@ -1398,77 +1398,9 @@
             checkboxes.forEach(c => { c.checked = !allChecked; });
         }
 
-        // ═══════════════════════════════════════════════════════════════
-        // AUDIO FEEDBACK & INTERACTION SYSTEM (Web Audio API)
-        // ═══════════════════════════════════════════════════════════════
-        let audioCtx = null;
-        function getAudioContext() {
-            if (!audioCtx) {
-                const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-                if (AudioContextClass) {
-                    audioCtx = new AudioContextClass();
-                }
-            }
-            if (audioCtx && audioCtx.state === 'suspended') {
-                audioCtx.resume().catch(() => { });
-            }
-            return audioCtx;
-        }
-
         function playClickSound(tone = 'standard') {
-            try {
-                const ctx = getAudioContext();
-                if (!ctx) return;
-
-                const osc = ctx.createOscillator();
-                const gain = ctx.createGain();
-                osc.connect(gain);
-                gain.connect(ctx.destination);
-
-                const now = ctx.currentTime;
-                if (tone === 'danger') {
-                    // Lower pitched crisp click for danger / delete / stop
-                    osc.type = 'triangle';
-                    osc.frequency.setValueAtTime(320, now);
-                    osc.frequency.exponentialRampToValueAtTime(140, now + 0.06);
-                    gain.gain.setValueAtTime(0.2, now);
-                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
-                    osc.start(now);
-                    osc.stop(now + 0.06);
-                } else if (tone === 'action') {
-                    // Bright ascending click for run / save / calc
-                    osc.type = 'sine';
-                    osc.frequency.setValueAtTime(600, now);
-                    osc.frequency.exponentialRampToValueAtTime(900, now + 0.05);
-                    gain.gain.setValueAtTime(0.18, now);
-                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
-                    osc.start(now);
-                    osc.stop(now + 0.05);
-                } else {
-                    // Standard snappy haptic mechanical UI click
-                    osc.type = 'sine';
-                    osc.frequency.setValueAtTime(800, now);
-                    osc.frequency.exponentialRampToValueAtTime(280, now + 0.045);
-                    gain.gain.setValueAtTime(0.22, now);
-                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.045);
-                    osc.start(now);
-                    osc.stop(now + 0.045);
-                }
-            } catch (e) { }
+            // Audio feedback placeholder
         }
-
-        // Global Event Delegation for Dynamic Button Audio & Visual Feedback
-        document.addEventListener('pointerdown', (e) => {
-            const btn = e.target.closest('button, .btn, .btn-primary, .btn-secondary, .btn-danger, .tab-btn, .nav-tab, .btn-logout, a.btn');
-            if (!btn || btn.disabled) return;
-
-            // Determine tone
-            const isDanger = btn.classList.contains('btn-danger') || btn.textContent.includes('Delete') || btn.textContent.includes('Stop');
-            const isAction = btn.classList.contains('btn-primary') || btn.textContent.includes('Save') || btn.textContent.includes('Run');
-            const tone = isDanger ? 'danger' : (isAction ? 'action' : 'standard');
-
-            playClickSound(tone);
-        });
 
         function toast(msg) {
             const c = document.getElementById('toastContainer');
@@ -1551,14 +1483,15 @@
                 const res = await api('/api/credentials', 'POST', payload);
                 if (res && res.status === 'ok') {
                     toast('✅ Credentials saved successfully!');
+                    alert('✅ Credentials saved successfully to disk!');
                     const lnk = document.getElementById('lnkGetToken');
                     if (lnk) lnk.href = `https://kite.zerodha.com/connect/login?api_key=${payload.api_key}&v=3`;
                 } else {
-                    toast('❌ Error saving credentials: ' + (res?.message || 'Server error'));
+                    alert('❌ Error saving credentials: ' + (res?.message || 'Server error'));
                 }
             } catch (err) {
                 console.error("Save credentials error:", err);
-                toast('❌ Network error saving credentials');
+                alert('❌ Network error saving credentials: ' + err.message);
             } finally {
                 if (btn) {
                     btn.disabled = false;
@@ -1567,15 +1500,6 @@
             }
         }
 
-        async function doAutoLogin() {
-            const res = await api('/api/login/auto', 'POST');
-            if (res.status === 'ok') {
-                toast(res.message);
-                showDashboard(res.user_name);
-            } else if (res.status === 'need_totp') {
-                toast(res.message);
-            }
-        }
 
         function getTotpCode() {
             return (document.getElementById('totpInput').value || '').replace(/\D/g, '').trim();
@@ -1583,24 +1507,39 @@
 
         async function doTotpLogin() {
             const code = getTotpCode();
-            if (code.length !== 6) { toast('Enter 6 digit TOTP', true); return; }
+            if (code.length !== 6) { 
+                alert('Please enter a 6-digit TOTP code'); 
+                return; 
+            }
             const btn = document.getElementById('btnTotpLogin');
             const origText = btn ? btn.innerHTML : '';
             if (btn) {
                 btn.disabled = true;
-                btn.innerHTML = '<span class="btn-text">⏳ Verifying TOTP with Zerodha...</span>';
+                btn.innerHTML = '<span class="btn-text">⏳ Logging in with Zerodha...</span>';
             }
 
+            // Always pick current field values to ensure fresh credentials are used
+            const apiKey = (document.getElementById('apiKey')?.value || '').trim();
+            const apiSecret = (document.getElementById('apiSecret')?.value || '').trim();
+            const username = (document.getElementById('username')?.value || '').trim();
+            const password = (document.getElementById('password')?.value || '').trim();
+
             try {
-                const res = await api('/api/login/totp', 'POST', { totp: code });
+                const res = await api('/api/login/totp', 'POST', { 
+                    totp: code,
+                    api_key: apiKey,
+                    api_secret: apiSecret,
+                    username: username,
+                    password: password
+                });
                 if (res.status === 'ok') {
                     toast('✅ ' + (res.message || 'Login successful'));
                     showDashboard(res.user_name);
                 } else {
-                    toast('❌ ' + (res.message || 'TOTP Login failed'), true);
+                    alert('Login Error: ' + (res.message || 'TOTP Login failed'));
                 }
             } catch (err) {
-                toast('❌ Login error: ' + err.message, true);
+                alert('Network Error: ' + err.message);
             } finally {
                 if (btn) {
                     btn.disabled = false;
@@ -1637,20 +1576,32 @@
 
         async function doTokenLogin() {
             const token = document.getElementById('accessToken').value.trim();
-            if (!token) { toast('Enter access token', true); return; }
+            if (!token) { alert('Please enter or paste your Access Token / Request Token'); return; }
             const btn = document.getElementById('btnTokenLogin');
             const origText = btn ? btn.innerHTML : '';
             if (btn) {
                 btn.disabled = true;
-                btn.innerHTML = '<span class="btn-text">⏳ Connecting...</span>';
+                btn.innerHTML = '<span class="btn-text">⏳ Connecting with Token...</span>';
             }
 
+            const apiKey = (document.getElementById('apiKey')?.value || '').trim();
+            const apiSecret = (document.getElementById('apiSecret')?.value || '').trim();
+            const username = (document.getElementById('username')?.value || '').trim();
+            const password = (document.getElementById('password')?.value || '').trim();
+
             try {
-                const res = await api('/api/login/access-token', 'POST', { access_token: token });
+                const res = await api('/api/login/access-token', 'POST', { 
+                    access_token: token,
+                    api_key: apiKey,
+                    api_secret: apiSecret,
+                    username: username,
+                    password: password
+                });
                 if (res.status === 'ok') {
                     toast('✅ ' + (res.message || 'Connected'));
                     showDashboard(res.user_name);
                 } else {
+                    alert('Login Error: ' + (res.message || 'Login failed'));
                     toast('❌ ' + (res.message || 'Login failed'), true);
                 }
             } catch (err) {
